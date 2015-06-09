@@ -123,6 +123,8 @@ def decode_packet(reader):
     packet_time = float(packet_time)
     packet_nanotime = float(packet_nanotime)
     packet_timestamp = datetime.fromtimestamp(packet_time + (packet_nanotime / 1000000000))
+    if packet_format != 1:  # pragma: no cover
+        raise PacketError("Unknown packet format {}".format(packet_format))
     # Convert the packet size from units of 32bit words to bytes.
     packet_size *= 4
     logger.debug("Decoding packet %s (%s bytes)", packet_type, packet_size)
@@ -147,7 +149,6 @@ def decode_packet(reader):
     return Packet(
         type = packet_type,
         id = packet_id,
-        format = packet_format,
         timestamp = packet_timestamp,
         fields = fields,
     )
