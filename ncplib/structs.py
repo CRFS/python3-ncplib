@@ -1,7 +1,7 @@
 import struct
 
 
-HEADER_STRUCT = struct.Struct("<4s4sIIIIII")
+HEADER_STRUCT = struct.Struct("<4s4sIIIII4s")
 
 FIELD_STRUCT = struct.Struct("<4s3sBI")
 
