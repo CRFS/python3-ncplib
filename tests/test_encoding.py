@@ -23,5 +23,5 @@ class EncodingTestCase(TestCase):
 
     def testReEncodePacket(self):
         packet = decode_packet(TEST_PACKET_ENCODED)
-        encoded_packet = encode_packet(packet)
+        encoded_packet = encode_packet(*packet)
         self.assertEqual(encoded_packet, TEST_PACKET_ENCODED)

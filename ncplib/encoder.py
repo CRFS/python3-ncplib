@@ -1,24 +1,58 @@
 import sys
 from array import array
+from functools import partial
 from collections.abc import Mapping
 from math import ceil
 from datetime import datetime, timezone
 
 from ncplib.constants import PACKET_HEADER_SIZE, PACKET_FIELD_HEADER_SIZE, PACKET_PARAM_HEADER_SIZE, PACKET_FOOTER_SIZE, PACKET_HEADER_HEADER, PACKET_FOOTER_HEADER, PacketFormat, ParamType
-from ncplib.packets import Packet, RawParamValue
+from ncplib.packets import RawParamValue
 
 
 # Type checking.
 
-def _is_bytes(value):
-    return isinstance(value, (bytes, bytearray, memoryview))
+def _require_type(name, value, type, type_desc=None):  # pragma: no cover
+    if not isinstance(value, type):
+        raise TypeError("{} '{}' should be of type {}".format(name, value, type_desc or type.__name__))
 
 
-def _is_key(value):
-    return _is_bytes(value) and len(value) == 4
+_require_bytes = partial(_require_type, type=(bytes, bytearray, memoryview), type_desc="bytes")
+
+
+_require_int = partial(_require_type, type=int)
+
+
+def _require_key(name, value):  # pragma: no cover
+    _require_bytes(name, value)
+    if len(value) != 4:
+        raise ValueError("{} '{}' should be a four-byte value".format(name, value))
+
+
+def _require_timestamp(name, value):  # pragma: no cover
+    _require_type(name, value, datetime)
+    if value.tzinfo is None:
+        raise ValueError("{} '{}' should be timezone-aware".format(name, value))
 
 
 # Param serialization.
+
+def _serialize_param_value_raw(param_value):
+    _require_bytes("Raw param value", param_value.value)
+    _require_int("Raw param type ID", param_value.type_id)
+    return param_value.type_id, param_value.value
+
+
+def _serialize_param_value_int(param_value):
+    return ParamType.i32.value, param_value.to_bytes(4, "little", signed=True)
+
+
+def _serialize_param_value_str(param_value):
+    return ParamType.string.value, param_value.encode("latin1", errors="ignore") + b"\x00"
+
+
+def _serialize_param_value_bytes(param_value):
+    return ParamType.raw.value, param_value
+
 
 _PARAM_VALUE_ARRAY_TYPES = {
     "B": ParamType.u8array,
@@ -33,27 +67,34 @@ _PARAM_VALUE_ARRAY_TYPES = {
 def _serialize_param_value_array(param_value):
     try:
         param_type = _PARAM_VALUE_ARRAY_TYPES[param_value.typecode]
-    except KeyError:
+    except KeyError:  # pragma: no cover
         raise TypeError("Unsupported param value type (array[{}])".format(param_value.typecode))
     # Convert the value to bytes.
     if sys.byteorder == "big":
         param_value = param_value[:].byteswap()
     # All done!
-    return param_value.tobytes(), param_type.value
+    return param_type.value, param_value.tobytes()
+
+
+_PARAM_VALUE_SERIALIZERS = {
+    RawParamValue: _serialize_param_value_raw,
+    int: _serialize_param_value_int,
+    str: _serialize_param_value_str,
+    bytes: _serialize_param_value_bytes,
+    bytearray: _serialize_param_value_bytes,
+    memoryview: _serialize_param_value_bytes,
+    array: _serialize_param_value_array,
+}
 
 
 def _serialize_param_value(param_value):
-    if isinstance(param_value, RawParamValue):
-        return param_value
-    if isinstance(param_value, int):
-        return param_value.to_bytes(4, "little", signed=True), ParamType.i32.value,
-    if isinstance(param_value, str):
-        return param_value.encode("latin1", errors="ignore") + b"\x00", ParamType.string.value
-    if _is_bytes(param_value):
-        return param_value, ParamType.raw.value
-    if isinstance(param_value, array):
-        return _serialize_param_value_array(param_value)
-    raise TypeError("Unsupported param value type ({})".format(type(param_value)))
+    try:
+        param_value_serializer = _PARAM_VALUE_SERIALIZERS[type(param_value)]
+    except KeyError:  # pragma: no cover
+        raise TypeError("Unsupported param value type ({})".format(type(param_value).__name__))
+    param_type_id, serialized_param_value = param_value_serializer(param_value)
+    param_size = int(ceil((PACKET_PARAM_HEADER_SIZE + len(serialized_param_value)) / 4) * 4)  # Round up size to nearest 4 bytes.
+    return param_size, param_type_id, serialized_param_value
 
 
 # Encoders.
@@ -73,7 +114,7 @@ def _encode_timestamp(buf, value):
 
 
 def _encode_param(buf, param_name, param_size, param_type_id, serialized_param_value):
-    assert _is_key(param_name), "Param name should be a 4 byte key"
+    _require_key("Param name", param_name)
     buf[:4] = param_name
     _encode_size(buf[4:7], param_size)
     _encode_uint(buf[7:8], param_type_id)
@@ -81,7 +122,7 @@ def _encode_param(buf, param_name, param_size, param_type_id, serialized_param_v
 
 
 def _encode_field(buf, field_name, field_size, field_id, serialized_params):
-    assert _is_key(field_name), "Field name should be a 4 byte key"
+    _require_key("Field name", field_name)
     buf[:4] = field_name
     _encode_size(buf[4:7], field_size)
     _encode_uint(buf[8:12], field_id)
@@ -92,41 +133,39 @@ def _encode_field(buf, field_name, field_size, field_id, serialized_params):
         field_write_position += param_size
 
 
-def encode_packet(packet):
-    assert isinstance(packet, Packet)
-    assert _is_key(packet.type), "Packet type should be a 4 byte key"
-    assert isinstance(packet.id, int), "Packet ID should be an int"
-    assert isinstance(packet.timestamp, datetime) and packet.timestamp.tzinfo is not None, "Packet timestamp should be a timezone-aware datetime"
-    assert _is_key(packet.info), "Packet info should be a 4 byte value"
-    assert isinstance(packet.fields, Mapping), "Packet fields should be a Mapping"
+def encode_packet(packet_type, packet_id, packet_timestamp, packet_info, packet_fields):
+    _require_key("Packet type", packet_type)
+    _require_int("Packet ID", packet_id)
+    _require_timestamp("Packet timestamp", packet_timestamp)
+    _require_key("Packet info", packet_info)
+    _require_type("Packet fields", packet_fields, Mapping)
     # Serialize the param values.
     packet_size = PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE
     serialized_fields = []
-    for field_name, params in packet.fields.items():
+    for field_name, params in packet_fields.items():
         field_size = PACKET_FIELD_HEADER_SIZE
         serialized_params = []
         for param_name, param_value in params.items():
-            serialized_param_value, param_type_id = _serialize_param_value(param_value)
-            param_size = int(ceil((PACKET_PARAM_HEADER_SIZE + len(serialized_param_value)) / 4) * 4)  # Round up size to nearest 4 bytes.
+            param_size, param_type_id, serialized_param_value = _serialize_param_value(param_value)
             serialized_params.append((param_name, param_size, param_type_id, serialized_param_value))
             field_size += param_size
-        serialized_fields.append((field_name, serialized_params, field_size))
+        serialized_fields.append((field_name, field_size, serialized_params))
         packet_size += field_size
     # Create a buffer for the packet.
     packet_data = bytearray(packet_size)
     buf = memoryview(packet_data)
     # Encode the header.
     buf[:4] = PACKET_HEADER_HEADER
-    buf[4:8] = packet.type
+    buf[4:8] = packet_type
     _encode_size(buf[8:12], packet_size)
-    _encode_uint(buf[12:16], packet.id)
+    _encode_uint(buf[12:16], packet_id)
     _encode_uint(buf[16:20], PacketFormat.standard.value)
-    _encode_timestamp(buf[20:28], packet.timestamp)
-    buf[28:32] = packet.info
+    _encode_timestamp(buf[20:28], packet_timestamp)
+    buf[28:32] = packet_info
     # Encode the fields.
     field_write_position = PACKET_HEADER_SIZE
     for field_id, serialized_field in enumerate(serialized_fields):
-        field_name, serialized_params, field_size = serialized_field
+        field_name, field_size, serialized_params = serialized_field
         _encode_field(buf[field_write_position:field_write_position+field_size], field_name, field_size, field_id, serialized_params)
         field_write_position += field_size
     # Encode the footer.

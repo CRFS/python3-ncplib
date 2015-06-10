@@ -79,7 +79,7 @@ def _decode_field(field_data):
     logger.debug("Decoding field %s (%s bytes)", field_name, field_size)
     # Unpack the params.
     param_data = field_data[PACKET_FIELD_HEADER_SIZE:]
-    param_data_size = field_size - PACKET_FIELD_HEADER_SIZE
+    param_data_size = len(param_data)
     param_read_position = 0
     params = OrderedDict()
     while param_read_position < param_data_size:
@@ -116,7 +116,7 @@ def decode_packet(packet_data):
         raise DecodeError("Malformed packet footer header {} (expected)".format(packet_footer_header, PACKET_FOOTER_HEADER))
     # Unpack all fields.
     field_data = packet_data[PACKET_HEADER_SIZE:packet_size-PACKET_FOOTER_SIZE]
-    field_data_size = packet_size - PACKET_HEADER_SIZE - PACKET_FOOTER_SIZE
+    field_data_size = len(field_data)
     field_read_position = 0
     fields = OrderedDict()
     while field_read_position < field_data_size:
