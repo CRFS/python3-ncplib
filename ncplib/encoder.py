@@ -169,7 +169,7 @@ def encode_packet(packet_type, packet_id, packet_timestamp, packet_info, packet_
         _encode_field(buf[field_write_position:field_write_position+field_size], field_name, field_size, field_id, serialized_params)
         field_write_position += field_size
     # Encode the footer.
-    buf[-4:] = PACKET_FOOTER_HEADER
+    buf[packet_size-4:packet_size] = PACKET_FOOTER_HEADER
     # All done!
     buf.release()
     return packet_data
