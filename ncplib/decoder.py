@@ -100,16 +100,23 @@ def _decode_field(field_data, raw):
     return field_name, field_size, params
 
 
-def decode_packet(packet_data, *, raw=False):
-    if len(packet_data) < PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE:  # pragma: no cover
-        raise DecodeError("Truncated packet")
-    # Decode the packet header.
-    with memoryview(packet_data) as packet_data:
+def peek_packet_size(data):
+    return _decode_size(data[8:12])
+
+
+def decode_packet(buf, *, raw=False):
+    if len(buf) < PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE:  # pragma: no cover
+        raise DecodeError("Truncated packet ({} bytes, expected {} bytes)".format(len(buf), PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE))
+    # Access the buffer using zero-copy.
+    with memoryview(buf) as data:
+        # Determine the packet data size.
+        packet_size = peek_packet_size(data)
+        packet_data = data[:packet_size]
+        # Decode the packet header.
         packet_header_header = packet_data[:4]
         if packet_header_header != PACKET_HEADER_HEADER:  # pragma: no cover
             raise DecodeError("Malformed packet header header {} (expected {})".format(packet_header_header, PACKET_HEADER_HEADER))
         packet_type = bytes(packet_data[4:8])
-        packet_size = _decode_size(packet_data[8:12])
         packet_id = _decode_uint(packet_data[12:16])
         logger.debug("Decoding packet %s (%s bytes)", packet_type, packet_size)
         packet_format = _decode_uint(packet_data[16:20])
@@ -118,9 +125,9 @@ def decode_packet(packet_data, *, raw=False):
         packet_timestamp = _decode_timestamp(packet_data[20:28])
         packet_info = bytes(packet_data[28:32])
         # Decode the footer.
-        packet_footer_header = packet_data[packet_size-4:packet_size]
+        packet_footer_header = packet_data[-4:]
         if packet_footer_header != PACKET_FOOTER_HEADER:  # pragma: no cover
-            raise DecodeError("Malformed packet footer header {} (expected)".format(packet_footer_header, PACKET_FOOTER_HEADER))
+            raise DecodeError("Malformed packet footer header {} (expected {})".format(packet_footer_header, PACKET_FOOTER_HEADER))
         # Unpack all fields.
         field_data = packet_data[PACKET_HEADER_SIZE:packet_size-PACKET_FOOTER_SIZE]
         field_data_size = len(field_data)
@@ -135,9 +142,9 @@ def decode_packet(packet_data, *, raw=False):
             raise DecodeError("Packet field overflow ({} bytes)".format(field_read_position - field_data_size))
         # All done!
         return Packet(
-            type = packet_type,
-            id = packet_id,
-            timestamp = packet_timestamp,
-            info = packet_info,
-            fields = fields,
+            packet_type,
+            packet_id,
+            packet_timestamp,
+            packet_info,
+            fields,
         )

@@ -22,6 +22,9 @@ _require_bytes = partial(_require_type, type=(bytes, bytearray, memoryview), typ
 _require_int = partial(_require_type, type=int)
 
 
+_require_mapping = partial(_require_type, type=Mapping)
+
+
 def _require_key(name, value):  # pragma: no cover
     _require_bytes(name, value)
     if len(value) != 4:
@@ -138,11 +141,12 @@ def encode_packet(packet_type, packet_id, packet_timestamp, packet_info, packet_
     _require_int("Packet ID", packet_id)
     _require_timestamp("Packet timestamp", packet_timestamp)
     _require_key("Packet info", packet_info)
-    _require_type("Packet fields", packet_fields, Mapping)
+    _require_mapping("Packet fields", packet_fields)
     # Serialize the param values.
     packet_size = PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE
     serialized_fields = []
     for field_name, params in packet_fields.items():
+        _require_mapping("Packet params", params)
         field_size = PACKET_FIELD_HEADER_SIZE
         serialized_params = []
         for param_name, param_value in params.items():
@@ -155,20 +159,20 @@ def encode_packet(packet_type, packet_id, packet_timestamp, packet_info, packet_
     packet_data = bytearray(packet_size)
     with memoryview(packet_data) as buf:
         # Encode the header.
-        packet_data[:4] = PACKET_HEADER_HEADER
-        packet_data[4:8] = packet_type
+        buf[:4] = PACKET_HEADER_HEADER
+        buf[4:8] = packet_type
         _encode_size(buf[8:12], packet_size)
         _encode_uint(buf[12:16], packet_id)
         _encode_uint(buf[16:20], PacketFormat.standard.value)
         _encode_timestamp(buf[20:28], packet_timestamp)
-        packet_data[28:32] = packet_info
+        buf[28:32] = packet_info
         # Encode the fields.
         field_write_position = PACKET_HEADER_SIZE
         for field_id, serialized_field in enumerate(serialized_fields):
             field_name, field_size, serialized_params = serialized_field
             _encode_field(buf[field_write_position:field_write_position+field_size], field_name, field_size, field_id, serialized_params)
             field_write_position += field_size
-    # Encode the footer.
-    packet_data[packet_size-4:packet_size] = PACKET_FOOTER_HEADER
-    # All done!
-    return packet_data
+        # Encode the footer.
+        buf[packet_size-4:packet_size] = PACKET_FOOTER_HEADER
+        # All done!
+        return packet_data
