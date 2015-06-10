@@ -1,4 +1,3 @@
-from math import ceil
 from collections.abc import Mapping
 from itertools import starmap
 from datetime import datetime
@@ -82,7 +81,7 @@ def encode_packet(type, id, timestamp, fields):
         id,
         PacketFormat.standard.value,
         int(packet_timestamp),
-        int(int(ceil((packet_timestamp % 1) * 1000000000.0))),
+        int(int(round((packet_timestamp % 1) * 1000000000.0))),
         b'\x00\x00\x00\x00',  # Packet info, must be blank.
     )
     # All done!
