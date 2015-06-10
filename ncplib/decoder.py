@@ -1,6 +1,6 @@
 import asyncio, logging
-from collections import namedtuple
-from datetime import datetime, timezone
+from collections import namedtuple, OrderedDict
+from datetime import datetime, timezone, timedelta
 
 from ncplib.structs import HEADER_STRUCT, FIELD_STRUCT, PARAM_STRUCT, FOOTER_STRUCT
 from ncplib.errors import PacketError
@@ -99,7 +99,7 @@ def _decode_field(reader):
     logger.debug("Decoding field %s (%s bytes)", field_name, field_size)
     # Unpack the params.
     params_bytes_remaining = field_size - FIELD_STRUCT.size
-    params = {}
+    params = OrderedDict()
     while params_bytes_remaining > 0:
         # Store the param data.
         param_name, param_size, param_value, = yield from _decode_param(reader)
@@ -128,11 +128,11 @@ def decode_packet(reader):
     packet_size = _decode_size(packet_size)
     if packet_format != PacketFormat.standard.value:  # pragma: no cover
         raise PacketError("Unknown packet format {}".format(packet_format))
-    packet_timestamp = datetime.fromtimestamp(float(packet_time) + (float(packet_nanotime) / 1000000000.0), tz=timezone.utc)
+    packet_timestamp = datetime.fromtimestamp(packet_time, tz=timezone.utc) + timedelta(microseconds=packet_nanotime / 1000)
     logger.debug("Decoding packet %s (%s bytes)", packet_type, packet_size)
     # Unpack all fields.
     fields_bytes_remaining = packet_size - HEADER_STRUCT.size - FOOTER_STRUCT.size
-    fields = {}
+    fields = OrderedDict()
     while fields_bytes_remaining > 0:
         # Store the field data.
         field_name, field_size, field_params = yield from _decode_field(reader)

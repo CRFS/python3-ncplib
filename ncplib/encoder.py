@@ -73,15 +73,14 @@ def encode_packet(type, id, timestamp, fields):
     # Write all the fields.
     encoded_fields = b"".join(starmap(_encode_field, enumerate(fields.items())))
     # Write the header.
-    packet_timestamp = timestamp.timestamp()
     encoded_header = HEADER_STRUCT.pack(
         b'\xdd\xcc\xbb\xaa',  # Magic packet header.
         _encode_str(type),
         _encode_size(FOOTER_STRUCT.size + len(encoded_fields) + HEADER_STRUCT.size),
         id,
         PacketFormat.standard.value,
-        int(packet_timestamp),
-        int(int(round((packet_timestamp % 1) * 1000000000.0))),
+        int(timestamp.timestamp()),
+        int(timestamp.microsecond * 1000),
         b'\x00\x00\x00\x00',  # Packet info, must be blank.
     )
     # All done!
