@@ -25,7 +25,7 @@ def _decode_size(data):
 
 
 def _decode_str(data):
-    return bytes(data).split(b"\x00", 1)[0].decode("latin1", errors="ignore")
+    return data.decode("latin1", errors="ignore")
 
 
 def _decode_timestamp(data):
@@ -49,6 +49,7 @@ _PARAM_VALUE_DECODERS = {
 
 
 def _decode_param_value(param_value_data, param_type_id):
+    param_value_data = bytes(param_value_data).split(b"\x00", 1)[0]  # Strip off any null bytes.
     # Look up the param type.
     try:
         param_type = ParamType(param_type_id)
