@@ -12,20 +12,17 @@ from ncplib.packets import Packet, RawParamValue
 logger = logging.getLogger(__name__)
 
 
-def _decode_uint(data):
-    return int.from_bytes(data, "little", signed=False)
+_decode_uint = partial(int.from_bytes, byteorder="little", signed=False)
 
 
-def _decode_int(data):
-    return int.from_bytes(data, "little", signed=True)
+_decode_int = partial(int.from_bytes, byteorder="little", signed=True)
 
 
 def _decode_size(data):
     return _decode_uint(data) * 4
 
 
-def _decode_str(data):
-    return data.decode("latin1", errors="ignore")
+_decode_str = partial(str, encoding="latin1", errors="ignore")
 
 
 def _decode_timestamp(data):
@@ -53,7 +50,7 @@ def _decode_param_value(param_value_data, param_type_id):
     # Look up the param type.
     try:
         param_type = ParamType(param_type_id)
-    except ValueError:
+    except ValueError:  # pragma: no cover
         logger.warning("Not decoding param value %s (unknown type %s)", param_value_data, param_type_id)
         return RawParamValue(
             value = bytes(param_value_data),
@@ -81,53 +78,55 @@ def _decode_field(field_data):
     field_size = _decode_size(field_data[4:7])
     logger.debug("Decoding field %s (%s bytes)", field_name, field_size)
     # Unpack the params.
-    params_read_position = PACKET_FIELD_HEADER_SIZE
+    param_data = field_data[PACKET_FIELD_HEADER_SIZE:]
+    param_data_size = field_size - PACKET_FIELD_HEADER_SIZE
+    param_read_position = 0
     params = OrderedDict()
-    while params_read_position < field_size:
+    while param_read_position < param_data_size:
         # Store the param data.
-        param_name, param_size, param_value, = _decode_param(field_data[params_read_position:field_size])
+        param_name, param_size, param_value, = _decode_param(param_data[param_read_position:field_size])
         params[param_name] = param_value
-        params_read_position += param_size
-    if params_read_position != field_size:  # pragma: no cover
-        raise DecodeError("Packet param overflow ({} bytes)".format(params_read_position - field_size))
+        param_read_position += param_size
+    if param_read_position != param_data_size:  # pragma: no cover
+        raise DecodeError("Packet param overflow ({} bytes)".format(param_read_position - param_data_size))
     # All done!
     return field_name, field_size, params
 
 
 def decode_packet(packet_data):
-    if len(packet_data) < PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE:
-        raise DecodeError("Truncated packet")
     packet_data = memoryview(packet_data)
     # Decode the packet header.
-    packet_header_header = packet_data[:4]  # pragma: no cover
-    if packet_header_header != PACKET_HEADER_HEADER:
+    if len(packet_data) < PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE:  # pragma: no cover
+        raise DecodeError("Truncated packet")
+    packet_header_header = packet_data[:4]
+    if packet_header_header != PACKET_HEADER_HEADER:  # pragma: no cover
         raise DecodeError("Malformed packet header header {} (expected {})".format(packet_header_header, PACKET_HEADER_HEADER))
     packet_type = bytes(packet_data[4:8])
     packet_size = _decode_size(packet_data[8:12])
     packet_id = _decode_uint(packet_data[12:16])
     logger.debug("Decoding packet %s (%s bytes)", packet_type, packet_size)
     packet_format = _decode_uint(packet_data[16:20])
-    if packet_format != PacketFormat.standard.value:
+    if packet_format != PacketFormat.standard.value:  # pragma: no cover
         logger.warning("Unknown packet format %s", packet_format)
     packet_timestamp = _decode_timestamp(packet_data[20:28])
     packet_info = bytes(packet_data[28:32])
     # Decode the footer.
-    packet_footer_header = packet_data[-4:]
-    if packet_footer_header != PACKET_FOOTER_HEADER:
+    packet_footer_header = packet_data[packet_size-4:packet_size]
+    if packet_footer_header != PACKET_FOOTER_HEADER:  # pragma: no cover
         raise DecodeError("Malformed packet footer header {} (expected)".format(packet_footer_header, PACKET_FOOTER_HEADER))
     # Unpack all fields.
-    field_read_position = PACKET_HEADER_SIZE
-    field_end_position = packet_size - PACKET_FOOTER_SIZE
+    field_data = packet_data[PACKET_HEADER_SIZE:packet_size-PACKET_FOOTER_SIZE]
+    field_data_size = packet_size - PACKET_HEADER_SIZE - PACKET_FOOTER_SIZE
+    field_read_position = 0
     fields = OrderedDict()
-    while field_read_position < field_end_position:
+    while field_read_position < field_data_size:
         # Store the field data.
-        field_name, field_size, field_params = _decode_field(packet_data[field_read_position:field_end_position])
+        field_name, field_size, field_params = _decode_field(field_data[field_read_position:])
         fields[field_name] = field_params
         field_read_position += field_size
-    if field_read_position != field_end_position:  # pragma: no cover
-        raise DecodeError("Packet field overflow ({} bytes)".format(field_read_position - field_end_position))
+    if field_read_position != field_data_size:  # pragma: no cover
+        raise DecodeError("Packet field overflow ({} bytes)".format(field_read_position - field_data_size))
     # All done!
-    packet_data.release()
     return Packet(
         type = packet_type,
         id = packet_id,
