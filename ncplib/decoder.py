@@ -45,46 +45,53 @@ _PARAM_VALUE_DECODERS = {
 }
 
 
+def _decode_param_value_raw(param_value_data, param_type_id):
+    return RawParamValue(
+        value = bytes(param_value_data),
+        type_id = param_type_id,
+    )
+
+
 def _decode_param_value(param_value_data, param_type_id):
-    param_value_data = bytes(param_value_data).split(b"\x00", 1)[0]  # Strip off any null bytes.
     # Look up the param type.
     try:
         param_type = ParamType(param_type_id)
     except ValueError:  # pragma: no cover
         logger.warning("Not decoding param value %s (unknown type %s)", param_value_data, param_type_id)
-        return RawParamValue(
-            value = bytes(param_value_data),
-            type_id = param_type,
-        )
+        return _decode_param_value_raw(param_value_data, param_type_id)
     # Decode the value data.
     logger.debug("Decoding param value %s (type %s)", param_value_data, param_type.name)
     param_value_decoder = _PARAM_VALUE_DECODERS[param_type]
     return param_value_decoder(param_value_data)
 
 
-def _decode_param(param_data):
+def _decode_param(param_data, raw):
     param_name = bytes(param_data[:4])
     param_size = _decode_size(param_data[4:7])
     param_type_id = _decode_uint(param_data[7:8])
     logger.debug("Decoding param %s (%s bytes)", param_name, param_size)
-    # Get the param data.
-    param_value = _decode_param_value(param_data[PACKET_PARAM_HEADER_SIZE:param_size], param_type_id)
+    # Get the param value.
+    param_value_data = bytes(param_data[PACKET_PARAM_HEADER_SIZE:]).split(b"\x00", 1)[0]  # Strip off any null bytes.
+    if raw:
+        param_value = _decode_param_value_raw(param_value_data, param_type_id)
+    else:
+        param_value = _decode_param_value(param_value_data, param_type_id)
     # All done!
     return param_name, param_size, param_value
 
 
-def _decode_field(field_data):
+def _decode_field(field_data, raw):
     field_name = bytes(field_data[:4])
     field_size = _decode_size(field_data[4:7])
     logger.debug("Decoding field %s (%s bytes)", field_name, field_size)
     # Unpack the params.
-    param_data = field_data[PACKET_FIELD_HEADER_SIZE:]
+    param_data = field_data[PACKET_FIELD_HEADER_SIZE:field_size]
     param_data_size = len(param_data)
     param_read_position = 0
     params = OrderedDict()
     while param_read_position < param_data_size:
         # Store the param data.
-        param_name, param_size, param_value, = _decode_param(param_data[param_read_position:field_size])
+        param_name, param_size, param_value, = _decode_param(param_data[param_read_position:], raw)
         params[param_name] = param_value
         param_read_position += param_size
     if param_read_position != param_data_size:  # pragma: no cover
@@ -93,7 +100,7 @@ def _decode_field(field_data):
     return field_name, field_size, params
 
 
-def decode_packet(packet_data):
+def decode_packet(packet_data, *, raw=False):
     if len(packet_data) < PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE:  # pragma: no cover
         raise DecodeError("Truncated packet")
     # Decode the packet header.
@@ -121,7 +128,7 @@ def decode_packet(packet_data):
         fields = OrderedDict()
         while field_read_position < field_data_size:
             # Store the field data.
-            field_name, field_size, field_params = _decode_field(field_data[field_read_position:])
+            field_name, field_size, field_params = _decode_field(field_data[field_read_position:], raw)
             fields[field_name] = field_params
             field_read_position += field_size
         if field_read_position != field_data_size:  # pragma: no cover
