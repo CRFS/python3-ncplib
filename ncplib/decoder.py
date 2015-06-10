@@ -94,43 +94,43 @@ def _decode_field(field_data):
 
 
 def decode_packet(packet_data):
-    packet_data = memoryview(packet_data)
-    # Decode the packet header.
     if len(packet_data) < PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE:  # pragma: no cover
         raise DecodeError("Truncated packet")
-    packet_header_header = packet_data[:4]
-    if packet_header_header != PACKET_HEADER_HEADER:  # pragma: no cover
-        raise DecodeError("Malformed packet header header {} (expected {})".format(packet_header_header, PACKET_HEADER_HEADER))
-    packet_type = bytes(packet_data[4:8])
-    packet_size = _decode_size(packet_data[8:12])
-    packet_id = _decode_uint(packet_data[12:16])
-    logger.debug("Decoding packet %s (%s bytes)", packet_type, packet_size)
-    packet_format = _decode_uint(packet_data[16:20])
-    if packet_format != PacketFormat.standard.value:  # pragma: no cover
-        logger.warning("Unknown packet format %s", packet_format)
-    packet_timestamp = _decode_timestamp(packet_data[20:28])
-    packet_info = bytes(packet_data[28:32])
-    # Decode the footer.
-    packet_footer_header = packet_data[packet_size-4:packet_size]
-    if packet_footer_header != PACKET_FOOTER_HEADER:  # pragma: no cover
-        raise DecodeError("Malformed packet footer header {} (expected)".format(packet_footer_header, PACKET_FOOTER_HEADER))
-    # Unpack all fields.
-    field_data = packet_data[PACKET_HEADER_SIZE:packet_size-PACKET_FOOTER_SIZE]
-    field_data_size = len(field_data)
-    field_read_position = 0
-    fields = OrderedDict()
-    while field_read_position < field_data_size:
-        # Store the field data.
-        field_name, field_size, field_params = _decode_field(field_data[field_read_position:])
-        fields[field_name] = field_params
-        field_read_position += field_size
-    if field_read_position != field_data_size:  # pragma: no cover
-        raise DecodeError("Packet field overflow ({} bytes)".format(field_read_position - field_data_size))
-    # All done!
-    return Packet(
-        type = packet_type,
-        id = packet_id,
-        timestamp = packet_timestamp,
-        info = packet_info,
-        fields = fields,
-    )
+    # Decode the packet header.
+    with memoryview(packet_data) as packet_data:
+        packet_header_header = packet_data[:4]
+        if packet_header_header != PACKET_HEADER_HEADER:  # pragma: no cover
+            raise DecodeError("Malformed packet header header {} (expected {})".format(packet_header_header, PACKET_HEADER_HEADER))
+        packet_type = bytes(packet_data[4:8])
+        packet_size = _decode_size(packet_data[8:12])
+        packet_id = _decode_uint(packet_data[12:16])
+        logger.debug("Decoding packet %s (%s bytes)", packet_type, packet_size)
+        packet_format = _decode_uint(packet_data[16:20])
+        if packet_format != PacketFormat.standard.value:  # pragma: no cover
+            logger.warning("Unknown packet format %s", packet_format)
+        packet_timestamp = _decode_timestamp(packet_data[20:28])
+        packet_info = bytes(packet_data[28:32])
+        # Decode the footer.
+        packet_footer_header = packet_data[packet_size-4:packet_size]
+        if packet_footer_header != PACKET_FOOTER_HEADER:  # pragma: no cover
+            raise DecodeError("Malformed packet footer header {} (expected)".format(packet_footer_header, PACKET_FOOTER_HEADER))
+        # Unpack all fields.
+        field_data = packet_data[PACKET_HEADER_SIZE:packet_size-PACKET_FOOTER_SIZE]
+        field_data_size = len(field_data)
+        field_read_position = 0
+        fields = OrderedDict()
+        while field_read_position < field_data_size:
+            # Store the field data.
+            field_name, field_size, field_params = _decode_field(field_data[field_read_position:])
+            fields[field_name] = field_params
+            field_read_position += field_size
+        if field_read_position != field_data_size:  # pragma: no cover
+            raise DecodeError("Packet field overflow ({} bytes)".format(field_read_position - field_data_size))
+        # All done!
+        return Packet(
+            type = packet_type,
+            id = packet_id,
+            timestamp = packet_timestamp,
+            info = packet_info,
+            fields = fields,
+        )
