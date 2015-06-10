@@ -60,7 +60,7 @@ def _encode_field(id, field):
     return encoded_field + encoded_params
 
 
-def encode_packet(type, id, timestamp, fields):
+def encode_packet(type, id, timestamp, info, fields):
     assert isinstance(type, str) and len(type) == 4
     assert isinstance(id, int)
     assert isinstance(timestamp, datetime) and timestamp.tzinfo is not None

@@ -5,7 +5,7 @@ class Error(Exception):
     """
 
 
-class PacketError(Error):
+class DecodeError(Error):
 
     """
     An error was detected in the NCP packet.
