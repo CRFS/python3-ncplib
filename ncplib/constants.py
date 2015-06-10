@@ -24,4 +24,22 @@ class PacketFormat(Enum):
 @unique
 class ParamType(Enum):
 
-    string = 2
+    i32 = 0x00
+
+    u32 = 0x01
+
+    string = 0x02
+
+    raw = 0x80
+
+    u8array = 0x81
+
+    u16array = 0x82
+
+    u32array = 0x83
+
+    i8array = 0x84
+
+    i16array = 0x85
+
+    i32array = 0x86
