@@ -8,5 +8,5 @@ class Error(Exception):
 class DecodeError(Error):
 
     """
-    An error was detected in the NCP packet.
+    An error occured while decoding an NCP packet.
     """

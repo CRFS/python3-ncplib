@@ -34,7 +34,7 @@ def _decode_timestamp(data):
     return datetime.fromtimestamp(seconds, tz=timezone.utc) + timedelta(microseconds=microseconds)
 
 
-PARAM_VALUE_DECODERS = {
+_PARAM_VALUE_DECODERS = {
     ParamType.i32: _decode_int,
     ParamType.u32: _decode_uint,
     ParamType.string: _decode_str,
@@ -60,7 +60,7 @@ def _decode_param_value(param_value_data, param_type_id):
         )
     # Decode the value data.
     logger.debug("Decoding param value %s (type %s)", param_value_data, param_type.name)
-    param_value_decoder = PARAM_VALUE_DECODERS[param_type]
+    param_value_decoder = _PARAM_VALUE_DECODERS[param_type]
     return param_value_decoder(param_value_data)
 
 
