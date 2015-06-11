@@ -26,11 +26,11 @@ class ClientTest(TestCase):
         self.assertIn(b"OCON", status_info.fields[b"STAT"])
         self.assertIsInstance(status_info.fields[b"STAT"][b"OCON"], int)
         self.assertIn(b"CADD", status_info.fields[b"STAT"])
-        self.assertIsInstance(status_info.fields[b"STAT"][b"CADD"], bytes)
+        self.assertIsInstance(status_info.fields[b"STAT"][b"CADD"], str)
         self.assertIn(b"CIDS", status_info.fields[b"STAT"])
         self.assertIsInstance(status_info.fields[b"STAT"][b"CIDS"], str)
         self.assertIn(b"RGPS", status_info.fields[b"STAT"])
-        self.assertIsInstance(status_info.fields[b"STAT"][b"RGPS"], bytes)
+        self.assertIsInstance(status_info.fields[b"STAT"][b"RGPS"], str)
         self.assertIn(b"ELOC", status_info.fields[b"STAT"])
         self.assertIsInstance(status_info.fields[b"STAT"][b"ELOC"], int)
 
