@@ -290,13 +290,13 @@ def decode_packet_cps(header_buf):
     # Check the packet format.
     assert format_id == PACKET_FORMAT_ID
     # Decode the rest of the body data.
-    bytes_remaining = size - PACKET_HEADER_STRUCT.size
+    size_remaining = size - PACKET_HEADER_STRUCT.size
     def decode_packet_body(body_buf):
-        fields = OrderedDict(decode_fields(body_buf, 0, bytes_remaining - PACKET_FOOTER_STRUCT.size))
+        fields = OrderedDict(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
         (
             checksum,
             footer,
-        ) = PACKET_FOOTER_STRUCT.unpack_from(body_buf, bytes_remaining - PACKET_FOOTER_STRUCT.size)
+        ) = PACKET_FOOTER_STRUCT.unpack_from(body_buf, size_remaining - PACKET_FOOTER_STRUCT.size)
         assert footer == PACKET_FOOTER
         # All done!
         return Packet(
@@ -307,7 +307,7 @@ def decode_packet_cps(header_buf):
             fields = fields,
         )
     # Return the number of bytes to read, and the function to finish decoding.
-    return bytes_remaining, decode_packet_body
+    return size_remaining, decode_packet_body
 
 
 def decode_packet(buf):
