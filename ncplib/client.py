@@ -4,7 +4,7 @@ from uuid import getnode as get_mac
 from contextlib import contextmanager
 
 from ncplib.errors import ClientError
-from ncplib.decoder import peek_packet_size, decode_packet
+from ncplib.decoder import decode_packet_size, decode_packet
 from ncplib.encoder import encode_packet
 from ncplib.constants import PACKET_HEADER_SIZE, PACKET_FOOTER_SIZE
 
@@ -66,7 +66,7 @@ class Client:
         yield from self._read_bytes(PACKET_HEADER_SIZE + PACKET_FOOTER_SIZE)
         # Peek at the packet size, so we know how much more to read.
         with memoryview(self._buf) as data:
-            packet_size = peek_packet_size(data)
+            packet_size = decode_packet_size(data)
             logger.debug("Client receiving packet from %s:%s (%s bytes)", self._host, self._port, packet_size)
         # Read the remaining bytes.
         yield from self._read_bytes(packet_size - PACKET_HEADER_SIZE - PACKET_FOOTER_SIZE)
