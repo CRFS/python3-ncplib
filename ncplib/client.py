@@ -38,7 +38,7 @@ class Client:
 
     @asyncio.coroutine
     def _ensure_connection(self):
-        if self._reader is None:
+        if self._reader is None or self._reader.at_eof() or self._reader.exception() is not None:
             # Connect to the NCP server.
             self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
             # Read the initial LINK HELO packet.
