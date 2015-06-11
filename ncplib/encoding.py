@@ -196,16 +196,15 @@ def encode_params(params):
 
 # Param decoding.
 
-def decode_params(buf):
-    offset = 0
-    while offset < len(buf):
+def decode_params(buf, offset, limit):
+    while offset < limit:
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
-        value_encoded = buf[offset+PARAM_HEADER_STRUCT.size:offset+size].split(b"\x00", 1)[0]
+        value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size]).split(b"\x00", 1)[0]
         value = decode_value(type_id, value_encoded)
         yield name, value
         offset += size
-    assert offset == len(buf)
+    assert offset == limit
 
 
 # Field encoding.
@@ -227,16 +226,14 @@ def encode_fields(fields):
 
 # Field decoding.
 
-def decode_fields(buf):
-    offset = 0
-    while offset < len(buf):
+def decode_fields(buf, offset, limit):
+    while offset < limit:
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
-        params_encoded = buf[offset+FIELD_HEADER_STRUCT.size:offset+size]
-        params = OrderedDict(decode_params(params_encoded))
+        params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield name, params
         offset += size
-    assert offset == len(buf)
+    assert offset == limit
 
 
 # Packet formats.
@@ -295,8 +292,7 @@ def decode_packet_cps(header_buf):
     # Decode the rest of the body data.
     bytes_remaining = size - PACKET_HEADER_STRUCT.size
     def decode_packet_body(body_buf):
-        fields_encoded = body_buf[:-PACKET_FOOTER_STRUCT.size]
-        fields = OrderedDict(decode_fields(fields_encoded))
+        fields = OrderedDict(decode_fields(body_buf, 0, bytes_remaining - PACKET_FOOTER_STRUCT.size))
         (
             checksum,
             footer,
