@@ -16,7 +16,7 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
 
     def process(self, msg, kwargs):
         msg, kwargs = super().process(msg, kwargs)
-        return "[ncp://host:port] {msg}".format(
+        return "{msg} - ncp://{host}:{port}".format(
             msg = msg,
             **self.extra
         ), kwargs
@@ -33,7 +33,7 @@ class Client:
         self._timeout = None
         self._logger = ClientLoggerAdapter(logger, {
             "host": host,
-            "post": port,
+            "port": port,
         })
         self._packet_id_gen = 0
         self._reader = None
