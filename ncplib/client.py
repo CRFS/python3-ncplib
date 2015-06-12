@@ -30,7 +30,7 @@ class Client:
         self._host = host
         self._port = port
         self._loop = loop or asyncio.get_event_loop()
-        self._timeout = None
+        self._timeout = timeout
         self._logger = ClientLoggerAdapter(logger, {
             "host": host,
             "port": port,
