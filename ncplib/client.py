@@ -1,8 +1,8 @@
-import asyncio, logging
+import asyncio
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
-from contextlib import contextmanager
 
+from ncplib.concurrent import sync, SyncWrapper
 from ncplib.streams import write_packet, read_packet
 
 
@@ -21,11 +21,20 @@ class Client:
         self._reader = None
         self._writer = None
 
+    # Connection lifecycle.
+
+    @asyncio.coroutine
+    def _connect(self):
+        # Connect to the node.
+        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
+        # Read the initial LINK HELO packet.
+        helo_packet = yield from self._read_packet()
+        assert helo_packet.type == b"LINK" and b"HELO" in helo_packet.fields
+
     def close(self):
-        if self._reader is not None:
-            self._reader = None
-            self._writer.close()
-            self._writer = None
+        self._writer.close()
+
+    # Packet implementation.
 
     @asyncio.coroutine
     def _read_packet(self):
@@ -36,34 +45,21 @@ class Client:
         self._packet_id_gen += 1
         yield from write_packet(self._writer, packet_type, self._packet_id_gen, datetime.now(tz=timezone.utc), PACKET_INFO, fields)
 
-    @asyncio.coroutine
-    def _ensure_connection(self):
-        if self._reader is None or self._reader.at_eof() or self._reader.exception() is not None:
-            # Connect to the NCP server.
-            self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
-            # Read the initial LINK HELO packet.
-            helo_packet = yield from self._read_packet()
-            assert helo_packet.type == b"LINK" and b"HELO" in helo_packet.fields
-
-    @contextmanager
-    def _auto_disconnect(self):
-        try:
-            yield
-        except:
-            self._reader = None
-            self._writer = None
-            raise
-
     # Public API.
 
     @asyncio.coroutine
-    def connect(self):
-        with self._auto_disconnect():
-            yield from self._ensure_connection()
+    def communicate(self, packet_type, fields):
+        yield from self._write_packet(packet_type, fields)
+        return (yield from self._read_packet())
 
-    @asyncio.coroutine
-    def execute(self, packet_type, fields):
-        with self._auto_disconnect():
-            yield from self._ensure_connection()
-            yield from self._write_packet(packet_type, fields)
-            return (yield from self._read_packet())
+
+@asyncio.coroutine
+def connect(host, port, *, loop=None):
+    client = Client(host, port, loop=loop)
+    yield from client._connect()
+    return client
+
+
+def connect_sync(host, port, *, loop=None):
+    client = sync(loop=loop)(connect)(host, port)
+    return SyncWrapper(client)

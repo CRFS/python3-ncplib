@@ -1,8 +1,7 @@
 import os
 from unittest import TestCase, skipUnless
 
-from ncplib.client import Client
-from ncplib.concurrent import SyncWrapper
+from ncplib.client import connect_sync
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -14,13 +13,10 @@ NCPLIB_TEST_CLIENT_PORT = os.environ.get("NCPLIB_TEST_CLIENT_PORT")
 class ClientTest(TestCase):
 
     def setUp(self):
-        self.client = SyncWrapper(Client(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT))
-
-    def testConnect(self):
-        self.client.connect()
+        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT)
 
     def testExecuteStat(self):
-        status_info = self.client.execute(b"NODE", {b"STAT": {}})
+        status_info = self.client.communicate(b"NODE", {b"STAT": {}})
         self.assertEqual(status_info.type, b"NODE")
         self.assertIn(b"STAT", status_info.fields)
         self.assertIn(b"OCON", status_info.fields[b"STAT"])
