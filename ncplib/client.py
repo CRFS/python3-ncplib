@@ -61,7 +61,7 @@ class Client:
 
     @asyncio.coroutine
     def _read_packet(self):
-        packet = (yield from read_packet(self._reader))
+        packet = (yield from self._wait_for(read_packet(self._reader)))
         logger.debug("Received packet %s %s", packet.type, packet.fields)
         return packet
 
@@ -76,7 +76,7 @@ class Client:
     @asyncio.coroutine
     def communicate(self, packet_type, fields):
         yield from self._write_packet(packet_type, fields)
-        return (yield from self._wait_for(self._read_packet()))
+        return (yield from self._read_packet())
 
 
 @asyncio.coroutine
