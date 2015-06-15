@@ -17,7 +17,7 @@ class ClientTest(TestCase):
         self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, timeout=5)
 
     def testRunStat(self):
-        response = self.client.run_command(b"NODE", b"STAT", timeout=5)
+        response = self.client.run_node(b"STAT", timeout=5)
         self.assertIsInstance(response[b"OCON"], int)
         self.assertIsInstance(response[b"CADD"], str)
         self.assertIsInstance(response[b"CIDS"], str)
@@ -26,7 +26,7 @@ class ClientTest(TestCase):
 
     def testRunSurvey(self):
         try:
-            response = self.client.run_command(b"DSPC", b"SURV", timeout=90)
+            response = self.client.run_dsp_control(b"SURV", timeout=90)
             self.assertIn(b"JSON", response)
         except CommandError as ex:
             if ex.code == -4079:

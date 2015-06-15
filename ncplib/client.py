@@ -26,6 +26,14 @@ PACKET_INFO = get_mac().to_bytes(6, "little", signed=False)[-4:]  # The last fou
 
 PACKET_TYPE_LINK = b"LINK"
 
+PACKET_TYPE_NODE = b"NODE"
+
+PACKET_TYPE_DSP_CONTROL = b"DSPC"
+
+PACKET_TYPE_DSP_LOOP = b"DSPL"
+
+PACKET_TYPE_CRFS = b"CRFS"
+
 
 # Known fields.
 
@@ -52,6 +60,30 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
         ), kwargs
 
 
+def run_with_packet_type(func, packet_type):
+    @asyncio.coroutine
+    def do_run_with_packet_type(self, fields):
+        return (yield from func(self, packet_type, fields))
+    return do_run_with_packet_type
+
+
+def run_with_lock(func, lock_name):
+    @asyncio.coroutine
+    def do_run_with_lock(self, fields):
+        with (yield from getattr(self, lock_name)):
+            return (yield from func(self, fields))
+    return do_run_with_lock
+
+
+def run_single(func):
+    @asyncio.coroutine
+    def do_run_single(self, field, params=None):
+        params = {} if params is None else params
+        response_fields = yield from func(self, {field: params})
+        return response_fields[field]
+    return do_run_single
+
+
 class Client:
 
     def __init__(self, host, port, *, loop=None):
@@ -70,6 +102,8 @@ class Client:
         self._writer = None
         # Communication.
         self._waiters = {}
+        # Locks.
+        self._dspc_lock = asyncio.Lock(loop=self._loop)
 
     # Waiter handling.
 
@@ -176,7 +210,7 @@ class Client:
     # Public API.
 
     @asyncio.coroutine
-    def run_commands(self, packet_type, fields):
+    def run_raw_multi(self, packet_type, fields):
         # Convert the fields to Field.
         fields = [
             Field(
@@ -194,11 +228,17 @@ class Client:
         # All done!
         return self._decode_fields(map(methodcaller("result"), response_promises))
 
-    @asyncio.coroutine
-    def run_command(self, packet_type, field, params=None):
-        params = {} if params is None else params
-        response_fields = yield from self.run_commands(packet_type, {field: params})
-        return response_fields[field]
+    run_link_multi = run_with_packet_type(run_raw_multi, PACKET_TYPE_LINK)
+
+    run_link = run_single(run_link_multi)
+
+    run_node_multi = run_with_packet_type(run_raw_multi, PACKET_TYPE_NODE)
+
+    run_node = run_single(run_node_multi)
+
+    run_dsp_control_multi = run_with_lock(run_with_packet_type(run_raw_multi, PACKET_TYPE_DSP_CONTROL), "_dspc_lock")
+
+    run_dsp_control = run_single(run_dsp_control_multi)
 
 
 @asyncio.coroutine
