@@ -29,9 +29,9 @@ PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 
 # Value encoders.
 
-encode_i32 = partial(methodcaller("to_bytes"), length=4, byteorder="little", signed=True)
+encode_i32 = methodcaller("to_bytes", length=4, byteorder="little", signed=True)
 
-encode_u32 = partial(methodcaller("to_bytes"), length=4, byteorder="little", signed=False)
+encode_u32 = methodcaller("to_bytes", length=4, byteorder="little", signed=False)
 
 def encode_string(value):
     return value.encode(encoding="latin1", errors="ignore") + b"\x00"

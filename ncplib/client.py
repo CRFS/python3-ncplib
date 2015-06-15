@@ -1,10 +1,11 @@
 import asyncio, logging, warnings
+from collections import defaultdict
 from datetime import datetime, timezone
-from functools import partial
+from functools import partial, wraps
 from operator import methodcaller, attrgetter
 from uuid import getnode as get_mac
 
-from ncplib.concurrent import sync, SyncWrapper
+from ncplib.concurrent import sync
 from ncplib.encoding import Field
 from ncplib.errors import wrap_network_errors, ClientError, CommandError, CommandWarning
 from ncplib.streams import write_packet, read_packet
@@ -62,26 +63,47 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
 
 def run_with_packet_type(func, packet_type):
     @asyncio.coroutine
+    @wraps(func)
     def do_run_with_packet_type(self, fields):
         return (yield from func(self, packet_type, fields))
     return do_run_with_packet_type
 
 
-def run_with_lock(func, lock_name):
-    @asyncio.coroutine
-    def do_run_with_lock(self, fields):
-        with (yield from getattr(self, lock_name)):
-            return (yield from func(self, fields))
-    return do_run_with_lock
-
-
 def run_single(func):
     @asyncio.coroutine
+    @wraps(func)
     def do_run_single(self, field, params=None):
         params = {} if params is None else params
         response_fields = yield from func(self, {field: params})
         return response_fields[field]
     return do_run_single
+
+
+class StreamResponse:
+
+    def __init__(self, client, packet_type, fields, lock):
+        self._client = client
+        self._packet_type = packet_type
+        self._fields = fields
+        self._lock = lock
+
+    @asyncio.coroutine
+    def read_all(self):
+        return (yield from self._client._wait_for_all_fields(self._fields))
+
+    def close(self):
+        # Send a loop close packet.
+        self._client._write_packet(self._packet_type, {})
+        # Release the loop lock.
+        self._lock.release()
+
+    # Use as a context manager.
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
 
 class Client:
@@ -103,7 +125,7 @@ class Client:
         # Communication.
         self._waiters = {}
         # Locks.
-        self._dspc_lock = asyncio.Lock(loop=self._loop)
+        self._packet_type_locks = defaultdict(partial(asyncio.Lock, loop=self._loop))
 
     # Waiter handling.
 
@@ -124,6 +146,11 @@ class Client:
         self._waiters[field.id] = future
         future.add_done_callback(partial(self._wait_for_done, field.id))
         return future
+
+    @asyncio.coroutine
+    def _wait_for_all_fields(self, fields):
+        response_promises, _ = yield from asyncio.wait(map(self._wait_for_field, fields), loop=self._loop)
+        return self._decode_fields(map(methodcaller("result"), response_promises))
 
     # Connection lifecycle.
 
@@ -154,7 +181,15 @@ class Client:
     def wait_closed(self):
         waiting_tasks = list(self._iter_active_waiters())
         waiting_tasks.append(self._reader_coro)
-        yield from asyncio.wait_for(waiting_tasks, loop=self._loop)
+        yield from asyncio.wait(waiting_tasks, loop=self._loop)
+
+    # Use as a context manager.
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
     # Packet reading.
 
@@ -178,14 +213,18 @@ class Client:
                         pass
                     else:
                         if not future.cancelled():
-                            # Handle acknowledgements.
-                            if FIELD_ACKNOWLEDGE_PACKET in field.params:
-                                self._logger.debug("Received ack %s", field.params[FIELD_ACKNOWLEDGE_PACKET])
-                            elif FIELD_ERROR in field.params or FIELD_ERROR_CODE in field.params:
-                                future.set_exception(CommandError(field.params.get(FIELD_ERROR), field.params.get(FIELD_ERROR_CODE), field.name))
-                            elif FIELD_WARNING in field.params or FIELD_WARNING_CODE in field.params:
-                                warnings.warn(CommandWarning(field.params.get(FIELD_WARNING), field.params.get(FIELD_WARNING_CODE), field.name))
+                            params = field.params.copy()
+                            # If there is an error, raise it.
+                            if FIELD_ERROR in field.params or FIELD_ERROR_CODE in field.params:
+                                future.set_exception(CommandError(field.params.pop(FIELD_ERROR, None), field.params.pop(FIELD_ERROR_CODE, None), field.name))
+                            # If there is an ack, log it, but do nothing else.
+                            elif FIELD_ACKNOWLEDGE_PACKET in params:
+                                self._logger.debug("Received %s ack %s", field.name, params.pop(FIELD_ACKNOWLEDGE_PACKET, None))
                             else:
+                                # If there is a warning, raise it, but continue.
+                                if FIELD_WARNING in field.params or FIELD_WARNING_CODE in field.params:
+                                    warnings.warn(CommandWarning(field.params.pop(FIELD_WARNING, None), field.params.pop(FIELD_WARNING_CODE, None), field.name))
+                                # Set the result.
                                 future.set_result(field)
 
     @asyncio.coroutine
@@ -207,12 +246,8 @@ class Client:
         write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), PACKET_INFO, fields)
         self._logger.debug("Sent packet %s %s", packet_type, fields)
 
-    # Public API.
-
-    @asyncio.coroutine
-    def run_raw_multi(self, packet_type, fields):
-        # Convert the fields to Field.
-        fields = [
+    def _encode_fields(self, fields):
+        return [
             Field(
                 name = field_name,
                 id = self._gen_id(),
@@ -221,12 +256,33 @@ class Client:
             for field_name, params
             in fields.items()
         ]
+
+    # Public API.
+
+    @asyncio.coroutine
+    def run_raw_multi(self, packet_type, fields):
+        # Many of the packet types only allow a single command to be run at a time,
+        # with subsequent commands cancelling previous ones. This lock ensures a single
+        # command for a single packet type is run at a time.
+        with (yield from self._packet_type_locks[packet_type]):
+            # Convert the fields to Field.
+            fields = self._encode_fields(fields)
+            # Sent the packet.
+            self._write_packet(packet_type, fields)
+            # Wait for all the fields.
+            return (yield from self._wait_for_all_fields(fields))
+
+    @asyncio.coroutine
+    def stream_raw_multi(self, packet_type, fields):
+        # A loop can only run a single command at a time. This lock ensures that.
+        lock = self._packet_type_locks[packet_type]
+        yield from lock.acquire()
+        # Convert the fields to Field.
+        fields = self._encode_fields(fields)
         # Sent the packet.
         self._write_packet(packet_type, fields)
-        # Wait for all the fields.
-        response_promises, _ = yield from asyncio.wait(map(self._wait_for_field, fields), loop=self._loop)
         # All done!
-        return self._decode_fields(map(methodcaller("result"), response_promises))
+        return StreamResponse(self, packet_type, fields, lock)
 
     run_link_multi = run_with_packet_type(run_raw_multi, PACKET_TYPE_LINK)
 
@@ -236,9 +292,11 @@ class Client:
 
     run_node = run_single(run_node_multi)
 
-    run_dsp_control_multi = run_with_lock(run_with_packet_type(run_raw_multi, PACKET_TYPE_DSP_CONTROL), "_dspc_lock")
+    run_dsp_control_multi = run_with_packet_type(run_raw_multi, PACKET_TYPE_DSP_CONTROL)
 
     run_dsp_control = run_single(run_dsp_control_multi)
+
+    stream_dsp_loop_multi = run_with_packet_type(stream_raw_multi, PACKET_TYPE_DSP_LOOP)
 
 
 @asyncio.coroutine
@@ -248,6 +306,4 @@ def connect(host, port, *, loop=None):
     return client
 
 
-def connect_sync(host, port, *, loop=None, timeout=None):
-    client = sync()(connect)(host, port, loop=loop, timeout=timeout)
-    return SyncWrapper(client)
+connect_sync = sync(connect)

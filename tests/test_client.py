@@ -32,5 +32,10 @@ class ClientTest(TestCase):
             if ex.code == -4079:
                 raise SkipTest("Survey already running on node.")
 
+    def testStreamTimeCapture(self):
+        with self.client.stream_dsp_loop_multi({b"TIME": {b"FCTR": 900, b"SAMP": 1024}}, timeout=5) as frequency_stream:
+            response = frequency_stream.read_all(timeout=120)
+
     def tearDown(self):
         self.client.close()
+        self.client.wait_closed()
