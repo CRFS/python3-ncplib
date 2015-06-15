@@ -24,13 +24,12 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
 
 class Client:
 
-    __slots__ = ("_host", "_port", "_loop", "_timeout", "_logger", "_packet_id_gen", "_reader", "_writer",)
+    __slots__ = ("_host", "_port", "_loop", "_logger", "_packet_id_gen", "_reader", "_writer",)
 
-    def __init__(self, host, port, *, loop=None, timeout=None):
+    def __init__(self, host, port, *, loop=None):
         self._host = host
         self._port = port
         self._loop = loop or asyncio.get_event_loop()
-        self._timeout = timeout
         self._logger = ClientLoggerAdapter(logger, {
             "host": host,
             "port": port,
@@ -41,13 +40,10 @@ class Client:
 
     # Connection lifecycle.
 
-    def _wait_for(self, task):
-        return asyncio.wait_for(task, self._timeout, loop=self._loop)
-
     @asyncio.coroutine
     def _connect(self):
         # Connect to the node.
-        self._reader, self._writer = yield from self._wait_for(asyncio.open_connection(self._host, self._port, loop=self._loop))
+        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
         self._logger.info("Connected")
         # Read the initial LINK HELO packet.
         helo_packet = yield from self._read_packet()
@@ -61,14 +57,14 @@ class Client:
 
     @asyncio.coroutine
     def _read_packet(self):
-        packet = (yield from self._wait_for(read_packet(self._reader)))
+        packet = (yield from read_packet(self._reader))
         logger.debug("Received packet %s %s", packet.type, packet.fields)
         return packet
 
     @asyncio.coroutine
     def _write_packet(self, packet_type, fields):
         self._packet_id_gen += 1
-        yield from self._wait_for(write_packet(self._writer, packet_type, self._packet_id_gen, datetime.now(tz=timezone.utc), PACKET_INFO, fields))
+        yield from write_packet(self._writer, packet_type, self._packet_id_gen, datetime.now(tz=timezone.utc), PACKET_INFO, fields)
         logger.debug("Sent packet %s %s", packet_type, fields)
 
     # Public API.
@@ -80,12 +76,12 @@ class Client:
 
 
 @asyncio.coroutine
-def connect(host, port, *, loop=None, timeout=None):
-    client = Client(host, port, loop=loop, timeout=timeout)
+def connect(host, port, *, loop=None):
+    client = Client(host, port, loop=loop)
     yield from client._connect()
     return client
 
 
-def connect_sync(host, port, *, loop=None, timeout=None):
-    client = sync(loop=loop)(connect)(host, port, loop=loop, timeout=timeout)
+def connect_sync(host, port, *, loop=None):
+    client = sync(loop=loop)(connect)(host, port, loop=loop)
     return SyncWrapper(client)

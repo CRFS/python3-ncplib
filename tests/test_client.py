@@ -13,7 +13,7 @@ NCPLIB_TEST_CLIENT_PORT = os.environ.get("NCPLIB_TEST_CLIENT_PORT")
 class ClientTest(TestCase):
 
     def setUp(self):
-        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, timeout=10)
+        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT)
 
     def testExecuteStat(self):
         status_info = self.client.communicate(b"NODE", {b"STAT": {}})
