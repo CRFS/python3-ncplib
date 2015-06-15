@@ -1,18 +1,45 @@
-import asyncio, logging
+import asyncio, logging, warnings
 from datetime import datetime, timezone
 from functools import partial
-from operator import methodcaller
+from operator import methodcaller, attrgetter
 from uuid import getnode as get_mac
 
 from ncplib.concurrent import sync, SyncWrapper
-from ncplib.streams import write_packet, read_packet
 from ncplib.encoding import Field
+from ncplib.errors import wrap_network_errors, ClientError, CommandError, CommandWarning
+from ncplib.streams import write_packet, read_packet
+
+
+__all__ = (
+    "connect",
+    "connect_sync",
+)
 
 
 logger = logging.getLogger(__name__)
 
 
 PACKET_INFO = get_mac().to_bytes(6, "little", signed=False)[-4:]  # The last four bytes of the MAC address is used as an ID field.
+
+
+# Known packet types.
+
+PACKET_TYPE_LINK = b"LINK"
+
+
+# Known fields.
+
+FIELD_HELLO = b"HELO"
+
+FIELD_ACKNOWLEDGE_PACKET = b"ACKN"
+
+FIELD_ERROR = b"ERRO"
+
+FIELD_ERROR_CODE = b"ERRC"
+
+FIELD_WARNING = b"WARN"
+
+FIELD_WARNING_CODE = b"WARC"
 
 
 class ClientLoggerAdapter(logging.LoggerAdapter):
@@ -69,10 +96,13 @@ class Client:
     @asyncio.coroutine
     def _connect(self):
         # Connect to the node.
-        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
+        with wrap_network_errors():
+            self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
         self._logger.info("Connected")
         # Read the initial LINK HELO packet.
-        yield from self._read_packet()
+        helo_packet = yield from self._read_packet()
+        if not (helo_packet.type == PACKET_TYPE_LINK and FIELD_HELLO in self._decode_fields(helo_packet.fields)):
+            raise ClientError("Did not receive HELO packet")
         # Start up the background reader.
         self._reader_coro = asyncio.async(self._run_reader(), loop=self._loop)
 
@@ -114,13 +144,24 @@ class Client:
                         pass
                     else:
                         if not future.cancelled():
-                            future.set_result(field)
+                            # Handle acknowledgements.
+                            if FIELD_ACKNOWLEDGE_PACKET in field.params:
+                                self._logger.debug("Received ack %s", field.params[FIELD_ACKNOWLEDGE_PACKET])
+                            elif FIELD_ERROR in field.params or FIELD_ERROR_CODE in field.params:
+                                future.set_exception(CommandError(field.params.get(FIELD_ERROR), field.params.get(FIELD_ERROR_CODE), field.name))
+                            elif FIELD_WARNING in field.params or FIELD_WARNING_CODE in field.params:
+                                warnings.warn(CommandWarning(field.params.get(FIELD_WARNING), field.params.get(FIELD_WARNING_CODE), field.name))
+                            else:
+                                future.set_result(field)
 
     @asyncio.coroutine
     def _read_packet(self):
         packet = yield from read_packet(self._reader)
         self._logger.debug("Received packet %s %s", packet.type, packet.fields)
         return packet
+
+    def _decode_fields(self, fields):
+        return dict(map(attrgetter("name", "params"), fields))
 
     # Packet writing.
 
@@ -151,16 +192,13 @@ class Client:
         # Wait for all the fields.
         response_promises, _ = yield from asyncio.wait(map(self._wait_for_field, fields), loop=self._loop)
         # All done!
-        return {
-            response_field.name: response_field.params
-            for response_field
-            in map(methodcaller("result"), response_promises)
-        }
+        return self._decode_fields(map(methodcaller("result"), response_promises))
 
     @asyncio.coroutine
     def run_command(self, packet_type, field, params=None):
         params = {} if params is None else params
-        return (yield from self.run_commands(packet_type, {field: params}))
+        response_fields = yield from self.run_commands(packet_type, {field: params})
+        return response_fields[field]
 
 
 @asyncio.coroutine
@@ -171,5 +209,5 @@ def connect(host, port, *, loop=None):
 
 
 def connect_sync(host, port, *, loop=None, timeout=None):
-    client = sync(loop=loop, timeout=timeout)(connect)(host, port, loop=loop)
-    return SyncWrapper(client, loop=loop, timeout=timeout)
+    client = sync()(connect)(host, port, loop=loop, timeout=timeout)
+    return SyncWrapper(client)

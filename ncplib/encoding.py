@@ -295,10 +295,12 @@ def decode_packet_cps(header_buf):
         info,
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
     size = size_words * 4
-    assert header == PACKET_HEADER
+    if header != PACKET_HEADER:
+        raise DecodeError("Invalid packet header {}".format(header))
     timestamp = datetime.fromtimestamp(time, tz=timezone.utc) + timedelta(microseconds=nanotime // 1000)
     # Check the packet format.
-    assert format_id == PACKET_FORMAT_ID
+    if format_id != PACKET_FORMAT_ID:
+        raise DecodeError("Unknown packet format {}".format(format_id))
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
     def decode_packet_body(body_buf):
@@ -307,7 +309,8 @@ def decode_packet_cps(header_buf):
             checksum,
             footer,
         ) = PACKET_FOOTER_STRUCT.unpack_from(body_buf, size_remaining - PACKET_FOOTER_STRUCT.size)
-        assert footer == PACKET_FOOTER
+        if footer != PACKET_FOOTER:
+            raise DecodeError("Invalid packet footer {}".format(footer))
         # All done!
         return Packet(
             type = packet_type,

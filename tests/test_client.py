@@ -1,7 +1,8 @@
 import os
-from unittest import TestCase, skipUnless
+from unittest import TestCase, skipUnless, SkipTest
 
 from ncplib.client import connect_sync
+from ncplib.errors import CommandError
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -15,18 +16,21 @@ class ClientTest(TestCase):
     def setUp(self):
         self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, timeout=5)
 
-    def testExecuteStat(self):
-        response = self.client.run_command(b"NODE", b"STAT")
-        self.assertIn(b"OCON", response[b"STAT"])
-        self.assertIsInstance(response[b"STAT"][b"OCON"], int)
-        self.assertIn(b"CADD", response[b"STAT"])
-        self.assertIsInstance(response[b"STAT"][b"CADD"], str)
-        self.assertIn(b"CIDS", response[b"STAT"])
-        self.assertIsInstance(response[b"STAT"][b"CIDS"], str)
-        self.assertIn(b"RGPS", response[b"STAT"])
-        self.assertIsInstance(response[b"STAT"][b"RGPS"], str)
-        self.assertIn(b"ELOC", response[b"STAT"])
-        self.assertIsInstance(response[b"STAT"][b"ELOC"], int)
+    def testRunStat(self):
+        response = self.client.run_command(b"NODE", b"STAT", timeout=5)
+        self.assertIsInstance(response[b"OCON"], int)
+        self.assertIsInstance(response[b"CADD"], str)
+        self.assertIsInstance(response[b"CIDS"], str)
+        self.assertIsInstance(response[b"RGPS"], str)
+        self.assertIsInstance(response[b"ELOC"], int)
+
+    def testRunSurvey(self):
+        try:
+            response = self.client.run_command(b"DSPC", b"SURV", timeout=90)
+            self.assertIn(b"JSON", response)
+        except CommandError as ex:
+            if ex.code == -4079:
+                raise SkipTest("Survey already running on node.")
 
     def tearDown(self):
         self.client.close()

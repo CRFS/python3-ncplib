@@ -4,7 +4,7 @@
 __pycache__
 Thumbs.db
 /venv
-.coverage
+.coverage*
 *.log
 *.egg-info
 /dist
