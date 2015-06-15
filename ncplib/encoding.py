@@ -6,6 +6,8 @@ from functools import partial
 from operator import methodcaller
 from struct import Struct
 
+from ncplib.errors import DecodeError
+
 
 # Packet structs.
 
@@ -204,21 +206,24 @@ def decode_params(buf, offset, limit):
         value = decode_value(type_id, value_encoded)
         yield name, value
         offset += size
-    assert offset == limit
+    if offset > limit:
+        raise DecodeError("Parameter overflow by {} bytes".format(offset - limit))
 
 
 # Field encoding.
 
+Field = namedtuple("Field", ("name", "id", "params",))
+
+
 def encode_fields(fields):
     buf = bytearray()
-    for field_id, field in enumerate(fields.items()):
-        name, params = field
-        encoded_params = encode_params(params)
+    for field in fields:
+        encoded_params = encode_params(field.params)
         buf.extend(FIELD_HEADER_STRUCT.pack(
-            name,
+            field.name,
             encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
             0,  # Field type ID is ignored.
-            field_id,
+            field.id,
         ))
         buf.extend(encoded_params)
     return buf
@@ -231,9 +236,14 @@ def decode_fields(buf, offset, limit):
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
         params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
-        yield name, params
+        yield Field(
+            name = name,
+            id = field_id,
+            params = params,
+        )
         offset += size
-    assert offset == limit
+    if offset > limit:
+        raise DecodeError("Field overflow by {} bytes".format(offset - limit))
 
 
 # Packet formats.
@@ -292,7 +302,7 @@ def decode_packet_cps(header_buf):
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
     def decode_packet_body(body_buf):
-        fields = OrderedDict(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
+        fields = list(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
         (
             checksum,
             footer,
