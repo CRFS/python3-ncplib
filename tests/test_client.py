@@ -1,5 +1,5 @@
 import asyncio, os, warnings
-from unittest import TestCase, skipUnless, SkipTest, expectedFailure
+from unittest import TestCase, skipUnless, SkipTest
 
 from ncplib.client import connect_sync
 from ncplib.errors import CommandError
@@ -79,7 +79,10 @@ class ClientTest(TestCase):
             if ex.code == -4079:
                 raise SkipTest("Survey already running on node.")
 
-    @expectedFailure
-    def testStreamTimeCapture(self):
-        streaming_response = self.client.send(b"DSPL", {b"TIME": {b"FCTR": 900, b"SAMP": 1024}})
+    def testLoopSwep(self):
+        streaming_response = self.client.send(b"DSPL", {b"SWEP": {}})
+        streaming_response.read_field(b"SWEP", timeout=15)
+
+    def testStreamTime(self):
+        streaming_response = self.client.send(b"DSPL", {b"TIME": {b"FCTR": 1200}})
         streaming_response.read_field(b"TIME", timeout=15)

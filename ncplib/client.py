@@ -160,8 +160,6 @@ class Client:
         helo_packet = yield from self._read_packet()
         if not (helo_packet.type == b"LINK" and b"HELO" in decode_fields(helo_packet.fields)):
             raise ClientError("Did not receive LINK HELO packet")
-        # Start up the background reader.
-        self._reader_coro = asyncio.async(self._run_reader(), loop=self._loop)
 
     def close(self):
         # Cancel all tasks.
@@ -203,7 +201,6 @@ class Client:
                         if self._auto_ackn:
                             ackn = field.params.pop(b"ACKN", None)
                             if ackn is not None:
-                                self._logger.debug("Received %s ACKN %s", field, ackn)
                                 continue  # Ignore the rest of the field for this waiter.
                         # Give the params to the waiter.
                         for future in self._waiters.get(field.id, ()):
