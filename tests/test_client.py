@@ -94,25 +94,25 @@ class ClientTest(TestCase):
                 raise SkipTest("Survey already running on node.")
 
     def testDspcSwep(self):
-        params = self.client.communicate(b"DSPC", {b"SWEP": {}}, timeout=15)[b"SWEP"]
+        params = self.client.communicate(b"DSPC", {b"SWEP": {}}, timeout=30)[b"SWEP"]
         self.assertSwepParams(params)
 
     def testDspcTime(self):
-        params = self.client.communicate(b"DSPC", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}}, timeout=15)[b"TIME"]
+        params = self.client.communicate(b"DSPC", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}}, timeout=30)[b"TIME"]
         self.assertTimeParams(params)
 
     # Loop tests.
 
     def testDsplSwep(self):
         streaming_response = self.client.send(b"DSPL", {b"SWEP": {}})
-        params = streaming_response.read_field(b"SWEP", timeout=15)
+        params = streaming_response.read_field(b"SWEP", timeout=30)
         self.assertSwepParams(params)
-        params = streaming_response.read_field(b"SWEP", timeout=15)
+        params = streaming_response.read_field(b"SWEP", timeout=30)
         self.assertSwepParams(params)
 
     def testDsplTime(self):
         streaming_response = self.client.send(b"DSPL", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}})
-        params = streaming_response.read_field(b"TIME", timeout=15)
+        params = streaming_response.read_field(b"TIME", timeout=30)
         self.assertTimeParams(params)
-        params = streaming_response.read_field(b"TIME", timeout=15)
+        params = streaming_response.read_field(b"TIME", timeout=30)
         self.assertTimeParams(params)

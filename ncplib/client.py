@@ -90,22 +90,13 @@ class Client:
             "port": port,
         })
         # Packet reading.
+        self._background_reader = None
         self._reader = None
         # Packet writing.
         self._id_gen = 0
         self._writer = None
         # Multiplexing.
-        self._tasks = set()
         self._waiters = {}
-
-    # Task spawning.
-
-    def _spawn(self, coro=None):
-        coro = asyncio.Future(loop=self._loop) if coro is None else coro
-        task = asyncio.async(coro, loop=self._loop)
-        self._tasks.add(task)
-        task.add_done_callback(self._tasks.remove)
-        return task
 
     # Waiter handling.
 
@@ -125,11 +116,34 @@ class Client:
             field_waiters = set()
             self._waiters[field.id] = field_waiters
         # Spawn a waiter.
-        waiter = self._spawn()
+        waiter = asyncio.Future(loop=self._loop)
         field_waiters.add(waiter)
         waiter.add_done_callback(partial(self._wait_for_field_done, field.id))
         # All done!
         return waiter
+
+    def _iter_all_waiters(self):
+        return (
+            future
+            for future
+            in chain.from_iterable(self._waiters.values())
+        )
+
+    def _iter_all_active_waiters(self):
+        return (
+            future
+            for future
+            in self._iter_all_waiters()
+            if not future.cancelled()
+        )
+
+    def _iter_active_waiters(self, field_id):
+        return (
+            future
+            for future
+            in self._waiters.get(field_id, ())
+            if not future.cancelled()
+        )
 
     # Packet reading.
 
@@ -193,20 +207,23 @@ class Client:
         if not (scon_packet.type == b"LINK" and b"SCON" in decode_fields(scon_packet.fields)):
             raise ClientError("Did not receive LINK SCON packet")
         # Spawn a background reader.
-        self._spawn(self._run_reader())
+        self._background_reader = asyncio.async(self._run_reader(), loop=self._loop)
 
     def close(self):
-        # Cancel all tasks.
-        for task in self._tasks:
-            task.cancel()
+        # Cancel the background reader.
+        self._background_reader.cancel()
+        # Cancel all active waiters.
+        for future in self._iter_all_active_waiters():
+            future.cancel()
         # Shut down the stream.
         self._writer.close()
         self._logger.info("Closed")
 
     @asyncio.coroutine
     def wait_closed(self):
-        if self._tasks:
-            yield from asyncio.wait(self._tasks, loop=self._loop)
+        active_futures = list(self._iter_all_waiters())
+        active_futures.append(self._background_reader)
+        yield from asyncio.wait(active_futures, loop=self._loop)
 
     # The reader loop.
 
@@ -239,24 +256,21 @@ class Client:
                             if ackn is not None:
                                 continue  # Ignore the rest of the field for this waiter.
                         # Give the params to the waiter.
-                        for future in self._waiters.get(field.id, ()):
-                            if not future.cancelled():
-                                future.set_result(field)
+                        for future in self._iter_active_waiters(field.id):
+                            future.set_result(field)
                     except Exception as ex:
                         # Send the exception to the waiter. We catch exceptions rather
                         # than calling set_exception directly in the error handler, since
                         # warnings might be configured to raise exceptions.
-                        for future in self._waiters.get(field.id, ()):
-                            if not future.cancelled():
-                                future.set_exception(ex)
+                        for future in self._iter_active_waiters(field.id):
+                            future.set_exception(ex)
             except asyncio.CancelledError:
                 # Stop reading if we've been cancelled.
                 raise
             except Exception as ex:
                 # Propagate the exception to all waiters.
-                for future in chain.from_iterable(self._waiters.values()):
-                    if not future.cancelled():
-                        future.set_exception(ex)
+                for future in self._iter_all_active_waiters():
+                    future.set_exception(ex)
 
     # Public API.
 
