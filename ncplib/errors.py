@@ -8,6 +8,8 @@ __all__ = (
     "ClientError",
     "CommandError",
     "NCPWarning",
+    "ClientWarning",
+    "CommandWarning",
 )
 
 
@@ -57,7 +59,12 @@ class NCPWarning(Warning):
     pass
 
 
-class CommandWarning(NCPWarning):
+class ClientWarning(NCPWarning):
+
+    pass
+
+
+class CommandWarning(ClientWarning):
 
     def __init__(self, message, code, field):
         super().__init__(message, code, field)

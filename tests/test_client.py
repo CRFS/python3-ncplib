@@ -1,5 +1,5 @@
-import os
-from unittest import TestCase, skipUnless, SkipTest
+import asyncio, os, warnings
+from unittest import TestCase, skipUnless, SkipTest, expectedFailure
 
 from ncplib.client import connect_sync
 from ncplib.errors import CommandError
@@ -13,29 +13,73 @@ NCPLIB_TEST_CLIENT_PORT = os.environ.get("NCPLIB_TEST_CLIENT_PORT")
 @skipUnless(NCPLIB_TEST_CLIENT_PORT, "NCPLIB_TEST_CLIENT_PORT not set in environ")
 class ClientTest(TestCase):
 
+    # Test lifecycle.
+
     def setUp(self):
-        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, timeout=5)
-
-    def testRunStat(self):
-        response = self.client.run_node(b"STAT", timeout=5)
-        self.assertIsInstance(response[b"OCON"], int)
-        self.assertIsInstance(response[b"CADD"], str)
-        self.assertIsInstance(response[b"CIDS"], str)
-        self.assertIsInstance(response[b"RGPS"], str)
-        self.assertIsInstance(response[b"ELOC"], int)
-
-    def testRunSurvey(self):
-        try:
-            response = self.client.run_dsp_control(b"SURV", timeout=90)
-            self.assertIn(b"JSON", response)
-        except CommandError as ex:
-            if ex.code == -4079:
-                raise SkipTest("Survey already running on node.")
-
-    def testStreamTimeCapture(self):
-        with self.client.stream_dsp_loop_multi({b"TIME": {b"FCTR": 900, b"SAMP": 1024}}, timeout=5) as frequency_stream:
-            response = frequency_stream.read_all(timeout=120)
+        # Create a debug loop.
+        warnings.simplefilter("error", ResourceWarning)
+        self.loop = asyncio.new_event_loop()
+        self.loop.set_debug(True)
+        # Connect the client.
+        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=5)
 
     def tearDown(self):
         self.client.close()
         self.client.wait_closed()
+        self.loop.close()
+
+    # Test utils.
+
+    def assertStatParams(self, params):
+        self.assertIsInstance(params[b"OCON"], int)
+        self.assertIsInstance(params[b"CADD"], str)
+        self.assertIsInstance(params[b"CIDS"], str)
+        self.assertIsInstance(params[b"RGPS"], str)
+        self.assertIsInstance(params[b"ELOC"], int)
+
+    # Simple integration tests.
+
+    def testStatCommunicate(self):
+        fields = self.client.communicate(b"NODE", {b"STAT": {}})
+        self.assertStatParams(fields[b"STAT"])
+
+    # Testing the read machinery.
+
+    def testStatReadAll(self):
+        fields = self.client.send(b"NODE", {b"STAT": {}}).read_all()
+        self.assertStatParams(fields[b"STAT"])
+
+    def testStatReadAny(self):
+        fields = self.client.send(b"NODE", {b"STAT": {}}).read_any()
+        self.assertStatParams(fields[b"STAT"])
+
+    def testStatReadField(self):
+        params = self.client.send(b"NODE", {b"STAT": {}}).read_field(b"STAT")
+        self.assertStatParams(params)
+
+    def testStatReadFieldMissing(self):
+        with self.assertRaises(ValueError):
+            self.client.send(b"NODE", {b"STAT": {}}).read_field(b"BOOM")
+
+    # More complex commands with an ACK and non-overlapping runtimes.
+
+    def testSurvey(self):
+        response = self.client.send(b"DSPC", {b"SURV": {}})
+        response_2 = self.client.send(b"DSPC", {b"SURV": {}})
+        # The second survey should have errored.
+        with self.assertRaises(CommandError) as cm:
+            response_2.read_field(b"SURV")
+        self.assertEqual(cm.exception.code, -4079)
+        # The first survey will probably succeed.
+        try:
+            params = response.read_field(b"SURV", timeout=90)
+            self.assertIn(b"JSON", params)
+        except CommandError as ex:
+            # If the first survey errored, then someone else is also testing, so let's stop here.
+            if ex.code == -4079:
+                raise SkipTest("Survey already running on node.")
+
+    @expectedFailure
+    def testStreamTimeCapture(self):
+        streaming_response = self.client.send(b"DSPL", {b"TIME": {b"FCTR": 900, b"SAMP": 1024}})
+        streaming_response.read_field(b"TIME", timeout=15)

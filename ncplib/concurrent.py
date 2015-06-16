@@ -2,40 +2,47 @@ import asyncio, inspect
 from functools import wraps
 
 
-def maybe_wrap(value):
+def maybe_wrap(value, *, loop=None, timeout=None):
     # Wrap coroutine functions.
-    if asyncio.iscoroutinefunction(value):
-        return sync(value)
-    for _, method in inspect.getmembers(value, predicate=inspect.ismethod):
-        if asyncio.iscoroutinefunction(method):
-            return SyncWrapper(value)
+    if callable(value):
+        return sync(value, loop=loop, timeout=timeout)
+    if any(inspect.getmembers(value, predicate=asyncio.iscoroutinefunction)):
+        return SyncWrapper(value, loop=loop, timeout=timeout)
     return value
 
 
-def sync(func):
-    assert asyncio.iscoroutinefunction(func), "Can only decorate coroutine functions as @sync()."
+def sync(func, *, loop=None, timeout=None):
+    signature = inspect.signature(func)
+    # Wrap functions with a sync wrapper.
     @wraps(func)
-    def sync_wrapper(*args, loop=None, timeout=None, **kwargs):
-        loop = loop or asyncio.get_event_loop()
-        result = loop.run_until_complete(asyncio.wait_for(func(*args, **kwargs), loop=loop, timeout=timeout))
-        return maybe_wrap(result)
+    def sync_wrapper(*args, loop=loop, timeout=timeout, **kwargs):
+        # Pass through loop and timeout arguments, if present.
+        if "loop" in signature.parameters:
+            kwargs["loop"] = loop
+        if "timeout" in signature.parameters:
+            kwargs["timeout"] = timeout
+            timeout = None
+        # Run the func.
+        result = func(*args, **kwargs)
+        # Run coroutines on the loop.
+        if asyncio.iscoroutine(result):
+            loop = loop or asyncio.get_event_loop()
+            # Apply timeout.
+            if timeout is not None:
+                result = asyncio.wait_for(result, loop=loop, timeout=timeout)
+            # Wait for the result to be ready.
+            result = loop.run_until_complete(result)
+        # Wrap the result.
+        return maybe_wrap(result, loop=loop, timeout=timeout)
     return sync_wrapper
 
 
 class SyncWrapper:
 
-    __slots__ = ("_wrapped",)
-
-    def __init__(self, wrapped):
+    def __init__(self, wrapped, *, loop=None, timeout=None):
         self._wrapped = wrapped
-
-    # Use as a context manager.
-
-    def __enter__(self):
-        return maybe_wrap(self._wrapped.__enter__())
-
-    def __exit__(self, *args):
-        return maybe_wrap(self._wrapped.__exit__(*args))
+        self._loop = loop
+        self._timeout = timeout
 
     def __getattr__(self, name):
-        return maybe_wrap(getattr(self._wrapped, name))
+        return maybe_wrap(getattr(self._wrapped, name), loop=self._loop, timeout=self._timeout)
