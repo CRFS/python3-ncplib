@@ -197,6 +197,9 @@ class Client:
                             warning_code = field.params.pop(b"WARC", None)
                             if warning_message is not None or warning_code is not None:
                                 warnings.warn(CommandWarning(warning_message, warning_code, field))
+                            # Ignore the rest of packet-level warnings.
+                            if field.name == b"WARN":
+                                continue
                         # Handle acks.
                         if self._auto_ackn:
                             ackn = field.params.pop(b"ACKN", None)
@@ -238,7 +241,7 @@ class Client:
             in fields.items()
         }
         # Sent the packet.
-        self._write_packet(packet_type, fields.values())
+        self._write_packet(packet_type, list(fields.values()))
         # Return a streaming response.
         return ClientResponse(self, fields)
 

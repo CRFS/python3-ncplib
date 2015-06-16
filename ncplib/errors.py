@@ -35,7 +35,7 @@ def wrap_network_errors():
     try:
         yield
     except (OSError, EOFError) as ex:
-        raise NetworkError from ex
+        raise NetworkError(str(ex)) from ex
 
 
 class ClientError(NCPError):

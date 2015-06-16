@@ -1,5 +1,5 @@
 from array import array
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from functools import partial
@@ -202,7 +202,7 @@ def decode_params(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
-        value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size]).split(b"\x00", 1)[0]
+        value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size]).rstrip(b"\x00")
         value = decode_value(type_id, value_encoded)
         yield name, value
         offset += size
@@ -235,7 +235,7 @@ def decode_fields(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
-        params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
+        params = dict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield Field(
             name = name,
             id = field_id,
