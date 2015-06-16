@@ -20,7 +20,7 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-PACKET_INFO = get_mac().to_bytes(6, "little", signed=False)[-4:]  # The last four bytes of the MAC address is used as an ID field.
+CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]  # The last four bytes of the MAC address is used as an ID field.
 
 
 class ClientLoggerAdapter(logging.LoggerAdapter):
@@ -45,7 +45,11 @@ class ClientResponse:
 
     def __init__(self, client, fields):
         self._client = client
-        self._fields = fields
+        self._fields = {
+            field.name: field
+            for field
+            in fields
+        }
 
     @asyncio.coroutine
     def read_all(self):
@@ -114,9 +118,6 @@ class Client:
             del self._waiters[field_id]
 
     def _wait_for_field(self, field):
-        # Spawn a background reader, if this is the first waiter.
-        if not self._waiters:
-            self._spawn(self._run_reader())
         # Get the field waiters.
         try:
             field_waiters = self._waiters[field.id]
@@ -144,8 +145,19 @@ class Client:
         self._id_gen += 1
         return self._id_gen
 
+    def _encode_fields(self, fields):
+        return [
+            Field(
+                name = field_name,
+                id = self._gen_id(),
+                params = params,
+            )
+            for field_name, params
+            in fields.items()
+        ]
+
     def _write_packet(self, packet_type, fields):
-        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), PACKET_INFO, fields)
+        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._logger.debug("Sent packet %s %s", packet_type, fields)
 
     # Connection lifecycle.
@@ -160,6 +172,28 @@ class Client:
         helo_packet = yield from self._read_packet()
         if not (helo_packet.type == b"LINK" and b"HELO" in decode_fields(helo_packet.fields)):
             raise ClientError("Did not receive LINK HELO packet")
+        # Send the connection request.
+        self._write_packet(b"LINK", self._encode_fields({
+            b"CCRE": {
+                b"CIW\x00": CLIENT_ID,
+            },
+        }))
+        # Read the connection response packet.
+        scar_packet = yield from self._read_packet()
+        if not (scar_packet.type == b"LINK" and b"SCAR" in decode_fields(scar_packet.fields)):
+            raise ClientError("Did not receive LINK SCAR packet")
+        # Send the auth request packet.
+        self._write_packet(b"LINK", self._encode_fields({
+            b"CARE": {
+                b"CAR\x00": CLIENT_ID,
+            },
+        }))
+        # Read the auth response packet.
+        scon_packet = yield from self._read_packet()
+        if not (scon_packet.type == b"LINK" and b"SCON" in decode_fields(scon_packet.fields)):
+            raise ClientError("Did not receive LINK SCON packet")
+        # Spawn a background reader.
+        self._spawn(self._run_reader())
 
     def close(self):
         # Cancel all tasks.
@@ -178,9 +212,8 @@ class Client:
 
     @asyncio.coroutine
     def _run_reader(self):
-        self._logger.debug("Starting background reader")
-        try:
-            while self._waiters:
+        while True:
+            try:
                 packet = yield from self._read_packet()
                 # Send the packet to all waiters.
                 for field in packet.fields:
@@ -216,32 +249,22 @@ class Client:
                         for future in self._waiters.get(field.id, ()):
                             if not future.cancelled():
                                 future.set_exception(ex)
-        except asyncio.CancelledError:
-            # Stop reading if we've been cancelled.
-            pass
-        except Exception as ex:
-            # Propagate the exception to all waiters.
-            for future in chain.from_iterable(self._waiters.values()):
-                if not future.cancelled():
-                    future.set_exception(ex)
-        finally:
-            self._logger.debug("Shutting down background reader")
+            except asyncio.CancelledError:
+                # Stop reading if we've been cancelled.
+                raise
+            except Exception as ex:
+                # Propagate the exception to all waiters.
+                for future in chain.from_iterable(self._waiters.values()):
+                    if not future.cancelled():
+                        future.set_exception(ex)
 
     # Public API.
 
     def send(self, packet_type, fields):
         # Encode the fields.
-        fields = {
-            field_name: Field(
-                name = field_name,
-                id = self._gen_id(),
-                params = params,
-            )
-            for field_name, params
-            in fields.items()
-        }
+        fields = self._encode_fields(fields)
         # Sent the packet.
-        self._write_packet(packet_type, list(fields.values()))
+        self._write_packet(packet_type, fields)
         # Return a streaming response.
         return ClientResponse(self, fields)
 

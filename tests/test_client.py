@@ -1,8 +1,9 @@
 import asyncio, os, warnings
+from array import array
 from unittest import TestCase, skipUnless, SkipTest
 
 from ncplib.client import connect_sync
-from ncplib.errors import CommandError
+from ncplib.errors import CommandError, CommandWarning
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -17,10 +18,11 @@ class ClientTest(TestCase):
 
     def setUp(self):
         # Create a debug loop.
-        warnings.simplefilter("error", ResourceWarning)
+        warnings.simplefilter("default", ResourceWarning)
+        warnings.simplefilter("ignore", CommandWarning)
         self.loop = asyncio.new_event_loop()
         self.loop.set_debug(True)
-        asyncio.set_event_loop(self.loop)
+        asyncio.set_event_loop(None)
         # Connect the client.
         self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=5)
 
@@ -37,6 +39,17 @@ class ClientTest(TestCase):
         self.assertIsInstance(params[b"CIDS"], str)
         self.assertIsInstance(params[b"RGPS"], str)
         self.assertIsInstance(params[b"ELOC"], int)
+
+    def assertSwepParams(self, params):
+        self.assertIsInstance(params[b"PDAT"], array)
+        self.assertEqual(params[b"PDAT"].typecode, "B")
+
+    def assertTimeParams(self, params):
+        self.assertEqual(params[b"SAMP"], 4096)
+        self.assertEqual(params[b"FCTR"], 1200)
+        self.assertIsInstance(params[b"DIQT"], array)
+        self.assertEqual(params[b"DIQT"].typecode, "h")
+        self.assertEqual(len(params[b"DIQT"]), 8192)
 
     # Simple integration tests.
 
@@ -80,10 +93,26 @@ class ClientTest(TestCase):
             if ex.code == -4079:
                 raise SkipTest("Survey already running on node.")
 
+    def testDspcSwep(self):
+        params = self.client.communicate(b"DSPC", {b"SWEP": {}}, timeout=15)[b"SWEP"]
+        self.assertSwepParams(params)
+
+    def testDspcTime(self):
+        params = self.client.communicate(b"DSPC", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}}, timeout=15)[b"TIME"]
+        self.assertTimeParams(params)
+
+    # Loop tests.
+
     def testDsplSwep(self):
         streaming_response = self.client.send(b"DSPL", {b"SWEP": {}})
-        streaming_response.read_field(b"SWEP", timeout=15)
+        params = streaming_response.read_field(b"SWEP", timeout=15)
+        self.assertSwepParams(params)
+        params = streaming_response.read_field(b"SWEP", timeout=15)
+        self.assertSwepParams(params)
 
     def testDsplTime(self):
-        streaming_response = self.client.send(b"DSPL", {b"TIME": {b"FCTR": 1200}})
-        streaming_response.read_field(b"TIME", timeout=15)
+        streaming_response = self.client.send(b"DSPL", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}})
+        params = streaming_response.read_field(b"TIME", timeout=15)
+        self.assertTimeParams(params)
+        params = streaming_response.read_field(b"TIME", timeout=15)
+        self.assertTimeParams(params)

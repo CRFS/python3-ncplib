@@ -49,6 +49,9 @@ decode_u32 = partial(int.from_bytes, byteorder="little", signed=False)
 
 decode_string = partial(str, encoding="latin1", errors="ignore")
 
+def decode_string(value):
+    return value.split(b"\x00", 1)[0].decode(encoding="latin1", errors="ignore")
+
 decode_raw = bytes
 
 decode_array_u8 = partial(array, "B")
@@ -202,7 +205,7 @@ def decode_params(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
-        value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size]).rstrip(b"\x00")
+        value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size])
         value = decode_value(type_id, value_encoded)
         yield name, value
         offset += size
