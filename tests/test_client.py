@@ -20,6 +20,7 @@ class ClientTest(TestCase):
         warnings.simplefilter("error", ResourceWarning)
         self.loop = asyncio.new_event_loop()
         self.loop.set_debug(True)
+        asyncio.set_event_loop(self.loop)
         # Connect the client.
         self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=5)
 
@@ -63,7 +64,7 @@ class ClientTest(TestCase):
 
     # More complex commands with an ACK and non-overlapping runtimes.
 
-    def testSurvey(self):
+    def testDspcSurv(self):
         response = self.client.send(b"DSPC", {b"SURV": {}})
         response_2 = self.client.send(b"DSPC", {b"SURV": {}})
         # The second survey should have errored.
@@ -79,10 +80,10 @@ class ClientTest(TestCase):
             if ex.code == -4079:
                 raise SkipTest("Survey already running on node.")
 
-    def testLoopSwep(self):
+    def testDsplSwep(self):
         streaming_response = self.client.send(b"DSPL", {b"SWEP": {}})
         streaming_response.read_field(b"SWEP", timeout=15)
 
-    def testStreamTime(self):
+    def testDsplTime(self):
         streaming_response = self.client.send(b"DSPL", {b"TIME": {b"FCTR": 1200}})
         streaming_response.read_field(b"TIME", timeout=15)
