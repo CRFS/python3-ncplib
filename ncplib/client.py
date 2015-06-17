@@ -297,8 +297,8 @@ class Client:
 
 
 @asyncio.coroutine
-def connect(host, port, *, loop=None):
-    client = Client(host, port, loop=loop)
+def connect(host, port, *, loop=None, **kwargs):
+    client = Client(host, port, loop=loop, **kwargs)
     yield from client._connect()
     return client
 
