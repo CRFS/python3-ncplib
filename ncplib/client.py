@@ -5,7 +5,7 @@ from operator import methodcaller, attrgetter
 from uuid import getnode as get_mac
 
 from ncplib.concurrent import sync
-from ncplib.encoding import Field
+from ncplib.packets import Field
 from ncplib.errors import wrap_network_errors, PacketError, PacketWarning
 from ncplib.streams import write_packet, read_packet
 
@@ -62,7 +62,7 @@ class ClientResponse:
 
 class Client:
 
-    def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True, value_encoder=None, value_decoder=None):
+    def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
         self._host = host
         self._port = port
         self._loop = loop or asyncio.get_event_loop()
@@ -71,8 +71,6 @@ class Client:
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
-        self._value_encoder =  value_encoder
-        self._value_decoder = value_decoder
         # Logging.
         self._logger = ClientLoggerAdapter(logger, {
             "host": host,
@@ -159,7 +157,7 @@ class Client:
     def _run_reader(self):
         while True:
             try:
-                packet = yield from read_packet(self._reader, value_decoder=self._value_decoder)
+                packet = yield from read_packet(self._reader)
                 self._logger.debug("Received packet %s %s", packet.type, packet.fields)
                 # Send the packet to all waiters.
                 for waiter in self._active_waiters():
@@ -226,7 +224,7 @@ class Client:
             in fields.items()
         ]
         # Sent the packet.
-        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields, value_encoder=self._value_encoder)
+        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._logger.debug("Sent packet %s %s", packet_type, fields)
         # Return a streaming response.
         return ClientResponse(self, packet_type, fields)

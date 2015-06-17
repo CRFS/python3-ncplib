@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from struct import Struct
 
 from ncplib.errors import DecodeError
-from ncplib.values import default_value_encoder, default_value_decoder
+from ncplib.values import encode_value, decode_value
 
 
 # Packet structs.
@@ -38,30 +38,30 @@ def decode_u24_size(value):
 
 # Param encoding.
 
-def encode_params(params, value_encoder):
+def encode_params(params):
     buf = bytearray()
     for name, value in params.items():
-        encoded_value = value_encoder.encode(value)
-        size = PARAM_HEADER_STRUCT.size + len(encoded_value.value)
+        type_id, encoded_value = encode_value(value)
+        size = PARAM_HEADER_STRUCT.size + len(encoded_value)
         padding_size = size % 4
         buf.extend(PARAM_HEADER_STRUCT.pack(
             name,
             encode_u24_size(size + padding_size),
-            encoded_value.type_id,
+            type_id,
         ))
-        buf.extend(encoded_value.value)
+        buf.extend(encoded_value)
         buf.extend(b"\x00" * padding_size)
     return buf
 
 
 # Param decoding.
 
-def decode_params(buf, offset, limit, value_decoder):
+def decode_params(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
         value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size])
-        value = value_decoder.decode(type_id, value_encoded)
+        value = decode_value(type_id, value_encoded)
         yield name, value
         offset += size
     if offset > limit:
@@ -73,10 +73,10 @@ def decode_params(buf, offset, limit, value_decoder):
 Field = namedtuple("Field", ("name", "id", "params",))
 
 
-def encode_fields(fields, value_encoder):
+def encode_fields(fields):
     buf = bytearray()
     for field in fields:
-        encoded_params = encode_params(field.params, value_encoder)
+        encoded_params = encode_params(field.params)
         buf.extend(FIELD_HEADER_STRUCT.pack(
             field.name,
             encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
@@ -89,11 +89,11 @@ def encode_fields(fields, value_encoder):
 
 # Field decoding.
 
-def decode_fields(buf, offset, limit, value_decoder):
+def decode_fields(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         size = decode_u24_size(u24_size)
-        params = dict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size, value_decoder))
+        params = dict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield Field(
             name = name,
             id = field_id,
@@ -111,9 +111,8 @@ PACKET_FORMAT_ID = 1
 
 # Packet encoding.
 
-def encode_packet(packet_type, packet_id, timestamp, info, fields, *, value_encoder=None):
-    value_encoder = value_encoder or default_value_encoder
-    encoded_fields = encode_fields(fields, value_encoder)
+def encode_packet(packet_type, packet_id, timestamp, info, fields):
+    encoded_fields = encode_fields(fields)
     # Encode the header.
     buf = bytearray()
     timestamp = timestamp.astimezone(timezone.utc)
@@ -142,8 +141,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields, *, value_enco
 
 Packet = namedtuple("Packet", ("type", "id", "timestamp", "info", "fields",))
 
-def decode_packet_cps(header_buf, *, value_decoder=None):
-    value_decoder = value_decoder or default_value_decoder
+def decode_packet_cps(header_buf):
     (
         header,
         packet_type,
@@ -164,7 +162,7 @@ def decode_packet_cps(header_buf, *, value_decoder=None):
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
     def decode_packet_body(body_buf):
-        fields = list(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size, value_decoder))
+        fields = list(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
         (
             checksum,
             footer,
@@ -183,6 +181,6 @@ def decode_packet_cps(header_buf, *, value_decoder=None):
     return size_remaining, decode_packet_body
 
 
-def decode_packet(buf, *, value_decoder=None):
-    body_size, decode_packet_body = decode_packet_cps(buf[:PACKET_HEADER_STRUCT.size], value_decoder=value_decoder)
+def decode_packet(buf):
+    body_size, decode_packet_body = decode_packet_cps(buf[:PACKET_HEADER_STRUCT.size])
     return decode_packet_body(buf[PACKET_HEADER_STRUCT.size:PACKET_HEADER_STRUCT.size+body_size])
