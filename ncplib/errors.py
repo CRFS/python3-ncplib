@@ -34,7 +34,7 @@ class NetworkError(NCPError):
 def wrap_network_errors():
     try:
         yield
-    except (OSError, EOFError) as ex:
+    except (OSError, EOFError) as ex:  # pragma: no cover
         raise NetworkError(str(ex)) from ex
 
 

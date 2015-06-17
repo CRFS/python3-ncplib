@@ -59,18 +59,6 @@ class ClientTest(TestCase):
 
     # Testing the read machinery.
 
-    def testStatCommunicate(self):
-        fields = self.client.communicate(b"NODE", {b"STAT": {}})
-        self.assertStatParams(fields[b"STAT"])
-
-    def testStatRecvAll(self):
-        fields = self.client.send(b"NODE", {b"STAT": {}}).recv()
-        self.assertStatParams(fields[b"STAT"])
-
-    def testStatRecvAny(self):
-        fields = self.client.send(b"NODE", {b"STAT": {}}).recv_any()
-        self.assertStatParams(fields[b"STAT"])
-
     def testStatRecvField(self):
         params = self.client.send(b"NODE", {b"STAT": {}}).recv_field(b"STAT")
         self.assertStatParams(params)

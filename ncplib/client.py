@@ -32,8 +32,12 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
         ), kwargs
 
 
+def decode_fields(fields):
+    return dict(map(attrgetter("name", "params"), fields))
+
+
 def decode_field_futures(field_futures):
-    return dict(map(attrgetter("name", "params"), map(methodcaller("result"), field_futures)))
+    return decode_fields(map(methodcaller("result"), field_futures))
 
 
 class ClientResponse:
@@ -48,30 +52,12 @@ class ClientResponse:
         }
 
     @asyncio.coroutine
-    def _recv_field(self, field):
-        return (yield from self._client.recv_field(self._packet_type, field.name, field.id))
-
-    @asyncio.coroutine
-    def recv(self):
-        field_futures, _ = yield from asyncio.wait(map(self._recv_field, self._fields.values()), loop=self._client._loop)
-        return decode_field_futures(field_futures)
-
-    @asyncio.coroutine
-    def recv_any(self):
-        field_futures, field_futures_pending = yield from asyncio.wait(map(self._recv_field, self._fields.values()), return_when=asyncio.FIRST_COMPLETED, loop=self._client._loop)
-        # Cancel the pending futures.
-        for field_future in field_futures_pending:
-            field_future.cancel()
-        # Decode the futures we have.
-        return decode_field_futures(field_futures)
-
-    @asyncio.coroutine
     def recv_field(self, field_name):
         try:
             field = self._fields[field_name]
         except KeyError:
             raise ValueError("Response does not contain field {}".format(field_name))
-        return (yield from self._recv_field(field)).params
+        return (yield from self._client.recv_field(self._packet_type, field.name, field_id=field.id))
 
 
 class Client:
@@ -104,6 +90,14 @@ class Client:
     def _gen_id(self):
         self._id_gen += 1
         return self._id_gen
+
+    # Waiter handling.
+
+    def _wait_for_packet(self):
+        waiter = asyncio.Future(loop=self._loop)
+        self._waiters.add(waiter)
+        waiter.add_done_callback(self._waiters.remove)
+        return waiter
 
     def _active_waiters(self):
         return filterfalse(methodcaller("done"), self._waiters)
@@ -178,6 +172,46 @@ class Client:
                 for waiter in self._active_waiters():
                     waiter.set_exception(ex)
 
+    # Receiving fields.
+
+    def _handle_erro(self, packet_type, field):
+        error_message = field.params.get(b"ERRO", None)
+        error_code = field.params.get(b"ERRC", None)
+        if error_message is not None or error_code is not None:
+            raise PacketError(packet_type, field.name, field.id, error_message, error_code)
+
+    def _handle_warn(self, packet_type, field):
+        warning_message = field.params.get(b"WARN", None)
+        warning_code = field.params.get(b"WARC", None)
+        if warning_message is not None or warning_code is not None:
+            warnings.warn(PacketWarning(packet_type, field.name, field.id, warning_message, warning_code))
+        # Ignore the rest of packet-level warnings.
+        if field.name == b"WARN":
+            return True
+
+    def _handle_ackn(self, packet_type, field):
+        ackn = field.params.get(b"ACKN", None)
+        return ackn is not None
+
+    @asyncio.coroutine
+    def recv_field(self, packet_type, field_name, *, field_id=None):
+        while True:
+            packet = yield from self._wait_for_packet()
+            if packet.type == packet_type:
+                for field in packet.fields:
+                    if field.name == field_name and (field_id is None or field.id == field_id):
+                        # Handle errors.
+                        if self._auto_erro and self._handle_erro(packet_type, field):
+                            continue
+                        # Handle warnings.
+                        if self._auto_warn and self._handle_warn(packet_type, field):
+                            continue
+                        # Handle acks.
+                        if self._auto_ackn and self._handle_ackn(packet_type, field):
+                            continue
+                        # All done!
+                        return field.params
+
     # Sending packets.
 
     def send(self, packet_type, fields):
@@ -197,64 +231,9 @@ class Client:
         # Return a streaming response.
         return ClientResponse(self, packet_type, fields)
 
-    # Receiving packets.
-
-    @asyncio.coroutine
-    def recv(self):
-        waiter = asyncio.Future(loop=self._loop)
-        self._waiters.add(waiter)
-        try:
-            return (yield from waiter)
-        finally:
-            self._waiters.remove(waiter)
-
-    def _handle_erro(self, packet, field):
-        error_message = field.params.get(b"ERRO", None)
-        error_code = field.params.get(b"ERRC", None)
-        if error_message is not None or error_code is not None:
-            raise PacketError(packet.type, field.name, field.id, error_message, error_code)
-
-    def _handle_warn(self, packet, field):
-        warning_message = field.params.get(b"WARN", None)
-        warning_code = field.params.get(b"WARC", None)
-        if warning_message is not None or warning_code is not None:
-            warnings.warn(PacketWarning(packet.type, field.name, field.id, warning_message, warning_code))
-        # Ignore the rest of packet-level warnings.
-        if field.name == b"WARN":
-            return True
-
-    def _handle_ackn(self, packet, field):
-        ackn = field.params.get(b"ACKN", None)
-        return ackn is not None
-
-    @asyncio.coroutine
-    def recv_field(self, packet_type, field_name, field_id=None):
-        while True:
-            packet = yield from self.recv()
-            if packet.type == packet_type:
-                for field in packet.fields:
-                    if field_name == field.name and (field_id is None or field.id == field_id):
-                        # Handle errors.
-                        if self._auto_erro and self._handle_erro(packet, field):
-                            continue
-                        # Handle warnings.
-                        if self._auto_warn and self._handle_warn(packet, field):
-                            continue
-                        # Handle acks.
-                        if self._auto_ackn and self._handle_ackn(packet, field):
-                            continue
-                        # All done!
-                        return field
-
-    # Helpers.
-
-    @asyncio.coroutine
-    def communicate(self, packet_type, fields):
-        return (yield from self.send(packet_type, fields).recv())
-
     @asyncio.coroutine
     def execute(self, packet_type, field_name, params=None):
-        return (yield from self.communicate(packet_type, {field_name: params or {}}))[field_name]
+        return (yield from self.send(packet_type, {field_name: params or {}}).recv_field(field_name))
 
 
 @asyncio.coroutine
