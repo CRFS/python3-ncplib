@@ -59,6 +59,11 @@ class NCPWarning(Warning):
     pass
 
 
+class DecodeWarning(NCPWarning):
+
+    pass
+
+
 class ClientWarning(NCPWarning):
 
     pass

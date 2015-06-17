@@ -1,9 +1,9 @@
 import asyncio, os, warnings
 from array import array
-from unittest import TestCase, skipUnless, SkipTest
+from unittest import TestCase, skipUnless
 
 from ncplib.client import connect_sync
-from ncplib.errors import CommandError, CommandWarning
+from ncplib.errors import CommandWarning
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -24,7 +24,7 @@ class ClientTest(TestCase):
         self.loop.set_debug(True)
         asyncio.set_event_loop(None)
         # Connect the client.
-        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=5)
+        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=10)
 
     def tearDown(self):
         self.client.close()
@@ -75,23 +75,7 @@ class ClientTest(TestCase):
         with self.assertRaises(ValueError):
             self.client.send(b"NODE", {b"STAT": {}}).read_field(b"BOOM")
 
-    # More complex commands with an ACK and non-overlapping runtimes.
-
-    def testDspcSurv(self):
-        response = self.client.send(b"DSPC", {b"SURV": {}})
-        response_2 = self.client.send(b"DSPC", {b"SURV": {}})
-        # The second survey should have errored.
-        with self.assertRaises(CommandError) as cm:
-            response_2.read_field(b"SURV")
-        self.assertEqual(cm.exception.code, -4079)
-        # The first survey will probably succeed.
-        try:
-            params = response.read_field(b"SURV", timeout=90)
-            self.assertIn(b"JSON", params)
-        except CommandError as ex:
-            # If the first survey errored, then someone else is also testing, so let's stop here.
-            if ex.code == -4079:
-                raise SkipTest("Survey already running on node.")
+    # More complex commands with an ACK.
 
     def testDspcSwep(self):
         params = self.client.communicate(b"DSPC", {b"SWEP": {}}, timeout=30)[b"SWEP"]

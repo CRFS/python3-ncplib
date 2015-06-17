@@ -76,7 +76,7 @@ class ClientResponse:
 
 class Client:
 
-    def __init__(self, host, port, *, loop=None, auto_ackn=True, auto_warn=True, auto_erro=True):
+    def __init__(self, host, port, *, loop=None, auto_ackn=True, auto_warn=True, auto_erro=True, value_encoder=None, value_decoder=None):
         self._host = host
         self._port = port
         self._loop = loop or asyncio.get_event_loop()
@@ -84,6 +84,8 @@ class Client:
         self._auto_ackn = auto_ackn
         self._auto_warn = auto_warn
         self._auto_erro = auto_erro
+        self._value_encoder =  value_encoder
+        self._value_decoder = value_decoder
         # Logging.
         self._logger = ClientLoggerAdapter(logger, {
             "host": host,
@@ -149,7 +151,7 @@ class Client:
 
     @asyncio.coroutine
     def _read_packet(self):
-        packet = yield from read_packet(self._reader)
+        packet = yield from read_packet(self._reader, value_decoder=self._value_decoder)
         self._logger.debug("Received packet %s %s", packet.type, packet.fields)
         return packet
 
@@ -171,7 +173,7 @@ class Client:
         ]
 
     def _write_packet(self, packet_type, fields):
-        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
+        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields, value_encoder=self._value_encoder)
         self._logger.debug("Sent packet %s %s", packet_type, fields)
 
     # Connection lifecycle.
