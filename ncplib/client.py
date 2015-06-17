@@ -101,6 +101,10 @@ class Client:
         # Multiplexing.
         self._waiters = {}
 
+    def _gen_id(self):
+        self._id_gen += 1
+        return self._id_gen
+
     # Waiter handling.
 
     def _wait_for_field_done(self, field_id, future):
@@ -156,27 +160,6 @@ class Client:
         self._logger.debug("Received packet %s %s", packet.type, packet.fields)
         return packet
 
-    # Packet writing.
-
-    def _gen_id(self):
-        self._id_gen += 1
-        return self._id_gen
-
-    def _encode_fields(self, fields):
-        return [
-            Field(
-                name = field_name,
-                id = self._gen_id(),
-                params = params,
-            )
-            for field_name, params
-            in fields.items()
-        ]
-
-    def _write_packet(self, packet_type, fields):
-        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields, value_encoder=self._value_encoder)
-        self._logger.debug("Sent packet %s %s", packet_type, fields)
-
     # Connection lifecycle.
 
     @asyncio.coroutine
@@ -186,21 +169,21 @@ class Client:
         if not (helo_packet.type == b"LINK" and b"HELO" in decode_fields(helo_packet.fields)):
             raise ClientError("Did not receive LINK HELO packet")
         # Send the connection request.
-        self._write_packet(b"LINK", self._encode_fields({
+        self.send(b"LINK", {
             b"CCRE": {
                 b"CIW\x00": CLIENT_ID,
             },
-        }))
+        })
         # Read the connection response packet.
         scar_packet = yield from self._read_packet()
         if not (scar_packet.type == b"LINK" and b"SCAR" in decode_fields(scar_packet.fields)):
             raise ClientError("Did not receive LINK SCAR packet")
         # Send the auth request packet.
-        self._write_packet(b"LINK", self._encode_fields({
+        self.send(b"LINK", {
             b"CARE": {
                 b"CAR\x00": CLIENT_ID,
             },
-        }))
+        })
         # Read the auth response packet.
         scon_packet = yield from self._read_packet()
         if not (scon_packet.type == b"LINK" and b"SCON" in decode_fields(scon_packet.fields)):
@@ -285,9 +268,18 @@ class Client:
 
     def send(self, packet_type, fields):
         # Encode the fields.
-        fields = self._encode_fields(fields)
+        fields = [
+            Field(
+                name = field_name,
+                id = self._gen_id(),
+                params = params,
+            )
+            for field_name, params
+            in fields.items()
+        ]
         # Sent the packet.
-        self._write_packet(packet_type, fields)
+        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields, value_encoder=self._value_encoder)
+        self._logger.debug("Sent packet %s %s", packet_type, fields)
         # Return a streaming response.
         return ClientResponse(self, fields)
 
