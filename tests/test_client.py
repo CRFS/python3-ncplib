@@ -82,11 +82,11 @@ class ClientTest(TestCase):
     # More complex commands with an ACK.
 
     def testDspcSwep(self):
-        params = self.client.communicate(b"DSPC", {b"SWEP": {}}, timeout=30)[b"SWEP"]
+        params = self.client.execute(b"DSPC", b"SWEP", timeout=30)
         self.assertSwepParams(params)
 
     def testDspcTime(self):
-        params = self.client.communicate(b"DSPC", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}}, timeout=30)[b"TIME"]
+        params = self.client.execute(b"DSPC", b"TIME", {b"SAMP": 4096, b"FCTR": 1200}, timeout=30)
         self.assertTimeParams(params)
 
     # Loop tests.
