@@ -6,7 +6,7 @@ from uuid import getnode as get_mac
 
 from ncplib.concurrent import sync
 from ncplib.packets import Field
-from ncplib.errors import wrap_network_errors, PacketError, PacketWarning
+from ncplib.errors import wrap_network_errors, PacketError, ConnectionClosed, PacketWarning
 from ncplib.streams import write_packet, read_packet
 
 
@@ -140,7 +140,7 @@ class Client:
         self._background_reader.cancel()
         # Cancel all active waiters.
         for waiter in self._active_waiters():
-            waiter.cancel()
+            waiter.set_exception(ConnectionClosed())
         # Shut down the stream.
         self._writer.close()
         self._logger.info("Closed")

@@ -5,10 +5,9 @@ __all__ = (
     "NCPError",
     "DecodeError",
     "NetworkError",
-    "ClientError",
+    "ConnectionClosed",
     "PacketError",
     "NCPWarning",
-    "ClientWarning",
     "PacketWarning",
 )
 
@@ -38,12 +37,12 @@ def wrap_network_errors():
         raise NetworkError(str(ex)) from ex
 
 
-class ClientError(NCPError):
+class ConnectionClosed(NetworkError):
 
     pass
 
 
-class PacketError(ClientError):
+class PacketError(NCPError):
 
     def __init__(self, packet_type, field_name, field_id, message, code):
         super().__init__(packet_type, field_name, field_id, message, code)
@@ -66,12 +65,7 @@ class DecodeWarning(NCPWarning):
     pass
 
 
-class ClientWarning(NCPWarning):
-
-    pass
-
-
-class PacketWarning(ClientWarning):
+class PacketWarning(NCPWarning):
 
     def __init__(self, packet_type, field_name, field_id, message, code):
         super().__init__(packet_type, field_name, field_id, message, code)
