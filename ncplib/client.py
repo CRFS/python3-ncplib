@@ -105,23 +105,23 @@ class Client:
     @asyncio.coroutine
     def _handle_auth(self):
         # Read the initial LINK HELO packet.
-        yield from self.recv_field(b"LINK", b"HELO")
+        yield from self.recv_field("LINK", "HELO")
         # Send the connection request.
-        self.send(b"LINK", {
-            b"CCRE": {
-                b"CIW\x00": CLIENT_ID,
+        self.send("LINK", {
+            "CCRE": {
+                "CIW": CLIENT_ID,
             },
         })
         # Read the connection response packet.
-        yield from self.recv_field(b"LINK", b"SCAR")
+        yield from self.recv_field("LINK", "SCAR")
         # Send the auth request packet.
-        self.send(b"LINK", {
-            b"CARE": {
-                b"CAR\x00": CLIENT_ID,
+        self.send("LINK", {
+            "CARE": {
+                "CAR": CLIENT_ID,
             },
         })
         # Read the auth response packet.
-        yield from self.recv_field(b"LINK", b"SCON")
+        yield from self.recv_field("LINK", "SCON")
 
     @asyncio.coroutine
     def _connect(self):
@@ -173,22 +173,22 @@ class Client:
     # Receiving fields.
 
     def _handle_erro(self, packet_type, field):
-        error_message = field.params.get(b"ERRO", None)
-        error_code = field.params.get(b"ERRC", None)
+        error_message = field.params.get("ERRO", None)
+        error_code = field.params.get("ERRC", None)
         if error_message is not None or error_code is not None:
             raise PacketError(packet_type, field.name, field.id, error_message, error_code)
 
     def _handle_warn(self, packet_type, field):
-        warning_message = field.params.get(b"WARN", None)
-        warning_code = field.params.get(b"WARC", None)
+        warning_message = field.params.get("WARN", None)
+        warning_code = field.params.get("WARC", None)
         if warning_message is not None or warning_code is not None:
             warnings.warn(PacketWarning(packet_type, field.name, field.id, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
-        if field.name == b"WARN":
+        if field.name == "WARN":
             return True
 
     def _handle_ackn(self, packet_type, field):
-        ackn = field.params.get(b"ACKN", None)
+        ackn = field.params.get("ACKN", None)
         return ackn is not None
 
     @asyncio.coroutine

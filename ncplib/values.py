@@ -48,25 +48,25 @@ def encode_value(value):
     raise TypeError("Unsupported type", type(value))
 
 @encode_value.register(int)
-def encode_int(value):
+def encode_value_int(value):
     return ValueType.i32.value, value.to_bytes(length=4, byteorder="little", signed=True)
 
 @encode_value.register(uint)
-def encode_uint(value):
+def encode_value_uint(value):
     return ValueType.u32.value, value.to_bytes(length=4, byteorder="little", signed=True)
 
 @encode_value.register(str)
-def encode_str(value):
+def encode_value_str(value):
     return ValueType.string.value, value.encode(encoding="latin1", errors="ignore") + b"\x00"
 
 @encode_value.register(bytes)
 @encode_value.register(bytearray)
 @encode_value.register(memoryview)
-def encode_bytes(value):
+def encode_value_bytes(value):
     return ValueType.raw.value, value
 
 @encode_value.register(array)
-def encode_array(value):
+def encode_value_array(value):
     try:
         type_id = {
             "B": ValueType.array_u8.value,
@@ -89,41 +89,41 @@ def decode_value(type_id, encoded_value):
     return None
 
 @decode_value.register(ValueType.i32.value)
-def decode_i32(type_id, encoded_value):
+def decode_value_i32(type_id, encoded_value):
     return int.from_bytes(encoded_value, byteorder="little", signed=True)
 
 @decode_value.register(ValueType.u32.value)
-def decode_u32(type_id, encoded_value):
+def decode_value_u32(type_id, encoded_value):
     return uint.from_bytes(encoded_value, byteorder="little", signed=False)
 
 @decode_value.register(ValueType.string.value)
-def decode_string(type_id, encoded_value):
+def ddecode_value_string(type_id, encoded_value):
     return encoded_value.split(b"\x00", 1)[0].decode(encoding="latin1", errors="ignore")
 
 @decode_value.register(ValueType.raw.value)
-def decode_raw(type_id, encoded_value):
+def decode_value_raw(type_id, encoded_value):
     return encoded_value
 
 @decode_value.register(ValueType.array_u8.value)
-def decode_array_u8(type_id, encoded_value):
+def decode_value_array_u8(type_id, encoded_value):
     return array("B", encoded_value)
 
 @decode_value.register(ValueType.array_u16.value)
-def decode_array_u16(type_id, encoded_value):
+def decode_value_array_u16(type_id, encoded_value):
     return array("H", encoded_value)
 
 @decode_value.register(ValueType.array_u32.value)
-def decode_array_u32(type_id, encoded_value):
+def decode_value_array_u32(type_id, encoded_value):
     return array("I", encoded_value)
 
 @decode_value.register(ValueType.array_i8.value)
-def decode_array_i8(type_id, encoded_value):
+def decode_value_array_i8(type_id, encoded_value):
     return array("b", encoded_value)
 
 @decode_value.register(ValueType.array_i16.value)
-def decode_array_i16(type_id, encoded_value):
+def decode_value_array_i16(type_id, encoded_value):
     return array("h", encoded_value)
 
 @decode_value.register(ValueType.array_i32.value)
-def decode_array_i32(type_id, encoded_value):
+def decode_value_array_i32(type_id, encoded_value):
     return array("i", encoded_value)

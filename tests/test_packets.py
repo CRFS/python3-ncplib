@@ -12,10 +12,10 @@ class DecoderTestCase(TestCase):
 
     def testDecodePacketFields(self):
         self.assertEqual(decode_packet(TEST_PACKET).fields, [
-            Field(name=b"HELO", id=0, params={
-                b"NCPV": "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__",
-                b"SEID": "monitor",
-                b"MACA": "00:24:81:b4:49:34",
+            Field(name="HELO", id=0, params={
+                "NCPV": "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__",
+                "SEID": "monitor",
+                "MACA": "00:24:81:b4:49:34",
             }),
         ])
 

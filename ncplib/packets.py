@@ -24,6 +24,18 @@ PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
 PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 
 
+# Identifier encoding.
+
+def encode_name(value):
+    return value.encode(encoding="latin1", errors="ignore") + (b"\x00" * (len(value) % 4))
+
+
+# Identifier decoding.
+
+def decode_name(value):
+    return value.rstrip(b"\x00").decode(encoding="latin1", errors="ignore")
+
+
 # u24 size encoding.
 
 def encode_u24_size(value):
@@ -45,7 +57,7 @@ def encode_params(params):
         size = PARAM_HEADER_STRUCT.size + len(encoded_value)
         padding_size = size % 4
         buf.extend(PARAM_HEADER_STRUCT.pack(
-            name,
+            encode_name(name),
             encode_u24_size(size + padding_size),
             type_id,
         ))
@@ -59,6 +71,7 @@ def encode_params(params):
 def decode_params(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
+        name = decode_name(name)
         size = decode_u24_size(u24_size)
         value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size])
         value = decode_value(type_id, value_encoded)
@@ -78,7 +91,7 @@ def encode_fields(fields):
     for field in fields:
         encoded_params = encode_params(field.params)
         buf.extend(FIELD_HEADER_STRUCT.pack(
-            field.name,
+            encode_name(field.name),
             encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
             0,  # Field type ID is ignored.
             field.id,
@@ -92,6 +105,7 @@ def encode_fields(fields):
 def decode_fields(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
+        name = decode_name(name)
         size = decode_u24_size(u24_size)
         params = dict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield Field(
@@ -118,7 +132,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     timestamp = timestamp.astimezone(timezone.utc)
     buf.extend(PACKET_HEADER_STRUCT.pack(
         PACKET_HEADER,
-        packet_type,
+        encode_name(packet_type),
         (PACKET_HEADER_STRUCT.size + len(encoded_fields) + PACKET_FOOTER_STRUCT.size) // 4,
         packet_id,
         PACKET_FORMAT_ID,
@@ -152,6 +166,7 @@ def decode_packet_cps(header_buf):
         nanotime,
         info,
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
+    packet_type = decode_name(packet_type)
     size = size_words * 4
     if header != PACKET_HEADER:
         raise DecodeError("Invalid packet header {}".format(header))

@@ -34,61 +34,61 @@ class ClientTest(TestCase):
     # Test utils.
 
     def assertStatParams(self, params):
-        self.assertIsInstance(params[b"OCON"], int)
-        self.assertIsInstance(params[b"CADD"], str)
-        self.assertIsInstance(params[b"CIDS"], str)
-        self.assertIsInstance(params[b"RGPS"], str)
-        self.assertIsInstance(params[b"ELOC"], int)
+        self.assertIsInstance(params["OCON"], int)
+        self.assertIsInstance(params["CADD"], str)
+        self.assertIsInstance(params["CIDS"], str)
+        self.assertIsInstance(params["RGPS"], str)
+        self.assertIsInstance(params["ELOC"], int)
 
     def assertSwepParams(self, params):
-        self.assertIsInstance(params[b"PDAT"], array)
-        self.assertEqual(params[b"PDAT"].typecode, "B")
+        self.assertIsInstance(params["PDAT"], array)
+        self.assertEqual(params["PDAT"].typecode, "B")
 
     def assertTimeParams(self, params):
-        self.assertEqual(params[b"SAMP"], 4096)
-        self.assertEqual(params[b"FCTR"], 1200)
-        self.assertIsInstance(params[b"DIQT"], array)
-        self.assertEqual(params[b"DIQT"].typecode, "h")
-        self.assertEqual(len(params[b"DIQT"]), 8192)
+        self.assertEqual(params["SAMP"], 4096)
+        self.assertEqual(params["FCTR"], 1200)
+        self.assertIsInstance(params["DIQT"], array)
+        self.assertEqual(params["DIQT"].typecode, "h")
+        self.assertEqual(len(params["DIQT"]), 8192)
 
     # Simple integration tests.
 
     def testStat(self):
-        params = self.client.execute(b"NODE", b"STAT")
+        params = self.client.execute("NODE", "STAT")
         self.assertStatParams(params)
 
     # Testing the read machinery.
 
     def testStatRecvField(self):
-        params = self.client.send(b"NODE", {b"STAT": {}}).recv_field(b"STAT")
+        params = self.client.send("NODE", {"STAT": {}}).recv_field("STAT")
         self.assertStatParams(params)
 
     def testStatRecvFieldMissing(self):
         with self.assertRaises(ValueError):
-            self.client.send(b"NODE", {b"STAT": {}}).recv_field(b"BOOM")
+            self.client.send("NODE", {"STAT": {}}).recv_field("BOOM")
 
     # More complex commands with an ACK.
 
     def testDspcSwep(self):
-        params = self.client.execute(b"DSPC", b"SWEP", timeout=30)
+        params = self.client.execute("DSPC", "SWEP", timeout=30)
         self.assertSwepParams(params)
 
     def testDspcTime(self):
-        params = self.client.execute(b"DSPC", b"TIME", {b"SAMP": 4096, b"FCTR": 1200}, timeout=30)
+        params = self.client.execute("DSPC", "TIME", {"SAMP": 4096, "FCTR": 1200}, timeout=30)
         self.assertTimeParams(params)
 
     # Loop tests.
 
     def testDsplSwep(self):
-        streaming_response = self.client.send(b"DSPL", {b"SWEP": {}})
-        params = streaming_response.recv_field(b"SWEP", timeout=30)
+        streaming_response = self.client.send("DSPL", {"SWEP": {}})
+        params = streaming_response.recv_field("SWEP", timeout=30)
         self.assertSwepParams(params)
-        params = streaming_response.recv_field(b"SWEP", timeout=30)
+        params = streaming_response.recv_field("SWEP", timeout=30)
         self.assertSwepParams(params)
 
     def testDsplTime(self):
-        streaming_response = self.client.send(b"DSPL", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}})
-        params = streaming_response.recv_field(b"TIME", timeout=30)
+        streaming_response = self.client.send("DSPL", {"TIME": {"SAMP": 4096, "FCTR": 1200}})
+        params = streaming_response.recv_field("TIME", timeout=30)
         self.assertTimeParams(params)
-        params = streaming_response.recv_field(b"TIME", timeout=30)
+        params = streaming_response.recv_field("TIME", timeout=30)
         self.assertTimeParams(params)
