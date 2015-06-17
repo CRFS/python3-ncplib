@@ -19,17 +19,13 @@ def sync(func, *, loop=None, timeout=None):
         # Pass through loop and timeout arguments, if present.
         if "loop" in signature.parameters:
             kwargs["loop"] = loop
-        if "timeout" in signature.parameters:
-            kwargs["timeout"] = timeout
-            timeout = None
         # Run the func.
         result = func(*args, **kwargs)
         # Run coroutines on the loop.
         if asyncio.iscoroutine(result):
             loop = loop or asyncio.get_event_loop()
             # Apply timeout.
-            if timeout is not None:
-                result = asyncio.wait_for(result, loop=loop, timeout=timeout)
+            result = asyncio.wait_for(result, loop=loop, timeout=timeout)
             # Wait for the result to be ready.
             result = loop.run_until_complete(result)
         # Wrap the result.

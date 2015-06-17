@@ -6,10 +6,10 @@ __all__ = (
     "DecodeError",
     "NetworkError",
     "ClientError",
-    "CommandError",
+    "PacketError",
     "NCPWarning",
     "ClientWarning",
-    "CommandWarning",
+    "PacketWarning",
 )
 
 
@@ -43,13 +43,15 @@ class ClientError(NCPError):
     pass
 
 
-class CommandError(ClientError):
+class PacketError(ClientError):
 
-    def __init__(self, message, code, field):
-        super().__init__(message, code, field)
+    def __init__(self, packet_type, field_name, field_id, message, code):
+        super().__init__(packet_type, field_name, field_id, message, code)
+        self.packet_type = packet_type
+        self.field_name = field_name
+        self.field_id = field_id
         self.message = message
         self.code = code
-        self.field = field
 
 
 # Warnings.
@@ -69,10 +71,12 @@ class ClientWarning(NCPWarning):
     pass
 
 
-class CommandWarning(ClientWarning):
+class PacketWarning(ClientWarning):
 
-    def __init__(self, message, code, field):
-        super().__init__(message, code, field)
+    def __init__(self, packet_type, field_name, field_id, message, code):
+        super().__init__(packet_type, field_name, field_id, message, code)
+        self.packet_type = packet_type
+        self.field_name = field_name
+        self.field_id = field_id
         self.message = message
         self.code = code
-        self.field = field

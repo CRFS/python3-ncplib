@@ -3,7 +3,7 @@ from array import array
 from unittest import TestCase, skipUnless
 
 from ncplib.client import connect_sync
-from ncplib.errors import CommandWarning
+from ncplib.errors import PacketWarning
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -19,7 +19,7 @@ class ClientTest(TestCase):
     def setUp(self):
         # Create a debug loop.
         warnings.simplefilter("default", ResourceWarning)
-        warnings.simplefilter("ignore", CommandWarning)
+        warnings.simplefilter("ignore", PacketWarning)
         self.loop = asyncio.new_event_loop()
         self.loop.set_debug(True)
         asyncio.set_event_loop(None)
@@ -53,27 +53,31 @@ class ClientTest(TestCase):
 
     # Simple integration tests.
 
+    def testStat(self):
+        params = self.client.execute(b"NODE", b"STAT")
+        self.assertStatParams(params)
+
+    # Testing the read machinery.
+
     def testStatCommunicate(self):
         fields = self.client.communicate(b"NODE", {b"STAT": {}})
         self.assertStatParams(fields[b"STAT"])
 
-    # Testing the read machinery.
-
-    def testStatReadAll(self):
-        fields = self.client.send(b"NODE", {b"STAT": {}}).read_all()
+    def testStatRecvAll(self):
+        fields = self.client.send(b"NODE", {b"STAT": {}}).recv()
         self.assertStatParams(fields[b"STAT"])
 
-    def testStatReadAny(self):
-        fields = self.client.send(b"NODE", {b"STAT": {}}).read_any()
+    def testStatRecvAny(self):
+        fields = self.client.send(b"NODE", {b"STAT": {}}).recv_any()
         self.assertStatParams(fields[b"STAT"])
 
-    def testStatReadField(self):
-        params = self.client.send(b"NODE", {b"STAT": {}}).read_field(b"STAT")
+    def testStatRecvField(self):
+        params = self.client.send(b"NODE", {b"STAT": {}}).recv_field(b"STAT")
         self.assertStatParams(params)
 
-    def testStatReadFieldMissing(self):
+    def testStatRecvFieldMissing(self):
         with self.assertRaises(ValueError):
-            self.client.send(b"NODE", {b"STAT": {}}).read_field(b"BOOM")
+            self.client.send(b"NODE", {b"STAT": {}}).recv_field(b"BOOM")
 
     # More complex commands with an ACK.
 
@@ -89,14 +93,14 @@ class ClientTest(TestCase):
 
     def testDsplSwep(self):
         streaming_response = self.client.send(b"DSPL", {b"SWEP": {}})
-        params = streaming_response.read_field(b"SWEP", timeout=30)
+        params = streaming_response.recv_field(b"SWEP", timeout=30)
         self.assertSwepParams(params)
-        params = streaming_response.read_field(b"SWEP", timeout=30)
+        params = streaming_response.recv_field(b"SWEP", timeout=30)
         self.assertSwepParams(params)
 
     def testDsplTime(self):
         streaming_response = self.client.send(b"DSPL", {b"TIME": {b"SAMP": 4096, b"FCTR": 1200}})
-        params = streaming_response.read_field(b"TIME", timeout=30)
+        params = streaming_response.recv_field(b"TIME", timeout=30)
         self.assertTimeParams(params)
-        params = streaming_response.read_field(b"TIME", timeout=30)
+        params = streaming_response.recv_field(b"TIME", timeout=30)
         self.assertTimeParams(params)
