@@ -76,11 +76,12 @@ class ClientResponse:
 
 class Client:
 
-    def __init__(self, host, port, *, loop=None, auto_ackn=True, auto_warn=True, auto_erro=True, value_encoder=None, value_decoder=None):
+    def __init__(self, host, port, *, loop=None, auto_auth=True, auto_ackn=True, auto_warn=True, auto_erro=True, value_encoder=None, value_decoder=None):
         self._host = host
         self._port = port
         self._loop = loop or asyncio.get_event_loop()
         # Packet handling.
+        self._auto_auth = auto_auth
         self._auto_ackn = auto_ackn
         self._auto_warn = auto_warn
         self._auto_erro = auto_erro
@@ -179,11 +180,7 @@ class Client:
     # Connection lifecycle.
 
     @asyncio.coroutine
-    def _connect(self):
-        # Connect to the node.
-        with wrap_network_errors():
-            self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
-        self._logger.info("Connected")
+    def _auth(self):
         # Read the initial LINK HELO packet.
         helo_packet = yield from self._read_packet()
         if not (helo_packet.type == b"LINK" and b"HELO" in decode_fields(helo_packet.fields)):
@@ -208,6 +205,16 @@ class Client:
         scon_packet = yield from self._read_packet()
         if not (scon_packet.type == b"LINK" and b"SCON" in decode_fields(scon_packet.fields)):
             raise ClientError("Did not receive LINK SCON packet")
+
+    @asyncio.coroutine
+    def _connect(self):
+        # Connect to the node.
+        with wrap_network_errors():
+            self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
+        self._logger.info("Connected")
+        # Auto-authenticate.
+        if self._auto_auth:
+            yield from self._auth()
         # Spawn a background reader.
         self._background_reader = asyncio.async(self._run_reader(), loop=self._loop)
 
