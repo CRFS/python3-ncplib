@@ -7,6 +7,11 @@ from functools import singledispatch
 from ncplib.errors import DecodeWarning
 
 
+__all__ = (
+    "uint",
+)
+
+
 @unique
 class ValueType(Enum):
 
