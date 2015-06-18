@@ -24,7 +24,7 @@ class ClientTest(TestCase):
         self.loop.set_debug(True)
         asyncio.set_event_loop(None)
         # Connect the client.
-        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=10)
+        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=30)
 
     def tearDown(self):
         self.client.close()
@@ -45,11 +45,11 @@ class ClientTest(TestCase):
         self.assertEqual(params["PDAT"].typecode, "B")
 
     def assertTimeParams(self, params):
-        self.assertEqual(params["SAMP"], 4096)
+        self.assertEqual(params["SAMP"], 1024)
         self.assertEqual(params["FCTR"], 1200)
         self.assertIsInstance(params["DIQT"], array)
         self.assertEqual(params["DIQT"].typecode, "h")
-        self.assertEqual(len(params["DIQT"]), 8192)
+        self.assertEqual(len(params["DIQT"]), 2048)
 
     # Simple integration tests.
 
@@ -66,25 +66,32 @@ class ClientTest(TestCase):
     # More complex commands with an ACK.
 
     def testDspcSwep(self):
-        params = self.client.execute("DSPC", "SWEP", timeout=30)
+        params = self.client.execute("DSPC", "SWEP")
         self.assertSwepParams(params)
 
     def testDspcTime(self):
-        params = self.client.execute("DSPC", "TIME", {"SAMP": 4096, "FCTR": 1200}, timeout=30)
+        params = self.client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
         self.assertTimeParams(params)
+
+    # Combination commands.
+
+    def testMultiCommands(self):
+        multi_params = self.client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}}).recv_all_fields()
+        self.assertSwepParams(multi_params["SWEP"])
+        self.assertTimeParams(multi_params["TIME"])
 
     # Loop tests.
 
     def testDsplSwep(self):
         streaming_response = self.client.send("DSPL", {"SWEP": {}})
-        params = streaming_response.recv_field("SWEP", timeout=30)
+        params = streaming_response.recv_field("SWEP")
         self.assertSwepParams(params)
-        params = streaming_response.recv_field("SWEP", timeout=30)
+        params = streaming_response.recv_field("SWEP")
         self.assertSwepParams(params)
 
     def testDsplTime(self):
-        streaming_response = self.client.send("DSPL", {"TIME": {"SAMP": 4096, "FCTR": 1200}})
-        params = streaming_response.recv_field("TIME", timeout=30)
+        streaming_response = self.client.send("DSPL", {"TIME": {"SAMP": 1024, "FCTR": 1200}})
+        params = streaming_response.recv_field("TIME")
         self.assertTimeParams(params)
-        params = streaming_response.recv_field("TIME", timeout=30)
+        params = streaming_response.recv_field("TIME")
         self.assertTimeParams(params)

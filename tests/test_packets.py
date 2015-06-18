@@ -10,7 +10,7 @@ class DecoderTestCase(TestCase):
 
     maxDiff = None
 
-    def testDecodePacketFields(self):
+    def testDecodePacket(self):
         self.assertEqual(decode_packet(TEST_PACKET).fields, [
             Field(name="HELO", id=0, params={
                 "NCPV": "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__",

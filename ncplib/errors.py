@@ -29,11 +29,6 @@ class CommandError(Exception):
     pass
 
 
-class ConnectionClosed(EOFError):
-
-    pass
-
-
 # Warnings.
 
 class DecodeWarning(Warning):
