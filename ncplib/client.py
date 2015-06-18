@@ -84,11 +84,14 @@ class Client:
 
     # Waiter handling.
 
+    @asyncio.coroutine
     def _wait_for_packet(self):
         waiter = asyncio.Future(loop=self._loop)
         self._waiters.add(waiter)
-        waiter.add_done_callback(self._waiters.remove)
-        return waiter
+        try:
+            return (yield from waiter)
+        finally:
+            self._waiters.remove(waiter)
 
     def _active_waiters(self):
         return filterfalse(methodcaller("done"), self._waiters)
