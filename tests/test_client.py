@@ -3,7 +3,7 @@ from array import array
 from unittest import TestCase, skipUnless
 
 from ncplib.client import connect_sync
-from ncplib.errors import PacketWarning
+from ncplib.errors import CommandWarning
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -19,7 +19,7 @@ class ClientTest(TestCase):
     def setUp(self):
         # Create a debug loop.
         warnings.simplefilter("default", ResourceWarning)
-        warnings.simplefilter("ignore", PacketWarning)
+        warnings.simplefilter("ignore", CommandWarning)
         self.loop = asyncio.new_event_loop()
         self.loop.set_debug(True)
         asyncio.set_event_loop(None)
@@ -62,10 +62,6 @@ class ClientTest(TestCase):
     def testStatRecvField(self):
         params = self.client.send("NODE", {"STAT": {}}).recv_field("STAT")
         self.assertStatParams(params)
-
-    def testStatRecvFieldMissing(self):
-        with self.assertRaises(ValueError):
-            self.client.send("NODE", {"STAT": {}}).recv_field("BOOM")
 
     # More complex commands with an ACK.
 

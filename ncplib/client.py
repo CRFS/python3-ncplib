@@ -6,7 +6,7 @@ from uuid import getnode as get_mac
 
 from ncplib.concurrent import sync
 from ncplib.packets import Field
-from ncplib.errors import wrap_network_errors, PacketError, ConnectionClosed, PacketWarning
+from ncplib.errors import CommandError, ConnectionClosed, CommandWarning
 from ncplib.streams import write_packet, read_packet
 
 
@@ -42,22 +42,15 @@ def decode_field_futures(field_futures):
 
 class ClientResponse:
 
-    def __init__(self, client, packet_type, fields):
+    def __init__(self, client, packet_type, field_lookup):
         self._client = client
         self._packet_type = packet_type
-        self._fields = {
-            field.name: field
-            for field
-            in fields
-        }
+        self._fields_lookup = field_lookup
 
     @asyncio.coroutine
     def recv_field(self, field_name):
-        try:
-            field = self._fields[field_name]
-        except KeyError:
-            raise ValueError("Response does not contain field {}".format(field_name))
-        return (yield from self._client.recv_field(self._packet_type, field.name, field_id=field.id))
+        field_id = self._fields_lookup[field_name]
+        return (yield from self._client.recv_field(self._packet_type, field_name, field_id=field_id))
 
 
 class Client:
@@ -126,8 +119,7 @@ class Client:
     @asyncio.coroutine
     def _connect(self):
         # Connect to the node.
-        with wrap_network_errors():
-            self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
+        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
         self._logger.info("Connected")
         # Spawn the background reader.
         self._background_reader = asyncio.async(self._run_reader(), loop=self._loop)
@@ -166,6 +158,7 @@ class Client:
                 # Stop reading if we've been cancelled.
                 raise
             except Exception as ex:
+                self._logger.exception("Error receiving packet")
                 # Propagate the exception to all waiters.
                 for waiter in self._active_waiters():
                     waiter.set_exception(ex)
@@ -176,13 +169,13 @@ class Client:
         error_message = field.params.get("ERRO", None)
         error_code = field.params.get("ERRC", None)
         if error_message is not None or error_code is not None:
-            raise PacketError(packet_type, field.name, field.id, error_message, error_code)
+            raise CommandError(packet_type, field.name, field.id, error_message, error_code)
 
     def _handle_warn(self, packet_type, field):
         warning_message = field.params.get("WARN", None)
         warning_code = field.params.get("WARC", None)
         if warning_message is not None or warning_code is not None:
-            warnings.warn(PacketWarning(packet_type, field.name, field.id, warning_message, warning_code))
+            warnings.warn(CommandWarning(packet_type, field.name, field.id, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
         if field.name == "WARN":
             return True
@@ -227,7 +220,11 @@ class Client:
         write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._logger.debug("Sent packet %s %s", packet_type, fields)
         # Return a streaming response.
-        return ClientResponse(self, packet_type, fields)
+        return ClientResponse(self, packet_type, {
+            field.name: field.id
+            for field
+            in fields
+        })
 
     @asyncio.coroutine
     def execute(self, packet_type, field_name, params=None):

@@ -1,48 +1,19 @@
-from contextlib import contextmanager
-
-
 __all__ = (
-    "NCPError",
     "DecodeError",
-    "NetworkError",
-    "ConnectionClosed",
-    "PacketError",
-    "NCPWarning",
-    "PacketWarning",
+    "CommandError",
+    "DecodeWarning",
+    "CommandWarning",
 )
 
 
 # Errors.
 
-class NCPError(Exception):
+class DecodeError(Exception):
 
     pass
 
 
-class DecodeError(NCPError):
-
-    pass
-
-
-class NetworkError(NCPError):
-
-    pass
-
-
-@contextmanager
-def wrap_network_errors():
-    try:
-        yield
-    except (OSError, EOFError) as ex:  # pragma: no cover
-        raise NetworkError(str(ex)) from ex
-
-
-class ConnectionClosed(NetworkError):
-
-    pass
-
-
-class PacketError(NCPError):
+class CommandError(Exception):
 
     def __init__(self, packet_type, field_name, field_id, message, code):
         super().__init__(packet_type, field_name, field_id, message, code)
@@ -53,19 +24,19 @@ class PacketError(NCPError):
         self.code = code
 
 
+class ConnectionClosed(EOFError):
+
+    pass
+
+
 # Warnings.
 
-class NCPWarning(Warning):
+class DecodeWarning(Warning):
 
     pass
 
 
-class DecodeWarning(NCPWarning):
-
-    pass
-
-
-class PacketWarning(NCPWarning):
+class CommandWarning(Warning):
 
     def __init__(self, packet_type, field_name, field_id, message, code):
         super().__init__(packet_type, field_name, field_id, message, code)
