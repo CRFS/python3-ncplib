@@ -1,6 +1,5 @@
 import asyncio, logging, warnings
 from datetime import datetime, timezone
-from operator import methodcaller, attrgetter
 from uuid import getnode as get_mac
 
 from ncplib.concurrent import sync
@@ -29,10 +28,6 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
             msg = msg,
             **self.extra
         ), kwargs
-
-
-def decode_fields(fields):
-    return dict(map(attrgetter("name", "params"), fields))
 
 
 class ClientResponse:
