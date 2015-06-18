@@ -1,6 +1,5 @@
 import warnings
 from array import array
-from enum import Enum, unique
 from functools import singledispatch
 
 from ncplib.errors import DecodeWarning
@@ -12,29 +11,30 @@ __all__ = (
 )
 
 
-@unique
-class ValueType(Enum):
+# Known type codes.
 
-    i32 = 0x00
+TYPE_I32 = 0x00
 
-    u32 = 0x01
+TYPE_U32 = 0x01
 
-    string = 0x02
+TYPE_STRING = 0x02
 
-    raw = 0x80
+TYPE_RAW = 0x80
 
-    array_u8 = 0x81
+TYPE_ARRAY_U8 = 0x81
 
-    array_u16 = 0x82
+TYPE_ARRAY_U16 = 0x82
 
-    array_u32 = 0x83
+TYPE_ARRAY_U32 = 0x83
 
-    array_i8 = 0x84
+TYPE_ARRAY_I8 = 0x84
 
-    array_i16 = 0x85
+TYPE_ARRAY_I16 = 0x85
 
-    array_i32 = 0x86
+TYPE_ARRAY_I32 = 0x86
 
+
+# Type converters.
 
 class uint(int):
 
@@ -49,33 +49,35 @@ def encode_value(value):
 
 @encode_value.register(int)
 def encode_value_int(value):
-    return ValueType.i32.value, value.to_bytes(length=4, byteorder="little", signed=True)
+    return TYPE_I32, value.to_bytes(length=4, byteorder="little", signed=True)
 
 @encode_value.register(uint)
 def encode_value_uint(value):
-    return ValueType.u32.value, value.to_bytes(length=4, byteorder="little", signed=True)
+    return TYPE_U32, value.to_bytes(length=4, byteorder="little", signed=True)
 
 @encode_value.register(str)
 def encode_value_str(value):
-    return ValueType.string.value, value.encode(encoding="latin1", errors="ignore") + b"\x00"
+    return TYPE_STRING, value.encode(encoding="latin1", errors="ignore") + b"\x00"
 
 @encode_value.register(bytes)
 @encode_value.register(bytearray)
 @encode_value.register(memoryview)
 def encode_value_bytes(value):
-    return ValueType.raw.value, value
+    return TYPE_RAW, value
+
+ARRAY_TYPE_CODES_TO_TYPE_ID = {
+    "B": TYPE_ARRAY_U8,
+    "H": TYPE_ARRAY_U16,
+    "I": TYPE_ARRAY_U32,
+    "b": TYPE_ARRAY_I8,
+    "h": TYPE_ARRAY_I16,
+    "i": TYPE_ARRAY_I32,
+}
 
 @encode_value.register(array)
 def encode_value_array(value):
     try:
-        type_id = {
-            "B": ValueType.array_u8.value,
-            "H": ValueType.array_u16.value,
-            "I": ValueType.array_u32.value,
-            "b": ValueType.array_i8.value,
-            "h": ValueType.array_i16.value,
-            "i": ValueType.array_i32.value,
-        }[value.typecode]
+        type_id = ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode]
     except KeyError:
         raise TypeError("Unsupported array type {}".format(value.typecode))
     return type_id, value.tobytes()
@@ -88,42 +90,29 @@ def decode_value(type_id, encoded_value):
     warnings.warn(DecodeWarning("Unsupported type ID", type_id))
     return None
 
-@decode_value.register(ValueType.i32.value)
+@decode_value.register(TYPE_I32)
 def decode_value_i32(type_id, encoded_value):
     return int.from_bytes(encoded_value, byteorder="little", signed=True)
 
-@decode_value.register(ValueType.u32.value)
+@decode_value.register(TYPE_U32)
 def decode_value_u32(type_id, encoded_value):
     return uint.from_bytes(encoded_value, byteorder="little", signed=False)
 
-@decode_value.register(ValueType.string.value)
+@decode_value.register(TYPE_STRING)
 def ddecode_value_string(type_id, encoded_value):
     return encoded_value.split(b"\x00", 1)[0].decode(encoding="latin1", errors="ignore")
 
-@decode_value.register(ValueType.raw.value)
+@decode_value.register(TYPE_RAW)
 def decode_value_raw(type_id, encoded_value):
     return encoded_value
 
-@decode_value.register(ValueType.array_u8.value)
+TYPE_ID_TO_ARRAY_TYPE_CODES = dict(map(reversed, ARRAY_TYPE_CODES_TO_TYPE_ID.items()))
+
+@decode_value.register(TYPE_ARRAY_U8)
+@decode_value.register(TYPE_ARRAY_U16)
+@decode_value.register(TYPE_ARRAY_U32)
+@decode_value.register(TYPE_ARRAY_I8)
+@decode_value.register(TYPE_ARRAY_I16)
+@decode_value.register(TYPE_ARRAY_I32)
 def decode_value_array_u8(type_id, encoded_value):
-    return array("B", encoded_value)
-
-@decode_value.register(ValueType.array_u16.value)
-def decode_value_array_u16(type_id, encoded_value):
-    return array("H", encoded_value)
-
-@decode_value.register(ValueType.array_u32.value)
-def decode_value_array_u32(type_id, encoded_value):
-    return array("I", encoded_value)
-
-@decode_value.register(ValueType.array_i8.value)
-def decode_value_array_i8(type_id, encoded_value):
-    return array("b", encoded_value)
-
-@decode_value.register(ValueType.array_i16.value)
-def decode_value_array_i16(type_id, encoded_value):
-    return array("h", encoded_value)
-
-@decode_value.register(ValueType.array_i32.value)
-def decode_value_array_i32(type_id, encoded_value):
-    return array("i", encoded_value)
+    return array(TYPE_ID_TO_ARRAY_TYPE_CODES[type_id], encoded_value)

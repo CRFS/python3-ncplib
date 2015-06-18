@@ -3,7 +3,7 @@ from functools import wraps
 
 def valuedispatch(func):
     registry = {}
-    def register(value):
+    def register(value, func=None):
         def decorator(func):
             registry[value] = func
             return func
