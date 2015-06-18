@@ -45,7 +45,7 @@ class uint(int):
 
 @singledispatch
 def encode_value(value):
-    raise TypeError("Unsupported type", type(value))
+    raise TypeError("Unsupported value type {}".format(type(value)))
 
 @encode_value.register(int)
 def encode_value_int(value):
@@ -77,7 +77,7 @@ def encode_value_array(value):
             "i": ValueType.array_i32.value,
         }[value.typecode]
     except KeyError:
-        raise TypeError("Unsupported array type", value.typecode)
+        raise TypeError("Unsupported array type {}".format(value.typecode))
     return type_id, value.tobytes()
 
 
