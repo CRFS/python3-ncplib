@@ -52,8 +52,8 @@ class ClientResponse:
 class Client:
 
     def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
-        self._host = host
-        self._port = port
+        self.host = host
+        self.port = port
         self._loop = loop or asyncio.get_event_loop()
         # Packet handling.
         self._auto_auth = auto_auth
@@ -61,7 +61,7 @@ class Client:
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
         # Logging.
-        self._logger = ClientLoggerAdapter(logger, {
+        self.logger = ClientLoggerAdapter(logger, {
             "host": host,
             "port": port,
         })
@@ -83,7 +83,7 @@ class Client:
     def _read_packet(self):
         try:
             packet = yield from read_packet(self._reader)
-            self._logger.debug("Received packet %s %s", packet.type, packet.fields)
+            self.logger.debug("Received packet %s %s", packet.type, packet.fields)
             return packet
         finally:
             self._packet_reader = None
@@ -120,15 +120,15 @@ class Client:
     @asyncio.coroutine
     def _connect(self):
         # Connect to the node.
-        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
-        self._logger.info("Connected")
+        self._reader, self._writer = yield from asyncio.open_connection(self.host, self.port, loop=self._loop)
+        self.logger.info("Connected")
         # Auto-authenticate.
         if self._auto_auth:
             yield from self._handle_auth()
 
     def close(self):
         self._writer.close()
-        self._logger.info("Closed")
+        self.logger.info("Closed")
 
     @asyncio.coroutine
     def wait_closed(self):
@@ -194,7 +194,7 @@ class Client:
         ]
         # Sent the packet.
         write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
-        self._logger.debug("Sent packet %s %s", packet_type, fields)
+        self.logger.debug("Sent packet %s %s", packet_type, fields)
         # Return a streaming response.
         return ClientResponse(self, packet_type, {
             field.name: field.id
