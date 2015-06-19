@@ -1,7 +1,7 @@
 ncplib
 ======
 
-`CRFS <http://www.crfs.com/>`_ NCP library for Python 3.
+NCP library for Python 3, by `CRFS <http://www.crfs.com/>`_
 
 
 Features
@@ -21,19 +21,25 @@ Installation
 Basic usage
 -----------
 
-In all the following examples, the code is expected to be run from within an `asyncio coroutine <https://docs.python.org/3/library/asyncio-eventloop.html#coroutines>`_.
+In the following examples, the code should be run from within an `asyncio coroutine <https://docs.python.org/3/library/asyncio-eventloop.html#coroutines>`_.
 
-Connect to a node::
+Connect to a node:
+
+.. code:: python
 
     from ncplib import connect
     client = yield from connect("127.0.0.1", 9999)
 
-Run a simple command::
+Run a simple command:
+
+.. code:: python
 
     swep_params = yield from client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
     print(swep_params["PDAT"])
 
-Schedule a recurring command on the DSPL loop and receive multiple responses::
+Schedule a recurring command on the DSPL loop and receive multiple responses:
+
+.. code:: python
 
     response = client.send("DSPL", {
         "TIME": {
@@ -46,7 +52,9 @@ Schedule a recurring command on the DSPL loop and receive multiple responses::
     time_params_2 = yield from response.recv_field("TIME")
     print(time_params_2["DIQT"])
 
-Close the connection::
+Close the connection:
+
+.. code:: python
 
     client.close()
     yield from client.wait_closed()
@@ -57,7 +65,9 @@ Advanced usage
 
 The following example show how `asyncio task functions <https://docs.python.org/3/library/asyncio-task.html#task-functions>`_ can be used to provide additional functionality.
 
-Run multiple commands in parallel, and wait for all responses::
+Run multiple commands in parallel, and wait for all responses:
+
+.. code:: python
 
     response = client.send("DSPC", {
         "TIME": {},
@@ -67,6 +77,26 @@ Run multiple commands in parallel, and wait for all responses::
         response.read_field("TIME"),
         response.read_field("SWEP"),
     )
+
+
+Data types
+----------
+
+NCP data types are mapped onto python types as follows:
+
+=========== ===========================
+NCP type    Python type
+----------- ---------------------------
+int32       `int`
+uint32      `ncplib.uint`
+string      `str`
+raw         `bytes`
+data int8   `arrays.array(typecode="b")`
+data int16  `arrays.array(typecode="h")`
+data int32  `arrays.array(typecode="i")`
+data uint8  `arrays.array(typecode="B")`
+data uint16 `arrays.array(typecode="H")`
+data uint32 `arrays.array(typecode="I")`
 
 
 Support and announcements

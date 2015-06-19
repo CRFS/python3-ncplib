@@ -1,5 +1,5 @@
 """
-CRFS NCP library for Python 3.
+NCP library for Python 3.
 """
 
 
