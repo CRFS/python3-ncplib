@@ -86,7 +86,7 @@ NCP data types are mapped onto python types as follows:
 
 =========== =================================
 NCP type    Python type
------------ ---------------------------------
+=========== =================================
 int32       :code:`int`
 uint32      :code:`ncplib.uint`
 string      :code:`str`
