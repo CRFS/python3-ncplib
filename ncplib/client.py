@@ -84,7 +84,7 @@ class Client:
     def _wait_for_packet(self):
         if self._packet_reader is None:
             self._packet_reader = asyncio.async(self._read_packet(), loop=self._loop)
-        return (yield from self._packet_reader)
+        return (yield from asyncio.shield(self._packet_reader, loop=self._loop))
 
     # Connection lifecycle.
 
