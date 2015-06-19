@@ -2,7 +2,6 @@ import asyncio, logging, warnings
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
 
-from ncplib.concurrent import sync
 from ncplib.packets import Field
 from ncplib.errors import CommandError, CommandWarning
 from ncplib.streams import write_packet, read_packet
@@ -10,7 +9,6 @@ from ncplib.streams import write_packet, read_packet
 
 __all__ = (
     "connect",
-    "connect_sync",
 )
 
 
@@ -41,12 +39,6 @@ class ClientResponse:
     def recv_field(self, field_name):
         field_id = self._fields_lookup[field_name]
         return (yield from self._client.recv_field(self._packet_type, field_name, field_id=field_id))
-
-    @asyncio.coroutine
-    def recv_all_fields(self):
-        field_list = list(self._fields_lookup.keys())
-        param_list = yield from asyncio.gather(*map(self.recv_field, field_list), loop=self._client._loop)
-        return dict(zip(field_list, param_list))
 
 
 class Client:
@@ -208,10 +200,7 @@ class Client:
 
 
 @asyncio.coroutine
-def connect(host, port, *, loop=None, **kwargs):
-    client = Client(host, port, loop=loop, **kwargs)
+def connect(host, port, **kwargs):
+    client = Client(host, port, **kwargs)
     yield from client._connect()
     return client
-
-
-connect_sync = sync(connect)

@@ -1,8 +1,9 @@
 import asyncio, os, warnings
 from array import array
+from functools import wraps
 from unittest import TestCase, skipUnless
 
-from ncplib.client import connect_sync
+from ncplib.client import connect
 from ncplib.errors import CommandWarning
 
 
@@ -10,26 +11,40 @@ NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
 NCPLIB_TEST_CLIENT_PORT = os.environ.get("NCPLIB_TEST_CLIENT_PORT")
 
 
+def require_loop(func):
+    @wraps(func)
+    def do_require_loop(self):
+        # Set up debug warnings.
+        with warnings.catch_warnings():
+            warnings.simplefilter("default", ResourceWarning)
+            warnings.simplefilter("ignore", CommandWarning)
+            # Set up a debug loop.
+            loop = asyncio.new_event_loop()
+            try:
+                loop.set_debug(True)
+                loop.run_until_complete(asyncio.wait_for(func(self, loop), loop=loop, timeout=30))
+            finally:
+                loop.close()
+    return do_require_loop
+
+
+def require_client(func):
+    @wraps(func)
+    @asyncio.coroutine
+    def do_require_client(self, loop):
+        # Connect the client.
+        client = yield from connect(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=loop)
+        try:
+            yield from func(self, loop, client)
+        finally:
+            client.close()
+            yield from client.wait_closed()
+    return do_require_client
+
+
 @skipUnless(NCPLIB_TEST_CLIENT_HOST, "NCPLIB_TEST_CLIENT_HOST not set in environ")
 @skipUnless(NCPLIB_TEST_CLIENT_PORT, "NCPLIB_TEST_CLIENT_PORT not set in environ")
 class ClientTest(TestCase):
-
-    # Test lifecycle.
-
-    def setUp(self):
-        # Create a debug loop.
-        warnings.simplefilter("default", ResourceWarning)
-        warnings.simplefilter("ignore", CommandWarning)
-        self.loop = asyncio.new_event_loop()
-        self.loop.set_debug(True)
-        asyncio.set_event_loop(None)
-        # Connect the client.
-        self.client = connect_sync(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=self.loop, timeout=30)
-
-    def tearDown(self):
-        self.client.close()
-        self.client.wait_closed()
-        self.loop.close()
 
     # Test utils.
 
@@ -53,45 +68,67 @@ class ClientTest(TestCase):
 
     # Simple integration tests.
 
-    def testStat(self):
-        params = self.client.execute("NODE", "STAT")
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testStat(self, loop, client):
+        params = yield from client.execute("NODE", "STAT")
         self.assertStatParams(params)
 
     # Testing the read machinery.
 
-    def testStatRecvField(self):
-        params = self.client.send("NODE", {"STAT": {}}).recv_field("STAT")
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testStatRecvField(self, loop, client):
+        params = yield from client.send("NODE", {"STAT": {}}).recv_field("STAT")
         self.assertStatParams(params)
 
     # More complex commands with an ACK.
 
-    def testDspcSwep(self):
-        params = self.client.execute("DSPC", "SWEP")
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testDspcSwep(self, loop, client):
+        params = yield from client.execute("DSPC", "SWEP")
         self.assertSwepParams(params)
 
-    def testDspcTime(self):
-        params = self.client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testDspcTime(self, loop, client):
+        params = yield from client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
         self.assertTimeParams(params)
 
     # Combination commands.
 
-    def testMultiCommands(self):
-        multi_params = self.client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}}).recv_all_fields()
-        self.assertSwepParams(multi_params["SWEP"])
-        self.assertTimeParams(multi_params["TIME"])
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testMultiCommands(self, loop, client):
+        response = yield from client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}})
+        swep_params, time_params = yield from asyncio.gather(response.recv_field("SWEP"), response.recv_field("TIME"), loop=loop)
+        self.assertSwepParams(swep_params)
+        self.assertTimeParams(time_params)
 
     # Loop tests.
 
-    def testDsplSwep(self):
-        streaming_response = self.client.send("DSPL", {"SWEP": {}})
-        params = streaming_response.recv_field("SWEP")
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testDsplSwep(self, loop, client):
+        response = client.send("DSPL", {"SWEP": {}})
+        params = yield from response.recv_field("SWEP")
         self.assertSwepParams(params)
-        params = streaming_response.recv_field("SWEP")
+        params = yield from response.recv_field("SWEP")
         self.assertSwepParams(params)
 
-    def testDsplTime(self):
-        streaming_response = self.client.send("DSPL", {"TIME": {"SAMP": 1024, "FCTR": 1200}})
-        params = streaming_response.recv_field("TIME")
+    @require_loop
+    @require_client
+    @asyncio.coroutine
+    def testDsplTime(self, loop, client):
+        response = client.send("DSPL", {"TIME": {"SAMP": 1024, "FCTR": 1200}})
+        params = yield from response.recv_field("TIME")
         self.assertTimeParams(params)
-        params = streaming_response.recv_field("TIME")
+        params = yield from response.recv_field("TIME")
         self.assertTimeParams(params)
