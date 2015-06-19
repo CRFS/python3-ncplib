@@ -110,7 +110,7 @@ class ClientTest(TestCase):
     @require_client
     @asyncio.coroutine
     def testMultiCommands(self, loop, client):
-        response = yield from client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}})
+        response = client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}})
         swep_params, time_params = yield from asyncio.gather(response.recv_field("SWEP"), response.recv_field("TIME"), loop=loop)
         self.assertSwepParams(swep_params)
         self.assertTimeParams(time_params)
