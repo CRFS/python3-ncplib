@@ -18,6 +18,10 @@ def require_loop(func):
         with warnings.catch_warnings():
             warnings.simplefilter("default", ResourceWarning)
             warnings.simplefilter("ignore", CommandWarning)
+            # Remove the global event loop, as proof that the library doesn't require it.
+            # No way to do this nicely and restore it after the test, but this shouldn't
+            # matter for the purposes of testing.
+            asyncio.set_event_loop(None)
             # Set up a debug loop.
             loop = asyncio.new_event_loop()
             try:
