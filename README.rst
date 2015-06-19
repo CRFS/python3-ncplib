@@ -84,19 +84,19 @@ Data types
 
 NCP data types are mapped onto python types as follows:
 
-=========== ===========================
+=========== =================================
 NCP type    Python type
------------ ---------------------------
-int32       `int`
-uint32      `ncplib.uint`
-string      `str`
-raw         `bytes`
-data int8   `arrays.array(typecode="b")`
-data int16  `arrays.array(typecode="h")`
-data int32  `arrays.array(typecode="i")`
-data uint8  `arrays.array(typecode="B")`
-data uint16 `arrays.array(typecode="H")`
-data uint32 `arrays.array(typecode="I")`
+----------- ---------------------------------
+int32       :code:`int`
+uint32      :code:`ncplib.uint`
+string      :code:`str`
+raw         :code:`bytes`
+data int8   :code:`arrays.array(typecode="b")`
+data int16  :code:`arrays.array(typecode="h")`
+data int32  :code:`arrays.array(typecode="i")`
+data uint8  :code:`arrays.array(typecode="B")`
+data uint16 :code:`arrays.array(typecode="H")`
+data uint32 :code:`arrays.array(typecode="I")`
 
 
 Support and announcements
