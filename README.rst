@@ -97,6 +97,7 @@ data int32  :code:`arrays.array(typecode="i")`
 data uint8  :code:`arrays.array(typecode="B")`
 data uint16 :code:`arrays.array(typecode="H")`
 data uint32 :code:`arrays.array(typecode="I")`
+=========== =================================
 
 
 Support and announcements
