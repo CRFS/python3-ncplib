@@ -137,13 +137,15 @@ class Client:
         error_message = field.params.get("ERRO", None)
         error_code = field.params.get("ERRC", None)
         if error_message is not None or error_code is not None:
-            raise CommandError(packet_type, field.name, field.id, error_message, error_code)
+            self.logger.error("Command error in %s %s '%s' (code %s)", packet_type, field.name, error_message, error_code)
+            raise CommandError(packet_type, field.name, error_message, error_code)
 
     def _handle_warn(self, packet_type, field):
         warning_message = field.params.get("WARN", None)
         warning_code = field.params.get("WARC", None)
         if warning_message is not None or warning_code is not None:
-            warnings.warn(CommandWarning(packet_type, field.name, field.id, warning_message, warning_code))
+            self.logger.warning("Command warning in %s %s '%s' (code %s)", packet_type, field.name, warning_message, warning_code)
+            warnings.warn(CommandWarning(packet_type, field.name, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
         if field.name == "WARN":
             return True
