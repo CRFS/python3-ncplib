@@ -44,8 +44,8 @@ class ClientResponse:
 class Client:
 
     def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
-        self.host = host
-        self.port = port
+        self._host = host
+        self._port = port
         self._loop = loop or asyncio.get_event_loop()
         # Packet handling.
         self._auto_auth = auto_auth
@@ -112,7 +112,7 @@ class Client:
     @asyncio.coroutine
     def _connect(self):
         # Connect to the node.
-        self._reader, self._writer = yield from asyncio.open_connection(self.host, self.port, loop=self._loop)
+        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
         self.logger.info("Connected")
         # Auto-authenticate.
         if self._auto_auth:
