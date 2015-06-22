@@ -22,5 +22,12 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.4",
     ],
-    test_suite = "tests",
+    extras_require = {
+        "test":  [
+            "pytest",
+            "pytest-cov",
+            "pytest-asyncio",
+            "hypothesis-datetime",
+        ],
+    },
 )

@@ -55,7 +55,7 @@ def encode_params(params):
     for name, value in params.items():
         type_id, encoded_value = encode_value(value)
         size = PARAM_HEADER_STRUCT.size + len(encoded_value)
-        padding_size = size % 4
+        padding_size = -size % 4
         buf.extend(PARAM_HEADER_STRUCT.pack(
             encode_name(name),
             encode_u24_size(size + padding_size),
@@ -177,6 +177,8 @@ def decode_packet_cps(header_buf):
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
     def decode_packet_body(body_buf):
+        if len(body_buf) > size_remaining:
+            raise DecodeError("Packet body overflow by {} bytes".format(len(body_buf) - size_remaining))
         fields = list(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
         (
             checksum,
@@ -198,4 +200,4 @@ def decode_packet_cps(header_buf):
 
 def decode_packet(buf):
     body_size, decode_packet_body = decode_packet_cps(buf[:PACKET_HEADER_STRUCT.size])
-    return decode_packet_body(buf[PACKET_HEADER_STRUCT.size:PACKET_HEADER_STRUCT.size+body_size])
+    return decode_packet_body(buf[PACKET_HEADER_STRUCT.size:])

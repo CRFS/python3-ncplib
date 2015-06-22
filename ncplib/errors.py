@@ -18,12 +18,12 @@ class CommandMixin:
 
 # Errors.
 
-class DecodeError(CommandMixin, Exception):
+class DecodeError(Exception):
 
     pass
 
 
-class CommandError(Exception):
+class CommandError(CommandMixin, Exception):
 
     pass
 

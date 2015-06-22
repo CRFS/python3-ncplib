@@ -53,11 +53,11 @@ def encode_value_int(value):
 
 @encode_value.register(uint)
 def encode_value_uint(value):
-    return TYPE_U32, value.to_bytes(length=4, byteorder="little", signed=True)
+    return TYPE_U32, value.to_bytes(length=4, byteorder="little", signed=False)
 
 @encode_value.register(str)
 def encode_value_str(value):
-    return TYPE_STRING, value.encode(encoding="latin1", errors="ignore") + b"\x00"
+    return TYPE_STRING, value.encode(encoding="utf-8", errors="ignore") + b"\x00"
 
 @encode_value.register(bytes)
 @encode_value.register(bytearray)
@@ -100,7 +100,7 @@ def decode_value_u32(type_id, encoded_value):
 
 @decode_value.register(TYPE_STRING)
 def ddecode_value_string(type_id, encoded_value):
-    return encoded_value.split(b"\x00", 1)[0].decode(encoding="latin1", errors="ignore")
+    return encoded_value.split(b"\x00", 1)[0].decode(encoding="utf-8", errors="ignore")
 
 @decode_value.register(TYPE_RAW)
 def decode_value_raw(type_id, encoded_value):
