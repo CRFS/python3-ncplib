@@ -8,7 +8,7 @@ cache:
   directories:
     - $HOME/.cache/pip
 script:
-  - py.test --cov ncplib tests
+  - py.test tests --cov=ncplib --cov-report=term-missing
 notifications:
   on_success: never
   on_failure: change
