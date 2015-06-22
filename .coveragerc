@@ -7,9 +7,9 @@ exclude_lines =
     raise AssertionError
     raise NotImplementedError
     assert False
-
-omit =
-    */venv/*
-    */virtualenv/*
+   
+include =
+    ncplib/*
+    tests/*
 
 show_missing = True

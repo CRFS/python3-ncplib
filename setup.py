@@ -22,10 +22,5 @@ setup(
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.4",
     ],
-    extras_require = {
-        "dev":  [
-            "nose",
-            "coverage",
-        ],
-    },
+    test_suite = "tests",
 )

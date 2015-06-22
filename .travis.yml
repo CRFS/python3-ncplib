@@ -3,12 +3,14 @@ sudo: false
 python:
 - 3.4
 install:
-  - travis_retry pip install -e .[dev]
+  - travis_retry pip install -e . coverage
 cache:
   directories:
     - $HOME/.cache/pip
 script:
-  - nosetests --cover-package=ncplib --with-coverage
+  - coverage run setup.py test
+after_script:
+  - coverage report
 notifications:
   on_success: never
   on_failure: change
