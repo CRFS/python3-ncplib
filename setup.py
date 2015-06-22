@@ -28,6 +28,7 @@ setup(
             "pytest-cov",
             "pytest-asyncio",
             "hypothesis-datetime",
+            "hypothesis-pytest",
         ],
     },
 )
