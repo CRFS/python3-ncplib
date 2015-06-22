@@ -57,7 +57,7 @@ FIELD = st.builds(Field,
         values = st.one_of(
             signed(32),
             st.builds(uint, unsigned(32)),
-            st.text(),
+            st.text().map(lambda v: v.replace("\x00", "")),
             st.binary().map(with_padding(4, b"\x00")),
             st.builds(partial(array, "B"), st.lists(unsigned(8)).map(with_padding(4, [0]))),
             st.builds(partial(array, "H"), st.lists(unsigned(16)).map(with_padding(2, [0]))),
