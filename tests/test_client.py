@@ -1,6 +1,5 @@
 import asyncio, os, warnings
 from array import array
-from functools import wraps
 
 import pytest
 
@@ -34,37 +33,7 @@ def client(event_loop):
             yield client
         finally:
             client.close()
-            event_loop.run_until_complete(asyncio.wait_for(client.wait_closed(), loop=event_loop, timeout=30))
-
-
-# Test helpers.
-
-def require_loop(func):
-    @wraps(func)
-    def do_require_loop(self):
-        # Set up debug warnings.
-        
-            # Set up a debug loop.
-            loop = asyncio.new_event_loop()
-            try:
-                loop.set_debug(True)
-                loop.run_until_complete(asyncio.wait_for(func(self, loop), loop=loop, timeout=30))
-            finally:
-                loop.close()
-    return do_require_loop
-
-def require_client(func):
-    @wraps(func)
-    @asyncio.coroutine
-    def do_require_client(self, loop):
-        # Connect the client.
-        
-        try:
-            yield from func(self, loop, client)
-        finally:
-            client.close()
-            yield from client.wait_closed()
-    return do_require_client
+            event_loop.run_until_complete(asyncio.wait_for(client.wait_closed(), timeout=30))
 
 
 # Test assertions.

@@ -1,8 +1,8 @@
 from collections import namedtuple
-from datetime import datetime, timedelta, timezone
 from struct import Struct
 
 from ncplib.errors import DecodeError
+from ncplib.helpers import unix_to_datetime, datetime_to_unix_nano
 from ncplib.values import encode_value, decode_value
 
 
@@ -129,15 +129,15 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     encoded_fields = encode_fields(fields)
     # Encode the header.
     buf = bytearray()
-    timestamp = timestamp.astimezone(timezone.utc)
+    timestamp_unix, timestamp_nano = datetime_to_unix_nano(timestamp)
     buf.extend(PACKET_HEADER_STRUCT.pack(
         PACKET_HEADER,
         encode_name(packet_type),
         (PACKET_HEADER_STRUCT.size + len(encoded_fields) + PACKET_FOOTER_STRUCT.size) // 4,
         packet_id,
         PACKET_FORMAT_ID,
-        int(timestamp.timestamp()),
-        int(timestamp.microsecond * 1000),
+        timestamp_unix,
+        timestamp_nano,
         info,
     ))
     # Write the packet fields.
@@ -170,7 +170,7 @@ def decode_packet_cps(header_buf):
     size = size_words * 4
     if header != PACKET_HEADER:
         raise DecodeError("Invalid packet header {}".format(header))
-    timestamp = datetime.fromtimestamp(time, tz=timezone.utc) + timedelta(microseconds=nanotime // 1000)
+    timestamp = unix_to_datetime(time, nanotime)
     # Check the packet format.
     if format_id != PACKET_FORMAT_ID:
         raise DecodeError("Unknown packet format {}".format(format_id))
