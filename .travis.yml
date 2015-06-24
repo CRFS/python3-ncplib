@@ -2,6 +2,10 @@ language: python
 sudo: false
 python:
 - 3.4
+env:
+  global:
+    - PYTHONWARNINGS=default
+    - PYTHONASYNCIODEBUG=1
 install:
   - travis_retry pip install -e .[test]
 cache:

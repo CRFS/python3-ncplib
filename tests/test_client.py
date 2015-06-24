@@ -1,10 +1,9 @@
-import asyncio, os, warnings
+import asyncio, os
 from array import array
 
 import pytest
 
 from ncplib.client import connect
-from ncplib.errors import CommandWarning
 
 
 NCPLIB_TEST_CLIENT_HOST = os.environ.get("NCPLIB_TEST_CLIENT_HOST")
@@ -21,19 +20,13 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.yield_fixture
 def client(event_loop):
-    # Set up debug warnings.
-    with warnings.catch_warnings():
-        warnings.simplefilter("default", ResourceWarning)
-        warnings.simplefilter("ignore", CommandWarning)
-        # Use asyncio debug.
-        event_loop.set_debug(True)
-        # Connect the client.
-        client = event_loop.run_until_complete(asyncio.wait_for(connect(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=event_loop), loop=event_loop, timeout=30))
-        try:
-            yield client
-        finally:
-            client.close()
-            event_loop.run_until_complete(asyncio.wait_for(client.wait_closed(), timeout=30))
+    # Connect the client.
+    client = event_loop.run_until_complete(asyncio.wait_for(connect(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=event_loop), loop=event_loop, timeout=30))
+    try:
+        yield client
+    finally:
+        client.close()
+        event_loop.run_until_complete(asyncio.wait_for(client.wait_closed(), timeout=30))
 
 
 # Test assertions.
