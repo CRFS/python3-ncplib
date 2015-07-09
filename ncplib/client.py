@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]  # The last four bytes of the MAC address is used as an ID field.
+AUTH_ID = "python3-ncplib"
 
 
 class ClientLoggerAdapter(logging.LoggerAdapter):
@@ -95,7 +96,7 @@ class Client:
         # Send the connection request.
         self.send("LINK", {
             "CCRE": {
-                "CIW": CLIENT_ID,
+                "CIW": AUTH_ID,
             },
         })
         # Read the connection response packet.
@@ -103,7 +104,7 @@ class Client:
         # Send the auth request packet.
         self.send("LINK", {
             "CARE": {
-                "CAR": CLIENT_ID,
+                "CAR": AUTH_ID,
             },
         })
         # Read the auth response packet.
