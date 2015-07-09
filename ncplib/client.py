@@ -120,6 +120,7 @@ class Client:
             yield from self._handle_auth()
 
     def close(self):
+        self._writer.write_eof()
         self._writer.close()
         self.logger.info("Closed")
 
