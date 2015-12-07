@@ -15,7 +15,7 @@ Features
 Installation
 ------------
 
-1. Install using ``pip install ncplib``.
+1. Install using ``pip install /path/to/ncplib.tar.gz``.
 
 
 Basic usage
@@ -106,7 +106,7 @@ Support and announcements
 Downloads and bug tracking can be found at the `main project
 website <https://github.com/CRFS/python3-ncplib>`_.
 
-    
+
 Contributors
 ------------
 
