@@ -112,4 +112,4 @@ Contributors
 
 The following people were involved in the development of this project.
 
-- Dave Hall - `Blog <http://blog.etianen.com/>`_ | `GitHub <http://github.com/etianen>`_
+- Dave Hall - `GitHub <http://github.com/etianen>`_
