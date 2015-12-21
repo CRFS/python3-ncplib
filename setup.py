@@ -4,7 +4,7 @@ from ncplib import __version__
 
 
 version_str = ".".join(str(n) for n in __version__)
-        
+
 
 setup(
     name = "ncplib",
@@ -13,7 +13,7 @@ setup(
     author = "Dave Hall",
     author_email = "dhall@crfs.com",
     url = "https://github.com/CRFS/python3-ncplib",
-    packages = find_packages(),
+    packages = find_packages(exclude="tests"),
     classifiers = [
         "Development Status :: 4 - Beta",
         "Environment :: Web Environment",

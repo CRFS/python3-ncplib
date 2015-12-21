@@ -107,6 +107,15 @@ Downloads and bug tracking can be found at the `main project
 website <https://github.com/CRFS/python3-ncplib>`_.
 
 
+Build status
+------------
+
+This project is built on every push using the Travis-CI service.
+
+.. image:: https://travis-ci.com/CRFS/python3-ncplib.svg?token=UzMVyRwHLLx7ryTJmK8k&branch=master
+    :target: https://travis-ci.com/CRFS/python3-ncplib
+
+
 Contributors
 ------------
 

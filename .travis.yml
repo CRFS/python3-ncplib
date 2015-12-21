@@ -1,18 +1,15 @@
-language: python
 sudo: false
-python:
-- 3.4
+os:
+  - linux
+  - osx
 env:
+  matrix:
+    - PYTHON_VERSION=3.5
+    - PYTHON_VERSION=3.4
   global:
     - PYTHONWARNINGS=default
     - PYTHONASYNCIODEBUG=1
-install:
-  - travis_retry pip install -e .[test]
-cache:
-  directories:
-    - $HOME/.cache/pip
+    # ANACONDA_TOKEN
+    - secure: "fFnozDXa9QBGjdFUPCLSC4sfa0yn+Zky3wT9pQV+bOMUyw3lHqR8TzQADGU3bYKULbbtk2d+6p9YogT71H7avPovhzfZ74gLUS5nS5abLGdtA3eLvn2zbt143PtsEZFFOfUqOLau7ZsD9HvMfp//X6q8AjBJghIkx2mHmcing0M="
 script:
-  - py.test tests --cov=ncplib --cov-report=term-missing
-notifications:
-  on_success: never
-  on_failure: change
+- ./dist.sh

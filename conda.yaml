@@ -1,0 +1,18 @@
+package:
+  name: ncplib
+  version: {{ environ["PACKAGE_VERSION"] }}
+requirements:
+  build:
+    - python
+    - pip
+  run:
+    - python
+build:
+  script: pip install .
+test:
+  commands:
+    - pip install '{{ environ["SRC_DIR"] }}[test]'
+    - py.test {{ environ["SRC_DIR"] }}/tests --cov=ncplib --cov-report=term-missing
+about:
+  home: https://github.com/CRFS/python3-ncplib
+  summary: "CRFS NCP library for Python 3."
