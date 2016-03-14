@@ -1,9 +1,12 @@
+import re
 from collections import namedtuple
 from struct import Struct
-
 from ncplib.errors import DecodeError
 from ncplib.helpers import unix_to_datetime, datetime_to_unix_nano
 from ncplib.values import encode_value, decode_value
+
+
+RE_NAME = re.compile("^[A-Z]{3,4}$")
 
 
 # Packet structs.
@@ -27,6 +30,8 @@ PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 # Identifier encoding.
 
 def encode_name(value):
+    if RE_NAME.match(value) is None:
+        raise ValueError("Invalid field/param name {}".format(value))
     return value.encode(encoding="latin1", errors="ignore") + (b"\x00" * (len(value) % 4))
 
 

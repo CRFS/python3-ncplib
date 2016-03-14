@@ -1,14 +1,7 @@
-import string
-from array import array
-from functools import partial
-from datetime import datetime, timezone
-
 from hypothesis import given
 import hypothesis.strategies as st
-from hypothesis.extra.datetime import datetimes
-
 from ncplib.packets import decode_packet, encode_packet, Packet, Field
-from ncplib.values import uint
+from tests.conftest import timestamps, uints, names, fields
 
 
 # Testing of known values.
@@ -30,68 +23,14 @@ def test_decode_known_packet():
     ]
 
 
-# Hypothesis helpers.
-
-def signed(size):
-    return st.integers(
-        min_value=-2 ** (size - 1),
-        max_value=2 ** (size - 1) - 1,
-    )
-
-
-def unsigned(size):
-    return st.integers(
-        min_value=0,
-        max_value=2 ** size - 1,
-    )
-
-
-NAME = st.text(
-    alphabet=string.ascii_uppercase,
-    min_size=3,
-    max_size=4,
-)
-
-
-def with_padding(resolution, pad_value):
-    def do_with_padding(value):
-        return value + pad_value * (-len(value) % resolution)
-    return do_with_padding
-
-
-FIELD = st.builds(
-    Field,
-    name=NAME,
-    id=unsigned(32),
-    params=st.dictionaries(
-        keys=NAME,
-        values=st.one_of(
-            signed(32),
-            st.builds(uint, unsigned(32)),
-            st.text().map(lambda v: v.replace("\x00", "")),
-            st.binary().map(with_padding(4, b"\x00")),
-            st.builds(partial(array, "B"), st.lists(unsigned(8)).map(with_padding(4, [0]))),
-            st.builds(partial(array, "H"), st.lists(unsigned(16)).map(with_padding(2, [0]))),
-            st.builds(partial(array, "I"), st.lists(unsigned(32))),
-            st.builds(partial(array, "b"), st.lists(signed(8)).map(with_padding(4, [0]))),
-            st.builds(partial(array, "h"), st.lists(signed(16)).map(with_padding(2, [0]))),
-            st.builds(partial(array, "i"), st.lists(signed(32))),
-        ),
-    ),
-)
-
-
-UNIX_EPOCH = datetime(1970, 1, 1, 0, 0, tzinfo=timezone.utc)
-
-
-# Firehose-style encoding tests.
+# Encoding tests.
 
 @given(
-    packet_type=NAME,
-    packet_id=unsigned(32),
-    timestamp=datetimes(min_year=1970, max_year=2100).filter(lambda v: v >= UNIX_EPOCH),
+    packet_type=names(),
+    packet_id=uints(32),
+    timestamp=timestamps(),
     info=st.binary(min_size=4, max_size=4),
-    fields=st.lists(FIELD),
+    fields=st.lists(fields()),
 )
 def test_encode_inverts_decode(packet_type, packet_id, timestamp, info, fields):
     expected_packet = Packet(packet_type, packet_id, timestamp, info, fields)

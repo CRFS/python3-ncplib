@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import warnings
-
 from ncplib.connection import Connection
 from ncplib.errors import CommandError, CommandWarning
 
@@ -17,38 +16,10 @@ logger = logging.getLogger(__name__)
 AUTH_ID = "python3-ncplib"
 
 
-class ClientLoggerAdapter(logging.LoggerAdapter):
-
-    def process(self, msg, kwargs):
-        msg, kwargs = super().process(msg, kwargs)
-        return "ncp://{host}:{port} - {msg}".format(
-            msg=msg,
-            **self.extra
-        ), kwargs
-
-
-class ClientResponse:
-
-    def __init__(self, client, packet_type, field_lookup):
-        self._client = client
-        self._packet_type = packet_type
-        self._fields_lookup = field_lookup
-
-    async def recv_field(self, field_name):
-        field_id = self._fields_lookup[field_name]
-        return (await self._client.recv_field(self._packet_type, field_name, field_id=field_id))
-
-
-class Client(Connection):
+class ClientConnection(Connection):
 
     def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
-        super().__init__(None, None, ClientLoggerAdapter(logger, {
-            "host": host,
-            "port": port,
-        }), loop=loop)
-        # Deferred connection.
-        self._host = host
-        self._port = port
+        super().__init__(host, port, None, None, logger, loop=loop)
         # Packet handling.
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
@@ -93,12 +64,13 @@ class Client(Connection):
         if error_message is not None or error_code is not None:
             self.logger.error(
                 "Command error in %s %s '%s' (code %s)",
-                packet_type,
+                self._packet_type,
                 field_name,
                 error_message,
                 error_code,
             )
             raise CommandError(packet_type, field_name, error_message, error_code)
+        return True
 
     def _handle_warn(self, packet_type, field_name, params):
         warning_message = params.get("WARN", None)
@@ -106,50 +78,38 @@ class Client(Connection):
         if warning_message is not None or warning_code is not None:
             self.logger.warning(
                 "Command warning in %s %s '%s' (code %s)",
-                packet_type,
+                self._packet_type,
                 field_name,
                 warning_message,
                 warning_code,
             )
             warnings.warn(CommandWarning(packet_type, field_name, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
-        if field_name == "WARN":
-            return True
+        return field_name != "WARN"
 
-    def _handle_ackn(self, packet_type, field_name, params):
-        ackn = params.get("ACKN", None)
-        return ackn is not None
+    def _handle_ackn(self, params):
+        return "ACKN" not in params
 
-    async def recv_field(self, packet_type, field_name, *, field_id=None):
-        while True:
-            params = await super().recv_field(packet_type, field_name, field_id=field_id)
+    def _params_predicate(self, params):
+        return (
             # Handle errors.
-            if self._auto_erro and self._handle_erro(packet_type, field_name, params):
-                continue
+            (self._auto_erro and self._handle_erro(params)) or
             # Handle warnings.
-            if self._auto_warn and self._handle_warn(packet_type, field_name, params):
-                continue
+            (self._auto_warn and self._handle_warn(params)) or
             # Handle acks.
-            if self._auto_ackn and self._handle_ackn(packet_type, field_name, params):
-                continue
-            # All done!
-            return params
+            (self._auto_ackn and self._handle_ackn(params)) or
+            # Otherwise, the field is unhandled.
+            True
+        )
 
-    # Sending packets.
+    # Sending fields.
 
-    def send(self, packet_type, fields):
-        super().send(packet_type, fields)
-        return ClientResponse(self, packet_type, {
-            field.name: field.id
-            for field
-            in fields
-        })
-
-    async def execute(self, packet_type, field_name, params=None):
-        return (await self.send(packet_type, {field_name: params or {}}).recv_field(field_name))
+    def execute(self, *args, **kwargs):
+        # TODO: Deprecate?
+        return self.send(*args, **kwargs).get()
 
 
 async def connect(host, port, **kwargs):
-    client = Client(host, port, **kwargs)
+    client = ClientConnection(host, port, **kwargs)
     await client._connect()
     return client
