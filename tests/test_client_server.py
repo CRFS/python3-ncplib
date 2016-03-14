@@ -59,6 +59,25 @@ async def test_execute(client, packet_type, field_name, params):
     assert message == params
 
 
+# Send tests.
+
+async def send_handler(connection):
+    message = await connection.recv()
+    message.send(**message)
+
+
+@given(
+    packet_type=names(),
+    field_name=names(),
+    params=params(),
+)
+@async_test(execute_handler)
+async def test_send(client, packet_type, field_name, params):
+    response = client.send(packet_type, field_name, **params)
+    async for message in response:
+        assert message == params
+
+
 # Send many tests.
 
 async def send_many_handler(connection):
