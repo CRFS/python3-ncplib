@@ -1,6 +1,8 @@
 import asyncio
+import pytest
 from functools import wraps
 from hypothesis import given
+from hypothesis.strategies import dictionaries
 from ncplib import connect, start_server
 from tests.conftest import names, params
 
@@ -39,11 +41,11 @@ def async_test(client_connected):
     return decorator
 
 
-# Client tests.
+# Execute tests.
 
 async def execute_handler(connection):
-    params = await connection.recv()
-    params.send(**params)
+    message = await connection.recv()
+    message.send(**message)
 
 
 @given(
@@ -53,5 +55,41 @@ async def execute_handler(connection):
 )
 @async_test(execute_handler)
 async def test_execute(client, packet_type, field_name, params):
-    response_params = await client.execute(packet_type, field_name, **params)
-    assert response_params == params
+    message = await client.execute(packet_type, field_name, **params)
+    assert message == params
+
+
+# Send many tests.
+
+async def send_many_handler(connection):
+    async for message in connection.__aiter__():
+        message.send(**message)
+
+
+@given(
+    packet_type=names(),
+    fields=dictionaries(names(), params()),
+)
+@async_test(send_many_handler)
+async def test_send_many(client, packet_type, fields):
+    response = client.send(packet_type, fields)
+    messages = {}
+    while len(messages) != len(fields):
+        message = await response.recv()
+        messages[message.field.name] = message
+    assert messages == fields
+
+
+@given(
+    packet_type=names(),
+    fields=dictionaries(names(), params()),
+)
+@async_test(send_many_handler)
+async def test_send_many_deprecated_api(client, packet_type, fields):
+    with pytest.warns(DeprecationWarning):
+        response = client.send(packet_type, fields)
+    messages = {}
+    while len(messages) != len(fields):
+        message = await response.recv()
+        messages[message.field.name] = message
+    assert messages == fields

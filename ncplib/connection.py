@@ -11,7 +11,7 @@ from ncplib.packets import Field, encode_packet, decode_packet_cps, PACKET_HEADE
 CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]
 
 
-class FieldParams(Mapping):
+class Message(Mapping):
 
     def __init__(self, connection, packet, field):
         self.connection = connection
@@ -31,40 +31,40 @@ class FieldParams(Mapping):
         return self.connection._send_packet(self.packet.type, [Field(self.field.name, self.field.id, params)])
 
 
-def base_params_predicate(params):
-    return True
+class AsyncMessageIterator:
 
-
-class AsyncParamsIterator:
-
-    def __init__(self, connection, predicate=base_params_predicate, param_list=[]):
+    def __init__(self, connection, predicate, message_list):
         self.connection = connection
         self._predicate = predicate
-        self._param_list = param_list
+        self._message_list = message_list
 
     async def __aiter__(self):
         return self
 
     async def __anext__(self):
         try:
-            return await self.get()
+            return await self.recv()
         except EOFError:
             raise StopAsyncIteration
 
     def filter(self, predicate):
-        return AsyncParamsIterator(self.connection, lambda params: self._predicate(params) and predicate(params))
+        return self.__class__(
+            self.connection,
+            lambda message: self._predicate(message) and predicate(message),
+            self._message_list,
+        )
 
-    async def get(self):
+    async def recv(self):
         while True:
-            while not self._param_list:
-                self._param_list = await self.connection._recv_packet()
-            while self._param_list:
-                params = self._param_list.pop(0)
-                if self._predicate(params):
-                    return params
+            while not self._message_list:
+                self._message_list = await self.connection._recv_packet()
+            while self._message_list:
+                message = self._message_list.pop(0)
+                if self._predicate(message):
+                    return message
 
     def recv_field(self, field_name):
-        return self.filter(lambda params: params.field.name == field_name).get()
+        return self.filter(lambda message: message.field.name == field_name).recv()
 
 
 class ConnectionLoggerAdapter(logging.LoggerAdapter):
@@ -75,6 +75,10 @@ class ConnectionLoggerAdapter(logging.LoggerAdapter):
             msg=msg,
             **self.extra
         ), kwargs
+
+
+def base_message_predicate(message):
+    return True
 
 
 class Connection:
@@ -103,7 +107,7 @@ class Connection:
 
     # Packet reading.
 
-    def _params_predicate(self, params):
+    def _message_predicate(self, message):
         return True
 
     async def _recv_packet_primary(self):
@@ -115,8 +119,8 @@ class Connection:
             packet = decode_packet_body(body_buf)
             self.logger.debug("Received packet %s %s", packet.type, packet.fields)
             # All done!
-            return list(filter(self._params_predicate, (
-                FieldParams(self, packet, field)
+            return list(filter(self._message_predicate, (
+                Message(self, packet, field)
                 for field
                 in packet.fields
             )))
@@ -130,17 +134,17 @@ class Connection:
 
     # Receiving fields.
 
-    def recv_iter(self):
-        return AsyncParamsIterator(self)
+    def __aiter__(self):
+        return AsyncMessageIterator(self, base_message_predicate, [])
 
     def recv(self):
-        return self.recv_iter().get()
+        return self.__aiter__().recv()
 
     def recv_field(self, packet_type, field_name):
-        return self.recv_iter().filter(lambda params: (
-            params.packet.type == packet_type and
-            params.field.name == field_name
-        )).get()
+        return self.__aiter__().filter(lambda message: (
+            message.packet.type == packet_type and
+            message.field.name == field_name
+        )).recv()
 
     # Packet writing.
 
@@ -154,9 +158,9 @@ class Connection:
             for field
             in fields
         )
-        return self.recv_iter().filter(lambda params: (
-            params.packet.type == packet_type and
-            (params.field.name, params.field.id) in expected_fields
+        return self.__aiter__().filter(lambda message: (
+            message.packet.type == packet_type and
+            (message.field.name, message.field.id) in expected_fields
         ))
 
     # Sending fields.
@@ -171,8 +175,8 @@ class Connection:
     def send(self, packet_type, field_name, *args, **kwargs):
         # Handle deprecated send signature.
         if isinstance(field_name, Mapping):
+            warnings.warn("Use send_many() to send multiple fields in one packet.", DeprecationWarning)
             return self.send_many(packet_type, field_name)
-            warnings.warning("Use send_many() to send multiple fields in one packet.", DeprecationWarning)
         # Handle new send signature.
         params = dict(*args, **kwargs)
         return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
