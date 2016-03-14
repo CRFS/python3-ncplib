@@ -42,7 +42,7 @@ def async_test(client_connected):
 
 
 async def echo_handler(connection):
-    async for message in connection.__aiter__():
+    async for message in connection:
         message.send(**message)
 
 

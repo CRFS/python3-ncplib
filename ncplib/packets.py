@@ -30,8 +30,7 @@ PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 # Identifier encoding.
 
 def encode_name(value):
-    if RE_NAME.match(value) is None:
-        raise ValueError("Invalid field/param name {}".format(value))
+    assert RE_NAME.match(value) is not None, "Invalid field/param name {}".format(value)
     return value.encode(encoding="latin1", errors="ignore") + (b"\x00" * (len(value) % 4))
 
 

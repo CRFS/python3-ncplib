@@ -47,13 +47,6 @@ class AsyncMessageIterator:
         except EOFError:
             raise StopAsyncIteration
 
-    def filter(self, predicate):
-        return self.__class__(
-            self.connection,
-            lambda message: self._predicate(message) and predicate(message),
-            self._message_list,
-        )
-
     async def recv(self):
         while True:
             while not self._message_list:
@@ -63,8 +56,10 @@ class AsyncMessageIterator:
                 if self._predicate(message):
                     return message
 
-    def recv_field(self, field_name):
-        return self.filter(lambda message: message.field.name == field_name).recv()
+    async def recv_field(self, field_name):
+        async for message in self:
+            if message.field.name == field_name:
+                return message
 
 
 class ConnectionLoggerAdapter(logging.LoggerAdapter):
@@ -75,10 +70,6 @@ class ConnectionLoggerAdapter(logging.LoggerAdapter):
             msg=msg,
             **self.extra
         ), kwargs
-
-
-def base_message_predicate(message):
-    return True
 
 
 class Connection:
@@ -134,17 +125,16 @@ class Connection:
 
     # Receiving fields.
 
-    def __aiter__(self):
-        return AsyncMessageIterator(self, base_message_predicate, [])
+    async def __aiter__(self):
+        return AsyncMessageIterator(self, lambda message: True, [])
 
     def recv(self):
         return self.__aiter__().recv()
 
-    def recv_field(self, packet_type, field_name):
-        return self.__aiter__().filter(lambda message: (
-            message.packet.type == packet_type and
-            message.field.name == field_name
-        )).recv()
+    async def recv_field(self, packet_type, field_name):
+        async for message in self:
+            if message.packet.type == packet_type and message.field.name == field_name:
+                return message
 
     # Packet writing.
 
@@ -158,10 +148,10 @@ class Connection:
             for field
             in fields
         )
-        return self.__aiter__().filter(lambda message: (
+        return AsyncMessageIterator(self, lambda message: (
             message.packet.type == packet_type and
             (message.field.name, message.field.id) in expected_fields
-        ))
+        ), [])
 
     # Sending fields.
 
