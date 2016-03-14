@@ -13,7 +13,7 @@ test:
   commands:
     - pip install '{{ environ["SRC_DIR"] }}[dev]'
     - py.test {{ environ["SRC_DIR"] }}
-    - flake8 {{ environ["SRC_DIR"] }}
+    - flake8 {{ environ["SRC_DIR"] }}/ncplib
 about:
   home: https://github.com/CRFS/python3-ncplib
   summary: "CRFS NCP library for Python 3."
