@@ -58,34 +58,34 @@ class ClientConnection(Connection):
 
     # Receiving fields.
 
-    def _handle_erro(self, packet_type, field_name, params):
+    def _handle_erro(self, params):
         error_message = params.get("ERRO", None)
         error_code = params.get("ERRC", None)
         if error_message is not None or error_code is not None:
             self.logger.error(
                 "Command error in %s %s '%s' (code %s)",
-                self._packet_type,
-                field_name,
+                params.packet.type,
+                params.field.name,
                 error_message,
                 error_code,
             )
-            raise CommandError(packet_type, field_name, error_message, error_code)
+            raise CommandError(params.packet.type, params.field.name, error_message, error_code)
         return True
 
-    def _handle_warn(self, packet_type, field_name, params):
+    def _handle_warn(self, params):
         warning_message = params.get("WARN", None)
         warning_code = params.get("WARC", None)
         if warning_message is not None or warning_code is not None:
             self.logger.warning(
                 "Command warning in %s %s '%s' (code %s)",
-                self._packet_type,
-                field_name,
+                params.packet.type,
+                params.field.name,
                 warning_message,
                 warning_code,
             )
-            warnings.warn(CommandWarning(packet_type, field_name, warning_message, warning_code))
+            warnings.warn(CommandWarning(params.packet.type, params.field.name, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
-        return field_name != "WARN"
+        return params.field.name != "WARN"
 
     def _handle_ackn(self, params):
         return "ACKN" not in params

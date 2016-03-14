@@ -22,13 +22,13 @@ class FieldParams(Mapping):
         return self.field.params[name]
 
     def __iter__(self):
-        iter(self.field.params)
+        return iter(self.field.params)
 
     def __len__(self):
         return len(self.field)
 
     def send(self, **params):
-        return self.connection._send_packet(self.packet.type, Field(self.field.name, self.field.id, params))
+        return self.connection._send_packet(self.packet.type, [Field(self.field.name, self.field.id, params)])
 
 
 def base_params_predicate(params):
@@ -48,9 +48,9 @@ class AsyncParamsIterator:
     async def __anext__(self):
         while True:
             while not self._param_list:
-                self._param_list = await self.connection._wait_for_packet()
+                self._param_list = await self.connection._recv_packet()
             while self._param_list:
-                params = self._param_list.shift()
+                params = self._param_list.pop(0)
                 if self._predicate(params):
                     return params
 
@@ -162,7 +162,7 @@ class Connection:
 
     def send_many(self, packet_type, fields):
         return self._send_packet(packet_type, [
-            Field(field_name, self._get_id(), field_params)
+            Field(field_name, self._gen_id(), field_params)
             for field_name, field_params
             in fields.items()
         ])
@@ -174,7 +174,7 @@ class Connection:
             warnings.warning("Use send_many() to send multiple fields in one packet.", DeprecationWarning)
         # Handle new send signature.
         params = dict(*args, **kwargs)
-        return self._send_packet(packet_type, Field(field_name, self._gen_id(), params))
+        return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
 
     # Connection lifecycle.
 

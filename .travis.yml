@@ -8,6 +8,7 @@ env:
   global:
     - PYTHONWARNINGS=default
     - PYTHONASYNCIODEBUG=1
+    - HYPOTHESIS_PROFILE=ci
     # ANACONDA_TOKEN
     - secure: "fFnozDXa9QBGjdFUPCLSC4sfa0yn+Zky3wT9pQV+bOMUyw3lHqR8TzQADGU3bYKULbbtk2d+6p9YogT71H7avPovhzfZ74gLUS5nS5abLGdtA3eLvn2zbt143PtsEZFFOfUqOLau7ZsD9HvMfp//X6q8AjBJghIkx2mHmcing0M="
 script:
