@@ -46,26 +46,24 @@ class AsyncParamsIterator:
         return self
 
     async def __anext__(self):
-        while True:
-            while not self._param_list:
-                try:
-                    self._param_list = await self.connection._recv_packet()
-                except EOFError:
-                    raise StopAsyncIteration
-            while self._param_list:
-                params = self._param_list.pop(0)
-                if self._predicate(params):
-                    return params
+        try:
+            return await self.get()
+        except EOFError:
+            raise StopAsyncIteration
 
     def filter(self, predicate):
         return AsyncParamsIterator(self.connection, lambda params: self._predicate(params) and predicate(params))
 
     async def get(self):
-        async for params in self:
-            return params
+        while True:
+            while not self._param_list:
+                self._param_list = await self.connection._recv_packet()
+            while self._param_list:
+                params = self._param_list.pop(0)
+                if self._predicate(params):
+                    return params
 
     def recv_field(self, field_name):
-        # TODO: Deprecate?
         return self.filter(lambda params: params.field.name == field_name).get()
 
 

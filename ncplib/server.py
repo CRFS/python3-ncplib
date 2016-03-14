@@ -37,7 +37,11 @@ class Server:
         if self._auto_auth:
             await self._handle_auth(connection)
         # Delegate to handler.
-        await self._client_connected(connection)
+        try:
+            await self._client_connected(connection)
+        finally:
+            connection.close()
+            await connection.wait_closed()
 
     async def _start(self):
         self._server = await asyncio.start_server(self._do_client_connected, self._host, self._port, loop=self._loop)
