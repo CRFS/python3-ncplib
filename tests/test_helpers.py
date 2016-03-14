@@ -1,6 +1,6 @@
 from hypothesis import given
 from hypothesis.strategies import floats
-from tests.conftest import timestamps, uints
+from .conftest import timestamps, uints
 
 from ncplib.helpers import datetime_to_unix_nano, datetime_to_unix, unix_to_datetime, dbm_to_rssi, rssi_to_dbm
 

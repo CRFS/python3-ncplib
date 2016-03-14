@@ -1,7 +1,7 @@
 from hypothesis import given
 import hypothesis.strategies as st
 from ncplib.packets import decode_packet, encode_packet, Packet, Field
-from tests.conftest import timestamps, uints, names, fields
+from .conftest import timestamps, uints, names, fields
 
 
 # Testing of known values.
