@@ -104,8 +104,11 @@ class ClientConnection(Connection):
 
     # Sending fields.
 
-    def execute(self, *args, **kwargs):
-        return self.send(*args, **kwargs).recv()
+    def execute(self, packet_type, field_name, _params=None, **params):
+        if _params:
+            warnings.warn("Specify field params as keyword arguments to execute().", DeprecationWarning)
+            params.update(_params)
+        return self.send(packet_type, field_name, **params).recv()
 
 
 async def connect(host, port, **kwargs):

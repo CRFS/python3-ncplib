@@ -172,13 +172,12 @@ class Connection:
             in fields.items()
         ])
 
-    def send(self, packet_type, field_name, *args, **kwargs):
+    def send(self, packet_type, field_name, **params):
         # Handle deprecated send signature.
         if isinstance(field_name, Mapping):
             warnings.warn("Use send_many() to send multiple fields in one packet.", DeprecationWarning)
             return self.send_many(packet_type, field_name)
         # Handle new send signature.
-        params = dict(*args, **kwargs)
         return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
 
     # Connection lifecycle.
