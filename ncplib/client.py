@@ -1,12 +1,9 @@
 import asyncio
 import logging
 import warnings
-from datetime import datetime, timezone
-from uuid import getnode as get_mac
 
-from ncplib.packets import Field
+from ncplib.connection import Connection
 from ncplib.errors import CommandError, CommandWarning
-from ncplib.streams import write_packet, read_packet
 
 
 __all__ = (
@@ -17,8 +14,6 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-# The last four bytes of the MAC address is used as an ID field.
-CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]
 AUTH_ID = "python3-ncplib"
 
 
@@ -44,48 +39,21 @@ class ClientResponse:
         return (await self._client.recv_field(self._packet_type, field_name, field_id=field_id))
 
 
-class Client:
+class Client(Connection):
 
     def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
+        super().__init__(None, None, ClientLoggerAdapter(logger, {
+            "host": host,
+            "port": port,
+        }), loop=loop)
+        # Deferred connection.
         self._host = host
         self._port = port
-        self._loop = loop or asyncio.get_event_loop()
         # Packet handling.
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
-        # Logging.
-        self.logger = ClientLoggerAdapter(logger, {
-            "host": host,
-            "port": port,
-        })
-        # Packet reading.
-        self._reader = None
-        # Packet writing.
-        self._id_gen = 0
-        self._writer = None
-        # Multiplexing.
-        self._packet_reader = None
-
-    def _gen_id(self):
-        self._id_gen += 1
-        return self._id_gen
-
-    # Packet reading.
-
-    async def _read_packet(self):
-        try:
-            packet = await read_packet(self._reader)
-            self.logger.debug("Received packet %s %s", packet.type, packet.fields)
-            return packet
-        finally:
-            self._packet_reader = None
-
-    async def _wait_for_packet(self):
-        if self._packet_reader is None:
-            self._packet_reader = self._loop.create_task(self._read_packet())
-        return (await asyncio.shield(self._packet_reader, loop=self._loop))
 
     # Connection lifecycle.
 
@@ -117,89 +85,60 @@ class Client:
         if self._auto_auth:
             await self._handle_auth()
 
-    def close(self):
-        self._writer.write_eof()
-        self._writer.close()
-        self.logger.info("Closed")
-
-    async def wait_closed(self):
-        # Keep reading packets until we get an EOF, meaning that the connection was closed.
-        while True:
-            try:
-                await self._wait_for_packet()
-            except EOFError:
-                return
-
     # Receiving fields.
 
-    def _handle_erro(self, packet_type, field):
-        error_message = field.params.get("ERRO", None)
-        error_code = field.params.get("ERRC", None)
+    def _handle_erro(self, packet_type, field_name, params):
+        error_message = params.get("ERRO", None)
+        error_code = params.get("ERRC", None)
         if error_message is not None or error_code is not None:
             self.logger.error(
                 "Command error in %s %s '%s' (code %s)",
                 packet_type,
-                field.name,
+                field_name,
                 error_message,
                 error_code,
             )
-            raise CommandError(packet_type, field.name, error_message, error_code)
+            raise CommandError(packet_type, field_name, error_message, error_code)
 
-    def _handle_warn(self, packet_type, field):
-        warning_message = field.params.get("WARN", None)
-        warning_code = field.params.get("WARC", None)
+    def _handle_warn(self, packet_type, field_name, params):
+        warning_message = params.get("WARN", None)
+        warning_code = params.get("WARC", None)
         if warning_message is not None or warning_code is not None:
             self.logger.warning(
                 "Command warning in %s %s '%s' (code %s)",
                 packet_type,
-                field.name,
+                field_name,
                 warning_message,
                 warning_code,
             )
-            warnings.warn(CommandWarning(packet_type, field.name, warning_message, warning_code))
+            warnings.warn(CommandWarning(packet_type, field_name, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
-        if field.name == "WARN":
+        if field_name == "WARN":
             return True
 
-    def _handle_ackn(self, packet_type, field):
-        ackn = field.params.get("ACKN", None)
+    def _handle_ackn(self, packet_type, field_name, params):
+        ackn = params.get("ACKN", None)
         return ackn is not None
 
     async def recv_field(self, packet_type, field_name, *, field_id=None):
         while True:
-            packet = await self._wait_for_packet()
-            if packet.type == packet_type:
-                for field in packet.fields:
-                    if field.name == field_name and (field_id is None or field.id == field_id):
-                        # Handle errors.
-                        if self._auto_erro and self._handle_erro(packet_type, field):
-                            continue
-                        # Handle warnings.
-                        if self._auto_warn and self._handle_warn(packet_type, field):
-                            continue
-                        # Handle acks.
-                        if self._auto_ackn and self._handle_ackn(packet_type, field):
-                            continue
-                        # All done!
-                        return field.params
+            params = await super().recv_field(packet_type, field_name, field_id=field_id)
+            # Handle errors.
+            if self._auto_erro and self._handle_erro(packet_type, field_name, params):
+                continue
+            # Handle warnings.
+            if self._auto_warn and self._handle_warn(packet_type, field_name, params):
+                continue
+            # Handle acks.
+            if self._auto_ackn and self._handle_ackn(packet_type, field_name, params):
+                continue
+            # All done!
+            return params
 
     # Sending packets.
 
     def send(self, packet_type, fields):
-        # Encode the fields.
-        fields = [
-            Field(
-                name=field_name,
-                id=self._gen_id(),
-                params=params,
-            )
-            for field_name, params
-            in fields.items()
-        ]
-        # Sent the packet.
-        write_packet(self._writer, packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
-        self.logger.debug("Sent packet %s %s", packet_type, fields)
-        # Return a streaming response.
+        super().send(packet_type, fields)
         return ClientResponse(self, packet_type, {
             field.name: field.id
             for field

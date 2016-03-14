@@ -1,6 +1,7 @@
 import string
 from array import array
 from functools import partial
+from datetime import datetime, timezone
 
 from hypothesis import given
 import hypothesis.strategies as st
@@ -80,12 +81,15 @@ FIELD = st.builds(
 )
 
 
+UNIX_EPOCH = datetime(1970, 1, 1, 0, 0, tzinfo=timezone.utc)
+
+
 # Firehose-style encoding tests.
 
 @given(
     packet_type=NAME,
     packet_id=unsigned(32),
-    timestamp=datetimes(min_year=1970, max_year=2100),
+    timestamp=datetimes(min_year=1970, max_year=2100).filter(lambda v: v >= UNIX_EPOCH),
     info=st.binary(min_size=4, max_size=4),
     fields=st.lists(FIELD),
 )
