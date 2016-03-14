@@ -106,7 +106,7 @@ class ClientConnection(Connection):
 
     def execute(self, packet_type, field_name, _params=None, **params):
         if _params:
-            warnings.warn("Specify field params as keyword arguments to execute().", DeprecationWarning)
+            warnings.warn(DeprecationWarning("Specify field params as keyword arguments to execute()."))
             params.update(_params)
         return self.send(packet_type, field_name, **params).recv()
 
