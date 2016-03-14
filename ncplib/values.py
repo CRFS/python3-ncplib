@@ -47,23 +47,28 @@ class uint(int):
 def encode_value(value):
     raise TypeError("Unsupported value type {}".format(type(value)))
 
+
 @encode_value.register(int)
 def encode_value_int(value):
     return TYPE_I32, value.to_bytes(length=4, byteorder="little", signed=True)
+
 
 @encode_value.register(uint)
 def encode_value_uint(value):
     return TYPE_U32, value.to_bytes(length=4, byteorder="little", signed=False)
 
+
 @encode_value.register(str)
 def encode_value_str(value):
     return TYPE_STRING, value.encode(encoding="utf-8", errors="ignore") + b"\x00"
+
 
 @encode_value.register(bytes)
 @encode_value.register(bytearray)
 @encode_value.register(memoryview)
 def encode_value_bytes(value):
     return TYPE_RAW, value
+
 
 ARRAY_TYPE_CODES_TO_TYPE_ID = {
     "B": TYPE_ARRAY_U8,
@@ -73,6 +78,7 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
     "h": TYPE_ARRAY_I16,
     "i": TYPE_ARRAY_I32,
 }
+
 
 @encode_value.register(array)
 def encode_value_array(value):
@@ -90,23 +96,29 @@ def decode_value(type_id, encoded_value):
     warnings.warn(DecodeWarning("Unsupported type ID", type_id))
     return None
 
+
 @decode_value.register(TYPE_I32)
 def decode_value_i32(type_id, encoded_value):
     return int.from_bytes(encoded_value, byteorder="little", signed=True)
+
 
 @decode_value.register(TYPE_U32)
 def decode_value_u32(type_id, encoded_value):
     return uint.from_bytes(encoded_value, byteorder="little", signed=False)
 
+
 @decode_value.register(TYPE_STRING)
 def ddecode_value_string(type_id, encoded_value):
     return encoded_value.split(b"\x00", 1)[0].decode(encoding="utf-8", errors="ignore")
+
 
 @decode_value.register(TYPE_RAW)
 def decode_value_raw(type_id, encoded_value):
     return encoded_value
 
+
 TYPE_ID_TO_ARRAY_TYPE_CODES = dict(map(reversed, ARRAY_TYPE_CODES_TO_TYPE_ID.items()))
+
 
 @decode_value.register(TYPE_ARRAY_U8)
 @decode_value.register(TYPE_ARRAY_U16)

@@ -1,4 +1,5 @@
-import asyncio, os
+import asyncio
+import os
 from array import array
 
 import pytest
@@ -12,7 +13,7 @@ NCPLIB_TEST_CLIENT_PORT = os.environ.get("NCPLIB_TEST_CLIENT_PORT")
 pytestmark = pytest.mark.skipif(
     not NCPLIB_TEST_CLIENT_HOST,
     not NCPLIB_TEST_CLIENT_PORT,
-    reason = "NCPLIB_TEST_CLIENT_HOST and NCPLIB_TEST_CLIENT_PORT not set in environ",
+    reason="NCPLIB_TEST_CLIENT_HOST and NCPLIB_TEST_CLIENT_PORT not set in environ",
 )
 
 
@@ -21,7 +22,11 @@ pytestmark = pytest.mark.skipif(
 @pytest.yield_fixture
 def client(event_loop):
     # Connect the client.
-    client = event_loop.run_until_complete(asyncio.wait_for(connect(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=event_loop), loop=event_loop, timeout=30))
+    client = event_loop.run_until_complete(asyncio.wait_for(
+        connect(NCPLIB_TEST_CLIENT_HOST, NCPLIB_TEST_CLIENT_PORT, loop=event_loop),
+        loop=event_loop,
+        timeout=30,
+    ))
     try:
         yield client
     finally:
@@ -38,9 +43,11 @@ def assert_stat_params(params):
     assert isinstance(params["RGPS"], str)
     assert isinstance(params["ELOC"], int)
 
+
 def assert_swep_params(params):
     assert isinstance(params["PDAT"], array)
     assert params["PDAT"].typecode == "B"
+
 
 def assert_time_params(params):
     assert params["SAMP"] == 1024
@@ -48,7 +55,7 @@ def assert_time_params(params):
     assert isinstance(params["DIQT"], array)
     assert params["DIQT"].typecode == "h"
     assert len(params["DIQT"]) == 2048
-    
+
 
 # Simple integration tests.
 
@@ -73,6 +80,7 @@ def testDspcSwep(client):
     params = yield from client.execute("DSPC", "SWEP")
     assert_swep_params(params)
 
+
 @pytest.mark.asyncio
 def testDspcTime(client):
     params = yield from client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
@@ -84,7 +92,11 @@ def testDspcTime(client):
 @pytest.mark.asyncio
 def testMultiCommands(event_loop, client):
     response = client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}})
-    swep_params, time_params = yield from asyncio.gather(response.recv_field("SWEP"), response.recv_field("TIME"), loop=event_loop)
+    swep_params, time_params = yield from asyncio.gather(
+        response.recv_field("SWEP"),
+        response.recv_field("TIME"),
+        loop=event_loop,
+    )
     assert_swep_params(swep_params)
     assert_time_params(time_params)
 
@@ -98,6 +110,7 @@ def testDsplSwep(client):
     assert_swep_params(params)
     params = yield from response.recv_field("SWEP")
     assert_swep_params(params)
+
 
 @pytest.mark.asyncio
 def testDsplTime(client):

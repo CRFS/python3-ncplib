@@ -5,7 +5,6 @@ os:
 env:
   matrix:
     - PYTHON_VERSION=3.5
-    - PYTHON_VERSION=3.4
   global:
     - PYTHONWARNINGS=default
     - PYTHONASYNCIODEBUG=1

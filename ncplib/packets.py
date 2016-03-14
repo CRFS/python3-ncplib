@@ -109,9 +109,9 @@ def decode_fields(buf, offset, limit):
         size = decode_u24_size(u24_size)
         params = dict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield Field(
-            name = name,
-            id = field_id,
-            params = params,
+            name=name,
+            id=field_id,
+            params=params,
         )
         offset += size
     if offset > limit:
@@ -155,6 +155,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
 
 Packet = namedtuple("Packet", ("type", "id", "timestamp", "info", "fields",))
 
+
 def decode_packet_cps(header_buf):
     (
         header,
@@ -176,6 +177,7 @@ def decode_packet_cps(header_buf):
         raise DecodeError("Unknown packet format {}".format(format_id))
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
+
     def decode_packet_body(body_buf):
         if len(body_buf) > size_remaining:
             raise DecodeError("Packet body overflow by {} bytes".format(len(body_buf) - size_remaining))
@@ -188,12 +190,13 @@ def decode_packet_cps(header_buf):
             raise DecodeError("Invalid packet footer {}".format(footer))
         # All done!
         return Packet(
-            type = packet_type,
-            id = packet_id,
-            timestamp = timestamp,
-            info = info,
-            fields = fields,
+            type=packet_type,
+            id=packet_id,
+            timestamp=timestamp,
+            info=info,
+            fields=fields,
         )
+
     # Return the number of bytes to read, and the function to finish decoding.
     return size_remaining, decode_packet_body
 

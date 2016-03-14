@@ -11,8 +11,9 @@ build:
   script: pip install .
 test:
   commands:
-    - pip install '{{ environ["SRC_DIR"] }}[test]'
-    - py.test {{ environ["SRC_DIR"] }}/tests --cov=ncplib --cov-report=term-missing
+    - pip install '{{ environ["SRC_DIR"] }}[dev]'
+    - py.test {{ environ["SRC_DIR"] }}
+    - flake8 {{ environ["SRC_DIR"] }}
 about:
   home: https://github.com/CRFS/python3-ncplib
   summary: "CRFS NCP library for Python 3."

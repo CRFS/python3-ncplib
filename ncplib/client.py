@@ -1,4 +1,6 @@
-import asyncio, logging, warnings
+import asyncio
+import logging
+import warnings
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
 
@@ -15,7 +17,8 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]  # The last four bytes of the MAC address is used as an ID field.
+# The last four bytes of the MAC address is used as an ID field.
+CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]
 AUTH_ID = "python3-ncplib"
 
 
@@ -24,7 +27,7 @@ class ClientLoggerAdapter(logging.LoggerAdapter):
     def process(self, msg, kwargs):
         msg, kwargs = super().process(msg, kwargs)
         return "ncp://{host}:{port} - {msg}".format(
-            msg = msg,
+            msg=msg,
             **self.extra
         ), kwargs
 
@@ -139,14 +142,26 @@ class Client:
         error_message = field.params.get("ERRO", None)
         error_code = field.params.get("ERRC", None)
         if error_message is not None or error_code is not None:
-            self.logger.error("Command error in %s %s '%s' (code %s)", packet_type, field.name, error_message, error_code)
+            self.logger.error(
+                "Command error in %s %s '%s' (code %s)",
+                packet_type,
+                field.name,
+                error_message,
+                error_code,
+            )
             raise CommandError(packet_type, field.name, error_message, error_code)
 
     def _handle_warn(self, packet_type, field):
         warning_message = field.params.get("WARN", None)
         warning_code = field.params.get("WARC", None)
         if warning_message is not None or warning_code is not None:
-            self.logger.warning("Command warning in %s %s '%s' (code %s)", packet_type, field.name, warning_message, warning_code)
+            self.logger.warning(
+                "Command warning in %s %s '%s' (code %s)",
+                packet_type,
+                field.name,
+                warning_message,
+                warning_code,
+            )
             warnings.warn(CommandWarning(packet_type, field.name, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
         if field.name == "WARN":
@@ -181,9 +196,9 @@ class Client:
         # Encode the fields.
         fields = [
             Field(
-                name = field_name,
-                id = self._gen_id(),
-                params = params,
+                name=field_name,
+                id=self._gen_id(),
+                params=params,
             )
             for field_name, params
             in fields.items()
