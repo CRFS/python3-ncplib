@@ -39,10 +39,9 @@ class ClientResponse:
         self._packet_type = packet_type
         self._fields_lookup = field_lookup
 
-    @asyncio.coroutine
-    def recv_field(self, field_name):
+    async def recv_field(self, field_name):
         field_id = self._fields_lookup[field_name]
-        return (yield from self._client.recv_field(self._packet_type, field_name, field_id=field_id))
+        return (await self._client.recv_field(self._packet_type, field_name, field_id=field_id))
 
 
 class Client:
@@ -75,27 +74,24 @@ class Client:
 
     # Packet reading.
 
-    @asyncio.coroutine
-    def _read_packet(self):
+    async def _read_packet(self):
         try:
-            packet = yield from read_packet(self._reader)
+            packet = await read_packet(self._reader)
             self.logger.debug("Received packet %s %s", packet.type, packet.fields)
             return packet
         finally:
             self._packet_reader = None
 
-    @asyncio.coroutine
-    def _wait_for_packet(self):
+    async def _wait_for_packet(self):
         if self._packet_reader is None:
-            self._packet_reader = asyncio.async(self._read_packet(), loop=self._loop)
-        return (yield from asyncio.shield(self._packet_reader, loop=self._loop))
+            self._packet_reader = self._loop.create_task(self._read_packet())
+        return (await asyncio.shield(self._packet_reader, loop=self._loop))
 
     # Connection lifecycle.
 
-    @asyncio.coroutine
-    def _handle_auth(self):
+    async def _handle_auth(self):
         # Read the initial LINK HELO packet.
-        yield from self.recv_field("LINK", "HELO")
+        await self.recv_field("LINK", "HELO")
         # Send the connection request.
         self.send("LINK", {
             "CCRE": {
@@ -103,7 +99,7 @@ class Client:
             },
         })
         # Read the connection response packet.
-        yield from self.recv_field("LINK", "SCAR")
+        await self.recv_field("LINK", "SCAR")
         # Send the auth request packet.
         self.send("LINK", {
             "CARE": {
@@ -111,28 +107,26 @@ class Client:
             },
         })
         # Read the auth response packet.
-        yield from self.recv_field("LINK", "SCON")
+        await self.recv_field("LINK", "SCON")
 
-    @asyncio.coroutine
-    def _connect(self):
+    async def _connect(self):
         # Connect to the node.
-        self._reader, self._writer = yield from asyncio.open_connection(self._host, self._port, loop=self._loop)
+        self._reader, self._writer = await asyncio.open_connection(self._host, self._port, loop=self._loop)
         self.logger.info("Connected")
         # Auto-authenticate.
         if self._auto_auth:
-            yield from self._handle_auth()
+            await self._handle_auth()
 
     def close(self):
         self._writer.write_eof()
         self._writer.close()
         self.logger.info("Closed")
 
-    @asyncio.coroutine
-    def wait_closed(self):
+    async def wait_closed(self):
         # Keep reading packets until we get an EOF, meaning that the connection was closed.
         while True:
             try:
-                yield from self._wait_for_packet()
+                await self._wait_for_packet()
             except EOFError:
                 return
 
@@ -171,10 +165,9 @@ class Client:
         ackn = field.params.get("ACKN", None)
         return ackn is not None
 
-    @asyncio.coroutine
-    def recv_field(self, packet_type, field_name, *, field_id=None):
+    async def recv_field(self, packet_type, field_name, *, field_id=None):
         while True:
-            packet = yield from self._wait_for_packet()
+            packet = await self._wait_for_packet()
             if packet.type == packet_type:
                 for field in packet.fields:
                     if field.name == field_name and (field_id is None or field.id == field_id):
@@ -213,13 +206,11 @@ class Client:
             in fields
         })
 
-    @asyncio.coroutine
-    def execute(self, packet_type, field_name, params=None):
-        return (yield from self.send(packet_type, {field_name: params or {}}).recv_field(field_name))
+    async def execute(self, packet_type, field_name, params=None):
+        return (await self.send(packet_type, {field_name: params or {}}).recv_field(field_name))
 
 
-@asyncio.coroutine
-def connect(host, port, **kwargs):
+async def connect(host, port, **kwargs):
     client = Client(host, port, **kwargs)
-    yield from client._connect()
+    await client._connect()
     return client

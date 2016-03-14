@@ -28,13 +28,13 @@ Connect to a node:
 .. code:: python
 
     from ncplib import connect
-    client = yield from connect("127.0.0.1", 9999)
+    client = await connect("127.0.0.1", 9999)
 
 Run a simple command:
 
 .. code:: python
 
-    swep_params = yield from client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
+    swep_params = await client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
     print(swep_params["PDAT"])
 
 Schedule a recurring command on the DSPL loop and receive multiple responses:
@@ -47,9 +47,9 @@ Schedule a recurring command on the DSPL loop and receive multiple responses:
             "FCTR": 1200,
         }
     })
-    time_params_1 = yield from response.recv_field("TIME")
+    time_params_1 = await response.recv_field("TIME")
     print(time_params_1["DIQT"])
-    time_params_2 = yield from response.recv_field("TIME")
+    time_params_2 = await response.recv_field("TIME")
     print(time_params_2["DIQT"])
 
 Close the connection:
@@ -57,7 +57,7 @@ Close the connection:
 .. code:: python
 
     client.close()
-    yield from client.wait_closed()
+    await client.wait_closed()
 
 
 Advanced usage
@@ -73,7 +73,7 @@ Run multiple commands in parallel, and wait for all responses:
         "TIME": {},
         "SWEP": {},
     })
-    time_params, swep_params = yield from asyncio.gather(
+    time_params, swep_params = await asyncio.gather(
         response.read_field("TIME"),
         response.read_field("SWEP"),
     )

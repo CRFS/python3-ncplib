@@ -60,39 +60,39 @@ def assert_time_params(params):
 # Simple integration tests.
 
 @pytest.mark.asyncio
-def testStat(client):
-    params = yield from client.execute("NODE", "STAT")
+async def testStat(client):
+    params = await client.execute("NODE", "STAT")
     assert_stat_params(params)
 
 
 # Testing the read machinery.
 
 @pytest.mark.asyncio
-def testStatRecvField(client):
-    params = yield from client.send("NODE", {"STAT": {}}).recv_field("STAT")
+async def testStatRecvField(client):
+    params = await client.send("NODE", {"STAT": {}}).recv_field("STAT")
     assert_stat_params(params)
 
 
 # More complex commands with an ACK.
 
 @pytest.mark.asyncio
-def testDspcSwep(client):
-    params = yield from client.execute("DSPC", "SWEP")
+async def testDspcSwep(client):
+    params = await client.execute("DSPC", "SWEP")
     assert_swep_params(params)
 
 
 @pytest.mark.asyncio
-def testDspcTime(client):
-    params = yield from client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
+async def testDspcTime(client):
+    params = await client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
     assert_time_params(params)
 
 
 # Combination commands.
 
 @pytest.mark.asyncio
-def testMultiCommands(event_loop, client):
+async def testMultiCommands(event_loop, client):
     response = client.send("DSPC", {"SWEP": {}, "TIME": {"SAMP": 1024, "FCTR": 1200}})
-    swep_params, time_params = yield from asyncio.gather(
+    swep_params, time_params = await asyncio.gather(
         response.recv_field("SWEP"),
         response.recv_field("TIME"),
         loop=event_loop,
@@ -104,18 +104,18 @@ def testMultiCommands(event_loop, client):
 # Loop tests.
 
 @pytest.mark.asyncio
-def testDsplSwep(client):
+async def testDsplSwep(client):
     response = client.send("DSPL", {"SWEP": {}})
-    params = yield from response.recv_field("SWEP")
+    params = await response.recv_field("SWEP")
     assert_swep_params(params)
-    params = yield from response.recv_field("SWEP")
+    params = await response.recv_field("SWEP")
     assert_swep_params(params)
 
 
 @pytest.mark.asyncio
-def testDsplTime(client):
+async def testDsplTime(client):
     response = client.send("DSPL", {"TIME": {"SAMP": 1024, "FCTR": 1200}})
-    params = yield from response.recv_field("TIME")
+    params = await response.recv_field("TIME")
     assert_time_params(params)
-    params = yield from response.recv_field("TIME")
+    params = await response.recv_field("TIME")
     assert_time_params(params)
