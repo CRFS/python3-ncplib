@@ -105,7 +105,6 @@ class ClientConnection(Connection):
     # Sending fields.
 
     def execute(self, *args, **kwargs):
-        # TODO: Deprecate?
         return self.send(*args, **kwargs).get()
 
 

@@ -48,7 +48,10 @@ class AsyncParamsIterator:
     async def __anext__(self):
         while True:
             while not self._param_list:
-                self._param_list = await self.connection._recv_packet()
+                try:
+                    self._param_list = await self.connection._recv_packet()
+                except EOFError:
+                    raise StopAsyncIteration
             while self._param_list:
                 params = self._param_list.pop(0)
                 if self._predicate(params):
