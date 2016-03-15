@@ -223,7 +223,7 @@ A ``Server`` can be used as an async context manager.
     Creates a new ``Server``. The ``Server`` is initially not started.
 
     ``client_connected`` is a coroutine callback that will be called on every client connection. It will be called with
-    a single argument, ``client``, that is a ``Connection`` to the client.
+    a single positional argument that is a ``Connection`` to the client.
 
     ``loop`` can be used to override the default ``asyncio`` event loop.
 
@@ -243,7 +243,6 @@ A ``Server`` can be used as an async context manager.
     Waits for the ``Server`` to fully close.
 
     **Note:** If you use ``Server`` as an async context manager, this method will be called automatically.
-
 
 
 Data types
