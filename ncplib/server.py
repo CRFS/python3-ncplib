@@ -32,19 +32,19 @@ class Server:
 
     async def _do_client_connected(self, reader, writer):
         remote_host, remote_port = writer.get_extra_info("peername")
-        async with Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop) as connection:
+        async with Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop) as client:
             # Handle auth.
             if self._auto_auth:
-                await self._handle_auth(connection)
+                await self._handle_auth(client)
             # Delegate to handler.
             try:
-                await self._client_connected(connection)
+                await self._client_connected(client)
             except:
                 logger.exception("Unexpected error")
-                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+                client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
             finally:
-                connection.close()
-                await connection.wait_closed()
+                client.close()
+                await client.wait_closed()
 
     async def __aenter__(self):
         await self.start()

@@ -182,8 +182,8 @@ A ``Response`` can be used as an async iterator of messages that are replies to 
 
 An NCP client connection. This is a subclass of ``Connection``.
 
-``Client(host, port, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
-    Creates a new ``Client``. The ``Client`` is initially not connected to the server.
+``Client(host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
+    Creates a new ``Client``. The ``Client`` is initially not connected to the NCP server.
 
     ``loop`` can be used to override the default ``asyncio`` event loop.
 
@@ -200,6 +200,49 @@ An NCP client connection. This is a subclass of ``Connection``.
     Connects the ``Client`` to the NCP server.
 
     **Note:** If you use ``Client`` as an async context manager, this method will be called automatically.
+
+
+``Server``
+~~~~~~~~~~
+
+An NCP ``Server``.
+
+A ``Server`` can be used as an async context manager.
+
+.. code:: python
+
+    async def echo_server(client):
+        for message in client:
+            message.send(**message)
+
+    async with Server(echo_server, "127.0.0.1", 9999) as server:
+        asyncio.get_event_loop().run_forever()
+    # Server will be closed.
+
+``Server(client_connected, host, port, *, loop=None, auto_auth=True)``
+    Creates a new ``Server``. The ``Server`` is initially not started.
+
+    ``client_connected`` is a coroutine callback that will be called on every client connection. It will be called with
+    a single argument, ``client``, that is a ``Connection`` to the client.
+
+    ``loop`` can be used to override the default ``asyncio`` event loop.
+
+    ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
+
+``async connect()``
+    Starts the NCP ``Server``.
+
+    **Note:** If you use ``Server`` as an async context manager, this method will be called automatically.
+
+``close()``
+    Closes the ``Server``. Use ``wait_closed()`` to wait for the ``Server`` to fully close.
+
+    **Note:** If you use ``Server`` as an async context manager, this method will be called automatically.
+
+``async wait_closed()``
+    Waits for the ``Server`` to fully close.
+
+    **Note:** If you use ``Server`` as an async context manager, this method will be called automatically.
 
 
 
