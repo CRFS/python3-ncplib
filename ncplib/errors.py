@@ -9,7 +9,7 @@ __all__ = (
 class CommandMixin:
 
     def __init__(self, message, detail, code):
-        super().__init__("Command error in {packet_type} {field_name} '{detail}' (code {code})".format(
+        super().__init__("{packet_type} {field_name} '{detail}' (code {code})".format(
             packet_type=message.packet_type,
             field_name=message.field_name,
             detail=detail,
