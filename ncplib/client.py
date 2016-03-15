@@ -7,6 +7,7 @@ from ncplib.errors import CommandError, CommandWarning
 
 __all__ = (
     "connect",
+    "Client",
 )
 
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 AUTH_ID = "python3-ncplib"
 
 
-class ClientConnection(Connection):
+class Client(Connection):
 
     def __init__(self, host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
         super().__init__(host, port, None, None, logger, loop=loop)
@@ -40,13 +41,17 @@ class ClientConnection(Connection):
         # Read the auth response packet.
         await self.recv_field("LINK", "SCON")
 
-    async def _connect(self):
+    async def connect(self):
         # Connect to the node.
         self._reader, self._writer = await asyncio.open_connection(self._host, self._port, loop=self._loop)
         self.logger.info("Connected")
         # Auto-authenticate.
         if self._auto_auth:
             await self._handle_auth()
+
+    async def __aenter__(self):
+        await self.connect()
+        return await super().__aenter__()
 
     # Receiving fields.
 
@@ -104,7 +109,8 @@ class ClientConnection(Connection):
         return self.send(packet_type, field_name, **params).recv()
 
 
-async def connect(host, port, **kwargs):
-    client = ClientConnection(host, port, **kwargs)
-    await client._connect()
+async def connect(host, port, **kwargs):  # pragma: no cover
+    warnings.warn(DeprecationWarning("Use ncplib.Client() directly instead of connect()."))
+    client = Client(host, port, **kwargs)
+    await client.connect()
     return client

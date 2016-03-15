@@ -3,40 +3,21 @@ import pytest
 from hypothesis import given
 from hypothesis.strategies import dictionaries
 from hypothesis.internal.reflection import impersonate  # functools.wraps does not work with pytest fixtures.
-from ncplib import connect, start_server, CommandError, CommandWarning
+from ncplib import Client, Server, CommandError, CommandWarning
 from conftest import names, params, ints, text_no_nulls
 
 
 # Helpers.
 
-def wait_for(event_loop, coroutine):
-    return event_loop.run_until_complete(asyncio.wait_for(coroutine, timeout=1, loop=event_loop))
-
-
 def async_test(client_connected):
     def decorator(func):
         @impersonate(func)
         def do_async_test(event_loop, unused_tcp_port, *args, **kwargs):
-            server = wait_for(event_loop, start_server(
-                client_connected,
-                "127.0.0.1",
-                unused_tcp_port,
-                loop=event_loop,
-            ))
-            try:
-                client = wait_for(event_loop, connect(
-                    "127.0.0.1",
-                    unused_tcp_port,
-                    loop=event_loop,
-                ))
-                try:
-                    wait_for(event_loop, func(client, *args, **kwargs))
-                finally:
-                    client.close()
-                    wait_for(event_loop, client.wait_closed())
-            finally:
-                server.close()
-                wait_for(event_loop, server.wait_closed())
+            async def async_test_runner():
+                async with Server(client_connected, "127.0.0.1", unused_tcp_port, loop=event_loop):
+                    async with Client("127.0.0.1", unused_tcp_port, loop=event_loop) as client:
+                        await func(client, *args, **kwargs)
+            event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=1, loop=event_loop))
         return do_async_test
     return decorator
 

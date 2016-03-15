@@ -4,7 +4,7 @@ from ncplib.connection import Connection
 
 
 __all__ = (
-    "start_server",
+    "Server",
 )
 
 
@@ -32,21 +32,29 @@ class Server:
 
     async def _do_client_connected(self, reader, writer):
         remote_host, remote_port = writer.get_extra_info("peername")
-        connection = Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop)
-        # Handle auth.
-        if self._auto_auth:
-            await self._handle_auth(connection)
-        # Delegate to handler.
-        try:
-            await self._client_connected(connection)
-        except:
-            logger.exception("Unexpected error")
-            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
-        finally:
-            connection.close()
-            await connection.wait_closed()
+        async with Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop) as connection:
+            # Handle auth.
+            if self._auto_auth:
+                await self._handle_auth(connection)
+            # Delegate to handler.
+            try:
+                await self._client_connected(connection)
+            except:
+                logger.exception("Unexpected error")
+                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+            finally:
+                connection.close()
+                await connection.wait_closed()
 
-    async def _start(self):
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.close()
+        await self.wait_closed()
+
+    async def start(self):
         self._server = await asyncio.start_server(self._do_client_connected, self._host, self._port, loop=self._loop)
         self.logger.info("Started server on ncp://{host}:{port}".format(
             host=self._host,
@@ -62,9 +70,3 @@ class Server:
 
     async def wait_closed(self):
         await self._server.wait_closed()
-
-
-async def start_server(client_connected, host, port, **kwargs):
-    server = Server(client_connected, host, port, **kwargs)
-    await server._start()
-    return server
