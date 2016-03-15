@@ -81,13 +81,13 @@ Start a server:
 Library reference
 -----------------
 
+
 ``Connection``
 ~~~~~~~~~~~~~~~
 
 Base class for NCP client and server connections.
 
-```async __aiter__()```
-
+``async __aiter__()``
     Allows a ``Connection`` to be iterated over for incoming `Message`s.
 
     .. code:: python
@@ -95,8 +95,7 @@ Base class for NCP client and server connections.
         async for message in Connection:
             print(message)
 
-```async recv()```
-
+``async recv()``
     Reads a single `Message` from the ``Connection``.
 
 
