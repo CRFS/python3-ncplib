@@ -13,10 +13,11 @@ from conftest import names, params, ints, text_no_nulls
 def async_test(client_connected):
     def decorator(func):
         @impersonate(func)
-        def do_async_test(event_loop, unused_tcp_port, *args, **kwargs):
+        def do_async_test(event_loop, *args, **kwargs):
             async def async_test_runner():
-                async with Server(client_connected, "127.0.0.1", unused_tcp_port, loop=event_loop, reuse_port=True):
-                    async with Client("127.0.0.1", unused_tcp_port, loop=event_loop) as client:
+                async with Server(client_connected, "127.0.0.1", 0, loop=event_loop) as server:
+                    port = server._server.sockets[0].getsockname()[1]
+                    async with Client("127.0.0.1", port, loop=event_loop) as client:
                         await func(client, *args, **kwargs)
             event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=1, loop=event_loop))
         return do_async_test
