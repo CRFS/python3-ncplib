@@ -44,8 +44,8 @@ class uint(int):
 # Encoders.
 
 @singledispatch
-def encode_value(value):
-    assert False, "Unsupported value type {}".format(type(value))
+def encode_value(value):  # pragma: no cover
+    raise TypeError("Unsupported value type {}".format(type(value)))
 
 
 @encode_value.register(int)
@@ -82,14 +82,16 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 
 @encode_value.register(array)
 def encode_value_array(value):
-    assert value.typecode in ARRAY_TYPE_CODES_TO_TYPE_ID, "Unsupported array type {}".format(value.typecode)
-    return ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode], value.tobytes()
+    try:
+        return ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode], value.tobytes()
+    except KeyError:  # pragma: no cover
+        raise TypeError("Unsupported array type {}".format(value.typecode))
 
 
 # Decoders.
 
 @valuedispatch
-def decode_value(type_id, encoded_value):
+def decode_value(type_id, encoded_value):  # pragma: no cover
     warnings.warn(DecodeWarning("Unsupported type ID", type_id))
     return encoded_value
 

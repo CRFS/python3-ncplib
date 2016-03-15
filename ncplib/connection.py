@@ -38,7 +38,7 @@ class AsyncMessageIterator:
         self._predicate = predicate
         self._message_list = message_list
 
-    async def __aiter__(self):
+    async def __aiter__(self):  # pragma: no cover
         return self
 
     async def __anext__(self):

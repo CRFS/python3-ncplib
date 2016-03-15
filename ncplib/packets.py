@@ -30,7 +30,8 @@ PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 # Identifier encoding.
 
 def encode_name(value):
-    assert RE_NAME.match(value) is not None, "Invalid field/param name {}".format(value)
+    if RE_NAME.match(value) is None:  # pragma: no cover
+        raise ValueError("Invalid field/param name {}".format(value))
     return value.encode(encoding="latin1", errors="ignore") + (b"\x00" * (len(value) % 4))
 
 
@@ -81,7 +82,7 @@ def decode_params(buf, offset, limit):
         value = decode_value(type_id, value_encoded)
         yield name, value
         offset += size
-    if offset > limit:
+    if offset > limit:  # pragma: no cover
         raise DecodeError("Parameter overflow by {} bytes".format(offset - limit))
 
 
@@ -118,7 +119,7 @@ def decode_fields(buf, offset, limit):
             params=params,
         )
         offset += size
-    if offset > limit:
+    if offset > limit:  # pragma: no cover
         raise DecodeError("Field overflow by {} bytes".format(offset - limit))
 
 
@@ -173,24 +174,24 @@ def decode_packet_cps(header_buf):
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
     packet_type = decode_name(packet_type)
     size = size_words * 4
-    if header != PACKET_HEADER:
+    if header != PACKET_HEADER:  # pragma: no cover
         raise DecodeError("Invalid packet header {}".format(header))
     timestamp = unix_to_datetime(time, nanotime)
     # Check the packet format.
-    if format_id != PACKET_FORMAT_ID:
+    if format_id != PACKET_FORMAT_ID:  # pragma: no cover
         raise DecodeError("Unknown packet format {}".format(format_id))
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
 
     def decode_packet_body(body_buf):
-        if len(body_buf) > size_remaining:
+        if len(body_buf) > size_remaining:  # pragma: no cover
             raise DecodeError("Packet body overflow by {} bytes".format(len(body_buf) - size_remaining))
         fields = list(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
         (
             checksum,
             footer,
         ) = PACKET_FOOTER_STRUCT.unpack_from(body_buf, size_remaining - PACKET_FOOTER_STRUCT.size)
-        if footer != PACKET_FOOTER:
+        if footer != PACKET_FOOTER:  # pragma: no cover
             raise DecodeError("Invalid packet footer {}".format(footer))
         # All done!
         return Packet(
