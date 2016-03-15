@@ -32,19 +32,11 @@ class ClientConnection(Connection):
         # Read the initial LINK HELO packet.
         await self.recv_field("LINK", "HELO")
         # Send the connection request.
-        self.send("LINK", {
-            "CCRE": {
-                "CIW": AUTH_ID,
-            },
-        })
+        self.send("LINK", "CCRE", CIW=AUTH_ID)
         # Read the connection response packet.
         await self.recv_field("LINK", "SCAR")
         # Send the auth request packet.
-        self.send("LINK", {
-            "CARE": {
-                "CAR": AUTH_ID,
-            },
-        })
+        self.send("LINK", "CARE", CAR=AUTH_ID)
         # Read the auth response packet.
         await self.recv_field("LINK", "SCON")
 
@@ -59,37 +51,37 @@ class ClientConnection(Connection):
     # Receiving fields.
 
     def _handle_erro(self, message):
-        error_message = message.get("ERRO", None)
+        error_detail = message.get("ERRO", None)
         error_code = message.get("ERRC", None)
-        if error_message is not None or error_code is not None:
+        if error_detail is not None or error_code is not None:
             self.logger.error(
                 "Command error in %s %s '%s' (code %s)",
                 message.packet.type,
                 message.field.name,
-                error_message,
+                error_detail,
                 error_code,
             )
-            raise CommandError(message, error_message, error_code)
+            raise CommandError(message, error_detail, error_code)
         # Ignore the rest of packet-level errors.
-        return message.field.name != "ERRO"
+        return message.field.name == "ERRO"
 
     def _handle_warn(self, message):
-        warning_message = message.get("WARN", None)
+        warning_detail = message.get("WARN", None)
         warning_code = message.get("WARC", None)
-        if warning_message is not None or warning_code is not None:
+        if warning_detail is not None or warning_code is not None:
             self.logger.warning(
                 "Command warning in %s %s '%s' (code %s)",
                 message.packet.type,
                 message.field.name,
-                warning_message,
+                warning_detail,
                 warning_code,
             )
-            warnings.warn(CommandWarning(message, warning_message, warning_code))
+            warnings.warn(CommandWarning(message, warning_detail, warning_code))
         # Ignore the rest of packet-level warnings.
-        return message.field.name != "WARN"
+        return message.field.name == "WARN"
 
     def _handle_ackn(self, message):
-        return "ACKN" not in message
+        return "ACKN" in message
 
     def _message_predicate(self, message):
         return (

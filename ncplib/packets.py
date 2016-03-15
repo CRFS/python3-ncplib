@@ -1,5 +1,5 @@
 import re
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from struct import Struct
 from ncplib.errors import DecodeError
 from ncplib.helpers import unix_to_datetime, datetime_to_unix_nano
@@ -111,7 +111,7 @@ def decode_fields(buf, offset, limit):
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         name = decode_name(name)
         size = decode_u24_size(u24_size)
-        params = dict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
+        params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield Field(
             name=name,
             id=field_id,

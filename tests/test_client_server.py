@@ -1,10 +1,10 @@
 import asyncio
 import pytest
 from hypothesis import given
-from hypothesis.strategies import dictionaries
+from hypothesis.strategies import dictionaries, text
 from hypothesis.internal.reflection import impersonate  # functools.wraps does not work with pytest fixtures.
-from ncplib import connect, start_server, CommandError
-from conftest import names, params
+from ncplib import connect, start_server, CommandError, CommandWarning
+from conftest import names, params, ints
 
 
 # Helpers.
@@ -139,10 +139,37 @@ async def server_error_handler(connection):
 
 @async_test(server_error_handler)
 async def test_server_error(client):
+    client.send("BOOM", "BOOM")
     with pytest.raises(CommandError) as exc_info:
-        client.send("BOOM", "BOOM")
         await client.recv()
-    assert exc_info.value.message.packet.type == "LINK"
-    assert exc_info.value.message.field.name == "ERRO"
-    assert exc_info.value.detail == "Server error"
-    assert exc_info.value.code == 500
+    exception = exc_info.value
+    assert exception.message.packet.type == "LINK"
+    assert exception.message.field.name == "ERRO"
+    assert exception.detail == "Server error"
+    assert exception.code == 500
+
+
+# Server warning tests.
+
+async def warning_handler(connection):
+    message = await connection.recv()
+    connection.send(message.packet.type, message.field.name, **message)
+
+
+@given(
+    packet_type=names(),
+    field_name=names(),
+    detail=text(),
+    code=ints(),
+)
+@async_test(warning_handler)
+async def test_warning(client, packet_type, field_name, detail, code):
+    client.send(packet_type, field_name, WARN=detail, WARC=code)
+    with pytest.warns(CommandWarning) as warnings:
+        await client.recv()
+    assert len(warnings) == 1
+    warning = warnings[0].message
+    assert warning.message.packet.type == packet_type
+    assert warning.message.field.name == field_name
+    assert warning.detail == detail
+    assert warning.code == code
