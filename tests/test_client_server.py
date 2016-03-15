@@ -51,18 +51,7 @@ async def assert_messages(response, packet_type, expected_messages):
     params=params(),
 )
 @async_test(echo_handler)
-async def test_execute(client, packet_type, field_name, params):
-    message = await client.execute(packet_type, field_name, **params)
-    assert message == params
-
-
-@given(
-    packet_type=names(),
-    field_name=names(),
-    params=params(),
-)
-@async_test(echo_handler)
-async def test_execute_deprecated_api(client, packet_type, field_name, params):
+async def test_execute_deprecated(client, packet_type, field_name, params):
     with pytest.warns(DeprecationWarning):
         message = await client.execute(packet_type, field_name, params)
     assert message == params

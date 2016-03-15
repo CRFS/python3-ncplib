@@ -100,14 +100,6 @@ class Client(Connection):
             True
         )
 
-    # Sending fields.
-
-    def execute(self, packet_type, field_name, _params=None, **params):
-        if _params is not None:
-            warnings.warn(DeprecationWarning("Specify field params as keyword arguments to execute()."))
-            params.update(_params)
-        return self.send(packet_type, field_name, **params).recv()
-
 
 async def connect(host, port, **kwargs):  # pragma: no cover
     warnings.warn(DeprecationWarning("Use ncplib.Client() directly instead of connect()."))

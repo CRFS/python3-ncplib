@@ -186,6 +186,10 @@ class Connection:
         # Handle new send signature.
         return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
 
+    def execute(self, packet_type, field_name, params=None):
+        warnings.warn(DeprecationWarning("Use send(packet_type, field_name, **params).recv() instead of execute()."))
+        return self.send(packet_type, field_name, **(params or {})).recv()
+
     # Connection lifecycle.
 
     async def __aenter__(self):
