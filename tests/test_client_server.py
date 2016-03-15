@@ -29,16 +29,18 @@ async def echo_handler(connection):
 
 
 async def assert_messages(response, packet_type, expected_messages):
-    for field_name, field_params in expected_messages.items():
+    messages = {}
+    while len(messages) < len(expected_messages):
         message = await response.recv()
-        # Check the message content.
-        assert message.type == packet_type
-        assert message.name == field_name
-        assert message == field_params
+        messages[message.field_name] = message
         # Check the message structure.
-        assert isinstance(message.id, int)
-        assert isinstance(message.timestamp, datetime)
-        assert len(message) == len(field_params)
+        assert message.packet_type == packet_type
+        assert isinstance(message.packet_timestamp, datetime)
+        assert message.field_name in expected_messages
+        assert isinstance(message.field_id, int)
+        assert len(message) == len(expected_messages[message.field_name])
+    # Check the message content.
+    assert messages == expected_messages
 
 
 # Tests.
@@ -152,8 +154,8 @@ async def test_server_error(client):
     with pytest.raises(CommandError) as exc_info:
         await client.recv()
     exception = exc_info.value
-    assert exception.message.type == "LINK"
-    assert exception.message.name == "ERRO"
+    assert exception.message.packet_type == "LINK"
+    assert exception.message.field_name == "ERRO"
     assert exception.detail == "Server error"
     assert exception.code == 500
 
@@ -170,8 +172,8 @@ async def test_error(client, packet_type, field_name, detail, code):
     with pytest.raises(CommandError) as exc_info:
         await client.recv()
     exception = exc_info.value
-    assert exception.message.type == packet_type
-    assert exception.message.name == field_name
+    assert exception.message.packet_type == packet_type
+    assert exception.message.field_name == field_name
     assert exception.detail == detail
     assert exception.code == code
 
@@ -189,7 +191,7 @@ async def test_warning(client, packet_type, field_name, detail, code):
         await client.recv()
     assert len(warnings) == 1
     warning = warnings[0].message
-    assert warning.message.type == packet_type
-    assert warning.message.name == field_name
+    assert warning.message.packet_type == packet_type
+    assert warning.message.field_name == field_name
     assert warning.detail == detail
     assert warning.code == code

@@ -10,8 +10,8 @@ class CommandMixin:
 
     def __init__(self, message, detail, code):
         super().__init__("Command error in {packet_type} {field_name} '{detail}' (code {code})".format(
-            packet_type=message.type,
-            field_name=message.name,
+            packet_type=message.packet_type,
+            field_name=message.field_name,
             detail=detail,
             code=code,
         ))

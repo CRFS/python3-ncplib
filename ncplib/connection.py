@@ -19,19 +19,19 @@ class Message(Mapping):
         self._field = field
 
     @property
-    def type(self):
+    def packet_type(self):
         return self._packet.type
 
     @property
-    def timestamp(self):
+    def packet_timestamp(self):
         return self._packet.timestamp
 
     @property
-    def name(self):
+    def field_name(self):
         return self._field.name
 
     @property
-    def id(self):
+    def field_id(self):
         return self._field.id
 
     def __getitem__(self, name):
@@ -44,7 +44,7 @@ class Message(Mapping):
         return len(self._field.params)
 
     def send(self, **params):
-        return self.connection._send_packet(self.type, [Field(self.name, self.id, params)])
+        return self.connection._send_packet(self.packet_type, [Field(self.field_name, self.field_id, params)])
 
 
 class Response:
@@ -74,7 +74,7 @@ class Response:
 
     async def recv_field(self, field_name):
         async for message in self:
-            if message.name == field_name:
+            if message.field_name == field_name:
                 return message
 
 
@@ -149,7 +149,7 @@ class Connection:
 
     async def recv_field(self, packet_type, field_name):
         async for message in self:
-            if message.type == packet_type and message.name == field_name:
+            if message.packet_type == packet_type and message.field_name == field_name:
                 return message
 
     # Packet writing.
@@ -165,8 +165,8 @@ class Connection:
             in fields
         )
         return Response(self, lambda message: (
-            message.type == packet_type and
-            (message.name, message.id) in expected_fields
+            message.packet_type == packet_type and
+            (message.field_name, message.field_id) in expected_fields
         ), [])
 
     # Sending fields.

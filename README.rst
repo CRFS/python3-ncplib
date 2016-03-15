@@ -135,16 +135,16 @@ A ``Message`` can be used as a `dict` for reading params from the NCP field.
 ``connection``
     The ``Connection`` that received the ``Message``.
 
-``type``
+``packet_type``
     The packet type of the ``Message`` as a ``str``.
 
-``timestamp``
+``packet_timestamp``
     The packet timestamp of the ``Message`` as a ``datetime``.
 
-``name``
+``field_name``
     The name of the field of the ``Message`` as a ``str``.
 
-``id``
+``field_id``
     The id of the field of the ``Message`` as an ``int``.
 
 ``send(**params)``
