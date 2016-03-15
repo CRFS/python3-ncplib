@@ -116,10 +116,12 @@ A ``Connection`` also be used an an async context manager.
 
 ``close()``
     Closes the ``Connection``. Use ``wait_closed()`` to wait for the ``Connection`` to fully close.
+
     **Note:** If you use ``Connection`` as an async context manager, this method will be called automatically.
 
 ``async wait_closed()``
     Waits for the ``Connection`` to fully close.
+
     **Note:** If you use ``Connection`` as an async context manager, this method will be called automatically.
 
 
@@ -196,6 +198,7 @@ An NCP client connection. This is a subclass of ``Connection``.
 
 ``async connect()``
     Connects the ``Client`` to the NCP server.
+
     **Note:** If you use ``Client`` as an async context manager, this method will be called automatically.
 
 
