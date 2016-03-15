@@ -114,7 +114,7 @@ async def test_send_filters_messages(client, packet_type, field_name, params, ju
     fields=dictionaries(names(), params())
 )
 @async_test(echo_handler)
-async def test_send_many(client, packet_type, fields):
+async def test_send_packet(client, packet_type, fields):
     response = client.send(packet_type, fields)
     await assert_messages(response, fields)
 
@@ -124,7 +124,7 @@ async def test_send_many(client, packet_type, fields):
     fields=dictionaries(names(), params())
 )
 @async_test(echo_handler)
-async def test_send_many_deprecated_api(client, packet_type, fields):
+async def test_send_packet_deprecated_api(client, packet_type, fields):
     with pytest.warns(DeprecationWarning):
         response = client.send(packet_type, fields)
     await assert_messages(response, fields)

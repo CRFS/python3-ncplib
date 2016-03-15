@@ -123,7 +123,7 @@ class Connection:
             self._packet_receiver = self._loop.create_task(self._recv_packet_primary())
         return (await asyncio.shield(self._packet_receiver, loop=self._loop))
 
-    # Receiving fields.
+    # Receiving messages.
 
     async def __aiter__(self):
         return AsyncMessageIterator(self, lambda message: True, [])
@@ -155,7 +155,7 @@ class Connection:
 
     # Sending fields.
 
-    def send_many(self, packet_type, fields):
+    def send_packet(self, packet_type, fields):
         return self._send_packet(packet_type, [
             Field(field_name, self._gen_id(), field_params)
             for field_name, field_params
@@ -165,8 +165,8 @@ class Connection:
     def send(self, packet_type, field_name, **params):
         # Handle deprecated send signature.
         if isinstance(field_name, Mapping):
-            warnings.warn(DeprecationWarning("Use send_many() to send multiple fields in one packet."))
-            return self.send_many(packet_type, field_name)
+            warnings.warn(DeprecationWarning("Use send_packet() to send multiple fields in one packet."))
+            return self.send_packet(packet_type, field_name)
         # Handle new send signature.
         return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
 
