@@ -3,6 +3,8 @@ ncplib
 
 NCP library for Python 3, by `CRFS <http://www.crfs.com/>`_
 
+**Note:** All code examples should be run from within a `coroutine <https://docs.python.org/3/reference/compound_stmts.html#async-def>`_.
+
 
 Features
 --------
@@ -21,9 +23,7 @@ Installation
 NCP client usage
 ----------------
 
-In the following examples, the code should be run from within a `coroutine <https://docs.python.org/3/reference/compound_stmts.html#async-def>`_.
-
-Connect to a node:
+Connect to a NCP server:
 
 .. code:: python
 
@@ -50,7 +50,7 @@ Run multiple commands in parallel, and wait for all responses:
 
 .. code:: python
 
-    response = client.send("DSPC", {
+    response = client.send_many("DSPC", {
         "TIME": {},
         "SWEP": {},
     })
@@ -76,6 +76,28 @@ Start a server:
 
     async with Server(echo_server, "127.0.0.1", 9999) as server:
         asyncio.get_event_loop().run_forever()
+
+
+Library reference
+-----------------
+
+``Connection``
+~~~~~~~~~~~~~~~
+
+Base class for NCP client and server connections.
+
+```async __aiter__()```
+
+    Allows a ``Connection`` to be iterated over for incoming `Message`s.
+
+    .. code:: python
+
+        async for message in Connection:
+            print(message)
+
+```async recv()```
+
+    Reads a single `Message` from the ``Connection``.
 
 
 Data types
