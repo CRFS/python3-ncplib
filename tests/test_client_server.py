@@ -4,7 +4,7 @@ from functools import wraps
 from hypothesis import given
 from hypothesis.strategies import dictionaries
 from ncplib import connect, start_server
-from .conftest import names, params
+from conftest import names, params
 
 
 # Helpers.
