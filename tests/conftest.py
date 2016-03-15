@@ -45,13 +45,17 @@ def with_padding(resolution, pad_value):
     return do_with_padding
 
 
+def text_no_nulls():
+    return text().map(lambda v: v.replace("\x00", ""))
+
+
 def params():
     return dictionaries(
         keys=names(),
         values=one_of(
             ints(),
             uints(),
-            text().map(lambda v: v.replace("\x00", "")),
+            text_no_nulls(),
             binary().map(with_padding(4, b"\x00")),
             builds(partial(array, "B"), lists(uints(8)).map(with_padding(4, [0]))),
             builds(partial(array, "H"), lists(uints(16)).map(with_padding(2, [0]))),

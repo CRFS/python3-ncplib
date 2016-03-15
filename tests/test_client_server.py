@@ -1,10 +1,10 @@
 import asyncio
 import pytest
 from hypothesis import given
-from hypothesis.strategies import dictionaries, text
+from hypothesis.strategies import dictionaries
 from hypothesis.internal.reflection import impersonate  # functools.wraps does not work with pytest fixtures.
 from ncplib import connect, start_server, CommandError, CommandWarning
-from conftest import names, params, ints
+from conftest import names, params, ints, text_no_nulls
 
 
 # Helpers.
@@ -54,7 +54,7 @@ async def assert_messages(response, expected_messages):
     assert messages == expected_messages
 
 
-# Execute tests.
+# Tests.
 
 @given(
     packet_type=names(),
@@ -78,8 +78,6 @@ async def test_execute_deprecated_api(client, packet_type, field_name, params):
         message = await client.execute(packet_type, field_name, params)
     assert message == params
 
-
-# Send tests.
 
 @given(
     packet_type=names(),
@@ -107,8 +105,6 @@ async def test_send_filters_messages(client, packet_type, field_name, params, ju
     await assert_messages(response, {field_name: params})
 
 
-# Send many tests.
-
 @given(
     packet_type=names(),
     fields=dictionaries(names(), params())
@@ -130,11 +126,9 @@ async def test_send_packet_deprecated_api(client, packet_type, fields):
     await assert_messages(response, fields)
 
 
-# Server error tests.
-
 async def server_error_handler(connection):
     await connection.recv()
-    raise Exception("Boom!")
+    raise Exception("Boom")
 
 
 @async_test(server_error_handler)
@@ -149,20 +143,31 @@ async def test_server_error(client):
     assert exception.code == 500
 
 
-# Server warning tests.
-
-async def warning_handler(connection):
-    message = await connection.recv()
-    connection.send(message.packet.type, message.field.name, **message)
+@given(
+    packet_type=names(),
+    field_name=names(),
+    detail=text_no_nulls(),
+    code=ints(),
+)
+@async_test(echo_handler)
+async def test_error(client, packet_type, field_name, detail, code):
+    client.send(packet_type, field_name, ERRO=detail, ERRC=code)
+    with pytest.raises(CommandError) as exc_info:
+        await client.recv()
+    exception = exc_info.value
+    assert exception.message.packet.type == packet_type
+    assert exception.message.field.name == field_name
+    assert exception.detail == detail
+    assert exception.code == code
 
 
 @given(
     packet_type=names(),
     field_name=names(),
-    detail=text(),
+    detail=text_no_nulls(),
     code=ints(),
 )
-@async_test(warning_handler)
+@async_test(echo_handler)
 async def test_warning(client, packet_type, field_name, detail, code):
     client.send(packet_type, field_name, WARN=detail, WARC=code)
     with pytest.warns(CommandWarning) as warnings:
