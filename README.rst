@@ -175,17 +175,19 @@ A ``Response`` can be used as an async iterator of messages that are replies to 
     responses to a ``sent_packet()`` call containing multiple fields.
 
 
-``Client(host, port, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``Client``
+~~~~~~~~~~
 
 An NCP client connection. This is a subclass of ``Connection``.
 
-- ``loop`` can be used to override the default ``asyncio`` event loop.
-- ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
-- ``auto_erro``, if set, will handle NCP ``ERRO`` params by raising an ``ncplib.CommandError``.
-- ``auto_warn``, if set, will handle NCP ``WARN`` params by raising an ``ncplib.CommandWarning``
-    using ``warnings.warn``.
-- ``auto_ackn``, if set, will automatically handle NCP ``ACKN`` params by ignoring the message.
+``Client(host, port, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
+    Creates a new ``Client``. The ``Client`` is initially not connected to the server.
+    - ``loop`` can be used to override the default ``asyncio`` event loop.
+    - ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
+    - ``auto_erro``, if set, will handle NCP ``ERRO`` params by raising an ``ncplib.CommandError``.
+    - ``auto_warn``, if set, will handle NCP ``WARN`` params by raising an ``ncplib.CommandWarning``
+        using ``warnings.warn``.
+    - ``auto_ackn``, if set, will automatically handle NCP ``ACKN`` params by ignoring the message.
 
 ``async connect()``
     Connects the ``Client`` to the NCP server.
