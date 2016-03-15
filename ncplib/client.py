@@ -69,8 +69,9 @@ class ClientConnection(Connection):
                 error_message,
                 error_code,
             )
-            raise CommandError(message.packet.type, message.field.name, error_message, error_code)
-        return True
+            raise CommandError(message, error_message, error_code)
+        # Ignore the rest of packet-level errors.
+        return message.field.name != "ERRO"
 
     def _handle_warn(self, message):
         warning_message = message.get("WARN", None)
@@ -83,7 +84,7 @@ class ClientConnection(Connection):
                 warning_message,
                 warning_code,
             )
-            warnings.warn(CommandWarning(message.packet.type, message.field.name, warning_message, warning_code))
+            warnings.warn(CommandWarning(message, warning_message, warning_code))
         # Ignore the rest of packet-level warnings.
         return message.field.name != "WARN"
 

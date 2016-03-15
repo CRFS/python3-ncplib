@@ -39,6 +39,9 @@ class Server:
         # Delegate to handler.
         try:
             await self._client_connected(connection)
+        except:
+            logger.exception("Unexpected error")
+            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
             connection.close()
             await connection.wait_closed()

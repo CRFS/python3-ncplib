@@ -1,9 +1,9 @@
 import asyncio
 import pytest
-from functools import wraps
 from hypothesis import given
 from hypothesis.strategies import dictionaries
-from ncplib import connect, start_server
+from hypothesis.internal.reflection import impersonate  # functools.wraps does not work with pytest fixtures.
+from ncplib import connect, start_server, CommandError
 from conftest import names, params
 
 
@@ -15,7 +15,7 @@ def wait_for(event_loop, coroutine):
 
 def async_test(client_connected):
     def decorator(func):
-        @wraps(func)
+        @impersonate(func)
         def do_async_test(event_loop, unused_tcp_port, *args, **kwargs):
             server = wait_for(event_loop, start_server(
                 client_connected,
@@ -128,3 +128,21 @@ async def test_send_many_deprecated_api(client, packet_type, fields):
     with pytest.warns(DeprecationWarning):
         response = client.send(packet_type, fields)
     await assert_messages(response, fields)
+
+
+# Server error tests.
+
+async def server_error_handler(connection):
+    await connection.recv()
+    raise Exception("Boom!")
+
+
+@async_test(server_error_handler)
+async def test_server_error(client):
+    with pytest.raises(CommandError) as exc_info:
+        client.send("BOOM", "BOOM")
+        await client.recv()
+    assert exc_info.value.message.packet.type == "LINK"
+    assert exc_info.value.message.field.name == "ERRO"
+    assert exc_info.value.detail == "Server error"
+    assert exc_info.value.code == 500

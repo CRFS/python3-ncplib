@@ -128,8 +128,8 @@ class Connection:
     async def __aiter__(self):
         return AsyncMessageIterator(self, lambda message: True, [])
 
-    def recv(self):
-        return self.__aiter__().recv()
+    async def recv(self):
+        return await (await self.__aiter__()).recv()
 
     async def recv_field(self, packet_type, field_name):
         async for message in self:
