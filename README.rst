@@ -27,36 +27,24 @@ Connect to a node:
 
 .. code:: python
 
-    from ncplib import connect
-    client = await connect("127.0.0.1", 9999)
+    from ncplib import Client
+    async with Client("127.0.0.1", 9999) as client:
+        pass  # Your client code here.
 
 Run a simple command:
 
 .. code:: python
 
-    swep_params = await client.execute("DSPC", "TIME", SAMP=1024, FCTR=1200)
-    print(swep_params["PDAT"])
+    message = await client.execute("DSPC", "TIME", SAMP=1024, FCTR=1200)
+    print(message["PDAT"])
 
 Schedule a recurring command on the DSPL loop and receive multiple responses:
 
 .. code:: python
 
     response = client.send("DSPL", "TIME", SAMP=1024, FCTR=1200)
-    async for time_params in response:
-        print(time_params["DIQT"])
-
-Close the connection:
-
-.. code:: python
-
-    client.close()
-    await client.wait_closed()
-
-
-Advanced usage
---------------
-
-The following example show how `asyncio task functions <https://docs.python.org/3/library/asyncio-task.html#task-functions>`_ can be used to provide additional functionality.
+    async for message in response:
+        print(message["DIQT"])
 
 Run multiple commands in parallel, and wait for all responses:
 
@@ -66,10 +54,28 @@ Run multiple commands in parallel, and wait for all responses:
         "TIME": {},
         "SWEP": {},
     })
-    time_params, swep_params = await asyncio.gather(
-        response.read_field("TIME"),
-        response.read_field("SWEP"),
+    time_message, swep_message = await asyncio.gather(
+        response.recv_field("TIME"),
+        response.recv_field("SWEP"),
     )
+
+
+NCP server usage
+----------------
+
+Start a server:
+
+.. code:: python
+
+    import asyncio
+    from ncplib import Server
+
+    async def echo_server(client):
+        for message in client:
+            message.send(**message)
+
+    async with Server(echo_server, "127.0.0.1", 9999) as server:
+        asyncio.get_event_loop().run_forever()
 
 
 Data types
