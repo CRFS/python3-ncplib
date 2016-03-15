@@ -103,7 +103,7 @@ A ``Connection`` also be used an an async context manager.
     Reads a single ``Message`` from the ``Connection``.
 
 ``async recv_field(packet_type, field_name)``
-    Reads a single ``Message`` from the ``Connection``, matching the given ``packet_type`` and ``field_name``.
+    Reads a single ``Message`` from the ``Connection`` matching the given ``packet_type`` and ``field_name``.
 
 ``send(packet_type, field_name, **params)``
     Sends a ``Message`` to the ``Connection``'s peer. The ``Message`` will be sent in an NCP packet containing a single
@@ -169,7 +169,7 @@ A ``Response`` can be used as an async iterator of messages that are replies to 
     Reads a single ``Message`` from the ``Response``.
 
 ``async recv_field(field_name)``
-    Reads a single ``Message`` from the ``Response``, matching the given ``field_name``. This is only useful for
+    Reads a single ``Message`` from the ``Response`` matching the given ``field_name``. This is only useful for
     responses to a ``sent_packet()`` call containing multiple fields.
 
 
