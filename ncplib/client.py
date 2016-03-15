@@ -68,7 +68,7 @@ class Client(Connection):
             )
             raise CommandError(message, error_detail, error_code)
         # Ignore the rest of packet-level errors.
-        return message.field_name == "ERRO"
+        return message.field_name != "ERRO"
 
     def _handle_warn(self, message):
         warning_detail = message.get("WARN", None)
@@ -83,21 +83,19 @@ class Client(Connection):
             )
             warnings.warn(CommandWarning(message, warning_detail, warning_code))
         # Ignore the rest of packet-level warnings.
-        return message.field_name == "WARN"
+        return message.field_name != "WARN"
 
     def _handle_ackn(self, message):
-        return "ACKN" in message
+        return "ACKN" not in message
 
     def _message_predicate(self, message):
         return (
             # Handle errors.
-            (self._auto_erro and self._handle_erro(message)) or
+            (self._auto_erro and self._handle_erro(message)) and
             # Handle warnings.
-            (self._auto_warn and self._handle_warn(message)) or
+            (self._auto_warn and self._handle_warn(message)) and
             # Handle acks.
-            (self._auto_ackn and self._handle_ackn(message)) or
-            # Otherwise, the field is unhandled.
-            True
+            (self._auto_ackn and self._handle_ackn(message))
         )
 
 

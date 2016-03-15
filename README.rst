@@ -116,9 +116,11 @@ A ``Connection`` also be used an an async context manager.
 
 ``close()``
     Closes the ``Connection``. Use ``wait_closed()`` to wait for the ``Connection`` to fully close.
+    **Note:** If you use ``Connection`` as an async context manager, this method will be called automatically.
 
 ``async wait_closed()``
     Waits for the ``Connection`` to fully close.
+    **Note:** If you use ``Connection`` as an async context manager, this method will be called automatically.
 
 
 ``Message``
@@ -171,6 +173,24 @@ A ``Response`` can be used as an async iterator of messages that are replies to 
 ``async recv_field(field_name)``
     Reads a single ``Message`` from the ``Response`` matching the given ``field_name``. This is only useful for
     responses to a ``sent_packet()`` call containing multiple fields.
+
+
+``Client(host, port, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+An NCP client connection. This is a subclass of ``Connection``.
+
+- ``loop`` can be used to override the default ``asyncio`` event loop.
+- ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
+- ``auto_erro``, if set, will handle NCP ``ERRO`` params by raising an ``ncplib.CommandError``.
+- ``auto_warn``, if set, will handle NCP ``WARN`` params by raising an ``ncplib.CommandWarning``
+    using ``warnings.warn``.
+- ``auto_ackn``, if set, will automatically handle NCP ``ACKN`` params by ignoring the message.
+
+``async connect()``
+    Connects the ``Client`` to the NCP server.
+    **Note:** If you use ``Client`` as an async context manager, this method will be called automatically.
+
 
 
 Data types

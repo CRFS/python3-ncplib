@@ -25,6 +25,7 @@ def async_test(client_connected):
 
 async def echo_handler(connection):
     async for message in connection:
+        message.send(ACKN=True)
         message.send(**message)
 
 

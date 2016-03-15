@@ -43,6 +43,13 @@ class Message(Mapping):
     def __len__(self):
         return len(self._field.params)
 
+    def __repr__(self):  # pragma: no cover
+        return "<Message {packet_type!r} {field_name!r} {params!r}>".format(
+            packet_type=self.packet_type,
+            field_name=self.field_name,
+            params=dict(self._field.params.items()),
+        )
+
     def send(self, **params):
         return self.connection._send_packet(self.packet_type, [Field(self.field_name, self.field_id, params)])
 
