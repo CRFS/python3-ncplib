@@ -8,7 +8,7 @@ Features
 --------
 
 - NCP client library.
-- Asynchronous connections via `asyncio <https://docs.python.org/3.4/library/asyncio.html>`_.
+- Asynchronous connections via `asyncio <https://docs.python.org/3/library/asyncio.html>`_.
 - Works in Python 3!
 
 
@@ -18,10 +18,10 @@ Installation
 1. Install using ``pip install /path/to/ncplib.tar.gz``.
 
 
-Basic usage
------------
+NCP client usage
+----------------
 
-In the following examples, the code should be run from within an `asyncio coroutine <https://docs.python.org/3/library/asyncio-eventloop.html#coroutines>`_.
+In the following examples, the code should be run from within a `coroutine <https://docs.python.org/3/reference/compound_stmts.html#async-def>`_.
 
 Connect to a node:
 
@@ -34,23 +34,16 @@ Run a simple command:
 
 .. code:: python
 
-    swep_params = await client.execute("DSPC", "TIME", {"SAMP": 1024, "FCTR": 1200})
+    swep_params = await client.execute("DSPC", "TIME", SAMP=1024, FCTR=1200)
     print(swep_params["PDAT"])
 
 Schedule a recurring command on the DSPL loop and receive multiple responses:
 
 .. code:: python
 
-    response = client.send("DSPL", {
-        "TIME": {
-            "SAMP": 1024,
-            "FCTR": 1200,
-        }
-    })
-    time_params_1 = await response.recv_field("TIME")
-    print(time_params_1["DIQT"])
-    time_params_2 = await response.recv_field("TIME")
-    print(time_params_2["DIQT"])
+    response = client.send("DSPL", "TIME", SAMP=1024, FCTR=1200)
+    async for time_params in response:
+        print(time_params["DIQT"])
 
 Close the connection:
 
