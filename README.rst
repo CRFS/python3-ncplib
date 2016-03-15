@@ -84,7 +84,7 @@ Library reference
 
 Base class for NCP client and server connections.
 
-A ``Connection`` can be used as an async iterator of incoming ``Message``s.
+A ``Connection`` can be used as an async iterator of incoming messages.
 
 .. code:: python
 
@@ -100,19 +100,19 @@ A ``Connection`` also be used an an async context manager.
     # `connection` is now closed
 
 ``async recv()``
-    Reads a single `Message` from the ``Connection``.
+    Reads a single ``Message`` from the ``Connection``.
 
 ``async recv_field(packet_type, field_name)``
     Reads a single ``Message`` from the ``Connection``, matching the given ``packet_type`` and ``field_name``.
 
 ``send(packet_type, field_name, **params)``
     Sends a ``Message`` to the ``Connection``'s peer. The ``Message`` will be sent in an NCP packet containing a single
-    field with the given ``field_name`` and ``params``. Returns an `AsyncMessageIterator` for reading replies to the
+    field with the given ``field_name`` and ``params``. Returns a ``Response`` for reading replies to the
     ``Message``.
 
 ``send_packet(packet_type, **fields)``
-    Sends multiple ``Message``s to the ``Connection``'s peer. The ``Message``s will be sent in a single NCP packet
-    containing all fields. Returns an ``AsyncMessageIterator`` for reading replies to the ``Message``s.
+    Sends multiple messages to the connection's peer. The messages will be sent in a single NCP packet
+    containing all fields. Returns a ``Response`` for reading replies to the messages.
 
 ``close()``
     Closes the ``Connection``. Use ``wait_closed()`` to wait for the ``Connection`` to fully close.
@@ -122,6 +122,7 @@ A ``Connection`` also be used an an async context manager.
 
 
 ``Message``
+~~~~~~~~~~~
 
 An NCP field and associated parameters received from a `Connection`.
 
@@ -145,6 +146,31 @@ A ``Message`` can be used as a `dict` for reading params from the NCP field.
 
 ``id``
     The id of the field of the ``Message`` as an ``int``.
+
+``send(**params)``
+    Sends a reply to this message containing the given ``params``. The reply will be sent as a single NCP packet
+    with metadata that marks it as a reply to the original message.
+
+
+``Response``
+~~~~~~~~~~~~
+
+Represents zero or more replies to a ``Message``.
+
+A ``Response`` can be used as an async iterator of messages that are replies to the original ``Message``..
+
+.. code:: python
+
+    response = connection.send("DSPL", "TIME", SAMP=1024, FCTR=1200)
+    async for message in response:
+        print(message["DIQT"])
+
+``async recv()``
+    Reads a single ``Message`` from the ``Response``.
+
+``async recv_field(field_name)``
+    Reads a single ``Message`` from the ``Response``, matching the given ``field_name``. This is only useful for
+    responses to a ``sent_packet()`` call containing multiple fields.
 
 
 Data types

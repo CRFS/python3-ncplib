@@ -47,7 +47,7 @@ class Message(Mapping):
         return self.connection._send_packet(self.type, [Field(self.name, self.id, params)])
 
 
-class AsyncMessageIterator:
+class Response:
 
     def __init__(self, connection, predicate, message_list):
         self.connection = connection
@@ -142,7 +142,7 @@ class Connection:
     # Receiving messages.
 
     async def __aiter__(self):
-        return AsyncMessageIterator(self, lambda message: True, [])
+        return Response(self, lambda message: True, [])
 
     async def recv(self):
         return await (await self.__aiter__()).recv()
@@ -164,7 +164,7 @@ class Connection:
             for field
             in fields
         )
-        return AsyncMessageIterator(self, lambda message: (
+        return Response(self, lambda message: (
             message.type == packet_type and
             (message.name, message.id) in expected_fields
         ), [])
