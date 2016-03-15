@@ -127,6 +127,34 @@ async def test_send_packet_deprecated_api(client, packet_type, fields):
     await assert_messages(response, packet_type, fields)
 
 
+@given(
+    packet_type=names(),
+    field_name=names(),
+    params=params(),
+    junk_field_name=names(),
+)
+@async_test(echo_handler)
+async def test_recv_field_connection_filters_messages(client, packet_type, field_name, params, junk_field_name):
+    client.send(packet_type, junk_field_name, **params)
+    client.send(packet_type, field_name, **params)
+    message = await client.recv_field(packet_type, field_name)
+    assert message == params
+
+
+@given(
+    packet_type=names(),
+    field_name=names(),
+    params=params(),
+    junk_params=params(),
+)
+@async_test(echo_handler)
+async def test_recv_field_response_filters_messages(client, packet_type, field_name, params, junk_params):
+    client.send(packet_type, field_name, **junk_params)
+    response = client.send(packet_type, field_name, **params)
+    message = await response.recv_field(field_name)
+    assert message == params
+
+
 async def server_error_handler(connection):
     await connection.recv()
     raise Exception("Boom")
