@@ -190,7 +190,7 @@ An NCP client connection. This is a subclass of ``Connection``.
     ``auto_erro``, if set, will handle NCP ``ERRO`` params by raising an ``ncplib.CommandError``.
 
     ``auto_warn``, if set, will handle NCP ``WARN`` params by raising an ``ncplib.CommandWarning``
-        using ``warnings.warn``.
+    using ``warnings.warn``.
 
     ``auto_ackn``, if set, will automatically handle NCP ``ACKN`` params by ignoring the message.
 
