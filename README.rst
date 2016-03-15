@@ -85,7 +85,7 @@ Library reference
 Base class for NCP client and server connections.
 
 ``async __aiter__()``
-    Allows a ``Connection`` to be iterated over for incoming `Message`s.
+    Allows a ``Connection`` to be iterated over for incoming ``Message``s.
 
     .. code:: python
 
@@ -100,23 +100,23 @@ Base class for NCP client and server connections.
         message = await connection.recv()
 
 ``async recv_field(packet_type, field_name)``
-    Reads a single `Message` from the ``Connection`` matching the given ``packet_type`` and ``field_name``.
+    Reads a single ``Message`` from the ``Connection``, matching the given ``packet_type`` and ``field_name``.
 
     .. code:: python
 
         message = await connection.recv_field("DSPC", "SWEP")
 
 ``send(packet_type, field_name, **params)``
-    Sends a `Message` to the connection's peer. The message will be sent in an NCP packet containing a single field
-    with the given `field_name` and `params`. Returns an `AsyncMessageIterator` over replies to the message.
+    Sends a ``Message`` to the connection's peer. The message will be sent in an NCP packet containing a single field
+    with the given ``field_name`` and ``params``. Returns an `AsyncMessageIterator` for reading replies to the message.
 
     .. code:: python
 
         response = await connection.send("DSPL", "TIME", SAMP=1024, FCTR=1200)
 
 ``send_packet(packet_type, **fields)``
-    Sends multiple `Message`s to the connection's peer. The messages will be sent in a single NCP packet containing all
-    fields. Returns an `AsyncMessageIterator` over responses to the messages.
+    Sends multiple ``Message``s to the connection's peer. The messages will be sent in a single NCP packet containing
+    all fields. Returns an ``AsyncMessageIterator`` for reading replies to the messages.
 
     .. code:: python
 
