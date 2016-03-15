@@ -46,12 +46,13 @@ async def echo_handler(connection):
         message.send(**message)
 
 
-async def assert_messages(response, expected_messages):
-    messages = {}
-    while len(messages) != len(expected_messages):
+async def assert_messages(response, packet_type, expected_messages):
+    for field_name, field_params in expected_messages.items():
         message = await response.recv()
-        messages[message.field.name] = message
-    assert messages == expected_messages
+        assert message.packet.type == packet_type
+        assert message.field.name == field_name
+        assert len(message) == len(field_params)
+        assert message == field_params
 
 
 # Tests.
@@ -87,7 +88,7 @@ async def test_execute_deprecated_api(client, packet_type, field_name, params):
 @async_test(echo_handler)
 async def test_send(client, packet_type, field_name, params):
     response = client.send(packet_type, field_name, **params)
-    await assert_messages(response, {field_name: params})
+    await assert_messages(response, packet_type, {field_name: params})
 
 
 @given(
@@ -102,7 +103,7 @@ async def test_send_filters_messages(client, packet_type, field_name, params, ju
     client.send(packet_type, field_name, **junk_params)
     # Send a message.
     response = client.send(packet_type, field_name, **params)
-    await assert_messages(response, {field_name: params})
+    await assert_messages(response, packet_type, {field_name: params})
 
 
 @given(
@@ -112,7 +113,7 @@ async def test_send_filters_messages(client, packet_type, field_name, params, ju
 @async_test(echo_handler)
 async def test_send_packet(client, packet_type, fields):
     response = client.send(packet_type, fields)
-    await assert_messages(response, fields)
+    await assert_messages(response, packet_type, fields)
 
 
 @given(
@@ -123,7 +124,7 @@ async def test_send_packet(client, packet_type, fields):
 async def test_send_packet_deprecated_api(client, packet_type, fields):
     with pytest.warns(DeprecationWarning):
         response = client.send(packet_type, fields)
-    await assert_messages(response, fields)
+    await assert_messages(response, packet_type, fields)
 
 
 async def server_error_handler(connection):
@@ -145,7 +146,7 @@ async def test_server_error(client):
 
 @given(
     packet_type=names(),
-    field_name=names(),
+    field_name=names().filter(lambda v: v != "ERRO"),
     detail=text_no_nulls(),
     code=ints(),
 )
@@ -163,7 +164,7 @@ async def test_error(client, packet_type, field_name, detail, code):
 
 @given(
     packet_type=names(),
-    field_name=names(),
+    field_name=names().filter(lambda v: v != "WARN"),
     detail=text_no_nulls(),
     code=ints(),
 )

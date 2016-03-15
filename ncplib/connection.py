@@ -25,7 +25,7 @@ class Message(Mapping):
         return iter(self.field.params)
 
     def __len__(self):
-        return len(self.field)
+        return len(self.field.params)
 
     def send(self, **params):
         return self.connection._send_packet(self.packet.type, [Field(self.field.name, self.field.id, params)])
