@@ -155,7 +155,7 @@ class Connection:
 
     # Sending fields.
 
-    def send_packet(self, packet_type, fields):
+    def send_packet(self, packet_type, **fields):
         return self._send_packet(packet_type, [
             Field(field_name, self._gen_id(), field_params)
             for field_name, field_params
@@ -166,7 +166,7 @@ class Connection:
         # Handle deprecated send signature.
         if isinstance(field_name, Mapping):
             warnings.warn(DeprecationWarning("Use send_packet() to send multiple fields in one packet."))
-            return self.send_packet(packet_type, field_name)
+            return self.send_packet(packet_type, **field_name)
         # Handle new send signature.
         return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
 

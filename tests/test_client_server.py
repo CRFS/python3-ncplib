@@ -93,7 +93,7 @@ async def test_send_filters_messages(client, packet_type, field_name, params, ju
 )
 @async_test(echo_handler)
 async def test_send_packet(client, packet_type, fields):
-    response = client.send(packet_type, fields)
+    response = client.send(packet_type, **fields)
     await assert_messages(response, packet_type, fields)
 
 

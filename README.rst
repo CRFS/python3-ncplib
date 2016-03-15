@@ -50,10 +50,7 @@ Run multiple commands in parallel, and wait for all responses:
 
 .. code:: python
 
-    response = client.send_many("DSPC", {
-        "TIME": {},
-        "SWEP": {},
-    })
+    response = client.send_packet("DSPC", TIME={}, SWEP={})
     time_message, swep_message = await asyncio.gather(
         response.recv_field("TIME"),
         response.recv_field("SWEP"),
@@ -83,7 +80,7 @@ Library reference
 
 
 ``Connection``
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Base class for NCP client and server connections.
 
@@ -97,6 +94,52 @@ Base class for NCP client and server connections.
 
 ``async recv()``
     Reads a single `Message` from the ``Connection``.
+
+    .. code:: python
+
+        message = await connection.recv()
+
+``async recv_field(packet_type, field_name)``
+    Reads a single `Message` from the ``Connection`` matching the given ``packet_type`` and ``field_name``.
+
+    .. code:: python
+
+        message = await connection.recv_field("DSPC", "SWEP")
+
+``send(packet_type, field_name, **params)``
+    Sends a `Message` to the connection's peer. The message will be sent in an NCP packet containing a single field
+    with the given `field_name` and `params`. Returns an `AsyncMessageIterator` over replies to the message.
+
+    .. code:: python
+
+        response = await connection.send("DSPL", "TIME", SAMP=1024, FCTR=1200)
+
+``send_packet(packet_type, **fields)``
+    Sends multiple `Message`s to the connection's peer. The messages will be sent in a single NCP packet containing all
+    fields. Returns an `AsyncMessageIterator` over responses to the messages.
+
+    .. code:: python
+
+        response = client.send_packet("DSPC", TIME={}, SWEP={})
+
+
+``async __aenter__()``
+    Allows the connection to be used as an async context manager.
+
+``async __aexit__(exc_type, exc, tb)``
+    Allows the connection to be used as an async context manager.
+
+    .. code:: python
+
+        async with connection:
+            pass  # Perform some IO.
+        # `connection` is now closed
+
+``close()``
+    Closes the connection. Use ``wait_closed()`` to wait for the connection to fully close.
+
+``async wait_closed()``
+    Waits for the connection to fully close.
 
 
 Data types
