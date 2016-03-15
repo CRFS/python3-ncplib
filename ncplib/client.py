@@ -61,14 +61,14 @@ class Client(Connection):
         if error_detail is not None or error_code is not None:
             self.logger.error(
                 "Command error in %s %s '%s' (code %s)",
-                message.packet.type,
-                message.field.name,
+                message.type,
+                message.name,
                 error_detail,
                 error_code,
             )
             raise CommandError(message, error_detail, error_code)
         # Ignore the rest of packet-level errors.
-        return message.field.name == "ERRO"
+        return message.name == "ERRO"
 
     def _handle_warn(self, message):
         warning_detail = message.get("WARN", None)
@@ -76,14 +76,14 @@ class Client(Connection):
         if warning_detail is not None or warning_code is not None:
             self.logger.warning(
                 "Command warning in %s %s '%s' (code %s)",
-                message.packet.type,
-                message.field.name,
+                message.type,
+                message.name,
                 warning_detail,
                 warning_code,
             )
             warnings.warn(CommandWarning(message, warning_detail, warning_code))
         # Ignore the rest of packet-level warnings.
-        return message.field.name == "WARN"
+        return message.name == "WARN"
 
     def _handle_ackn(self, message):
         return "ACKN" in message

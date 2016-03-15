@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 import pytest
 from hypothesis import given
 from hypothesis.strategies import dictionaries
@@ -30,10 +31,14 @@ async def echo_handler(connection):
 async def assert_messages(response, packet_type, expected_messages):
     for field_name, field_params in expected_messages.items():
         message = await response.recv()
-        assert message.packet.type == packet_type
-        assert message.field.name == field_name
-        assert len(message) == len(field_params)
+        # Check the message content.
+        assert message.type == packet_type
+        assert message.name == field_name
         assert message == field_params
+        # Check the message structure.
+        assert isinstance(message.id, int)
+        assert isinstance(message.timestamp, datetime)
+        assert len(message) == len(field_params)
 
 
 # Tests.
@@ -93,7 +98,7 @@ async def test_send_filters_messages(client, packet_type, field_name, params, ju
 )
 @async_test(echo_handler)
 async def test_send_packet(client, packet_type, fields):
-    response = client.send(packet_type, **fields)
+    response = client.send_packet(packet_type, **fields)
     await assert_messages(response, packet_type, fields)
 
 
@@ -147,8 +152,8 @@ async def test_server_error(client):
     with pytest.raises(CommandError) as exc_info:
         await client.recv()
     exception = exc_info.value
-    assert exception.message.packet.type == "LINK"
-    assert exception.message.field.name == "ERRO"
+    assert exception.message.type == "LINK"
+    assert exception.message.name == "ERRO"
     assert exception.detail == "Server error"
     assert exception.code == 500
 
@@ -165,8 +170,8 @@ async def test_error(client, packet_type, field_name, detail, code):
     with pytest.raises(CommandError) as exc_info:
         await client.recv()
     exception = exc_info.value
-    assert exception.message.packet.type == packet_type
-    assert exception.message.field.name == field_name
+    assert exception.message.type == packet_type
+    assert exception.message.name == field_name
     assert exception.detail == detail
     assert exception.code == code
 
@@ -184,7 +189,7 @@ async def test_warning(client, packet_type, field_name, detail, code):
         await client.recv()
     assert len(warnings) == 1
     warning = warnings[0].message
-    assert warning.message.packet.type == packet_type
-    assert warning.message.field.name == field_name
+    assert warning.message.type == packet_type
+    assert warning.message.name == field_name
     assert warning.detail == detail
     assert warning.code == code

@@ -15,20 +15,36 @@ class Message(Mapping):
 
     def __init__(self, connection, packet, field):
         self.connection = connection
-        self.packet = packet
-        self.field = field
+        self._packet = packet
+        self._field = field
+
+    @property
+    def type(self):
+        return self._packet.type
+
+    @property
+    def timestamp(self):
+        return self._packet.timestamp
+
+    @property
+    def name(self):
+        return self._field.name
+
+    @property
+    def id(self):
+        return self._field.id
 
     def __getitem__(self, name):
-        return self.field.params[name]
+        return self._field.params[name]
 
     def __iter__(self):
-        return iter(self.field.params)
+        return iter(self._field.params)
 
     def __len__(self):
-        return len(self.field.params)
+        return len(self._field.params)
 
     def send(self, **params):
-        return self.connection._send_packet(self.packet.type, [Field(self.field.name, self.field.id, params)])
+        return self.connection._send_packet(self.type, [Field(self.name, self.id, params)])
 
 
 class AsyncMessageIterator:
@@ -58,7 +74,7 @@ class AsyncMessageIterator:
 
     async def recv_field(self, field_name):
         async for message in self:
-            if message.field.name == field_name:
+            if message.name == field_name:
                 return message
 
 
@@ -133,7 +149,7 @@ class Connection:
 
     async def recv_field(self, packet_type, field_name):
         async for message in self:
-            if message.packet.type == packet_type and message.field.name == field_name:
+            if message.type == packet_type and message.name == field_name:
                 return message
 
     # Packet writing.
@@ -149,8 +165,8 @@ class Connection:
             in fields
         )
         return AsyncMessageIterator(self, lambda message: (
-            message.packet.type == packet_type and
-            (message.field.name, message.field.id) in expected_fields
+            message.type == packet_type and
+            (message.name, message.id) in expected_fields
         ), [])
 
     # Sending fields.
