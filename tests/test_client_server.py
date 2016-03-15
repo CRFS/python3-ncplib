@@ -15,7 +15,7 @@ def async_test(client_connected):
         @impersonate(func)
         def do_async_test(event_loop, unused_tcp_port, *args, **kwargs):
             async def async_test_runner():
-                async with Server(client_connected, "127.0.0.1", unused_tcp_port, loop=event_loop):
+                async with Server(client_connected, "127.0.0.1", unused_tcp_port, loop=event_loop, reuse_port=True):
                     async with Client("127.0.0.1", unused_tcp_port, loop=event_loop) as client:
                         await func(client, *args, **kwargs)
             event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=1, loop=event_loop))

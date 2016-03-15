@@ -13,11 +13,12 @@ logger = logging.getLogger(__name__)
 
 class Server:
 
-    def __init__(self, client_connected, host, port, *, loop=None, auto_auth=True):
+    def __init__(self, client_connected, host, port, *, loop=None, auto_auth=True, **server_kwargs):
         self._client_connected = client_connected
         self._host = host
         self._port = port
         self._loop = loop or asyncio.get_event_loop()
+        self._server_kwargs = server_kwargs
         # Logging.
         self.logger = logger
         # Packet handling.
@@ -55,7 +56,13 @@ class Server:
         await self.wait_closed()
 
     async def start(self):
-        self._server = await asyncio.start_server(self._do_client_connected, self._host, self._port, loop=self._loop)
+        self._server = await asyncio.start_server(
+            self._do_client_connected,
+            self._host,
+            self._port,
+            loop=self._loop,
+            **self._server_kwargs
+        )
         self.logger.info("Started server on ncp://{host}:{port}".format(
             host=self._host,
             port=self._port,
