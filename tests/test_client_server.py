@@ -1,5 +1,4 @@
 import asyncio
-import warnings
 from datetime import datetime
 import pytest
 from hypothesis import given
@@ -20,16 +19,12 @@ def async_test(client_connected):
                     port = server._server.sockets[0].getsockname()[1]
                     async with Client("127.0.0.1", port, loop=event_loop) as client:
                         await func(client, *args, **kwargs)
-            # Enable all warnings.
-            with warnings.catch_warnings():
-                warnings.simplefilter("default")
-                # Create a debug event loop.
-                event_loop = asyncio.new_event_loop()
-                try:
-                    event_loop.set_debug(True)
-                    event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=5, loop=event_loop))
-                finally:
-                    event_loop.close()
+            # Create a test event loop.
+            event_loop = asyncio.new_event_loop()
+            try:
+                event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=5, loop=event_loop))
+            finally:
+                event_loop.close()
         return do_async_test
     return decorator
 
