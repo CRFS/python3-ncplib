@@ -19,7 +19,7 @@ def async_test(client_connected):
                     port = server._server.sockets[0].getsockname()[1]
                     async with Client("127.0.0.1", port, loop=event_loop) as client:
                         await func(client, *args, **kwargs)
-            event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=1, loop=event_loop))
+            event_loop.run_until_complete(asyncio.wait_for(async_test_runner(), timeout=10, loop=event_loop))
         return do_async_test
     return decorator
 
