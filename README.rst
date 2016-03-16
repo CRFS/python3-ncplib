@@ -71,8 +71,16 @@ Start a server:
         for message in client:
             message.send(**message)
 
-    async with Server(echo_server, "127.0.0.1", 9999) as server:
-        asyncio.get_event_loop().run_forever()
+    loop = asyncio.get_event_loop()
+    server = Server(echo_server, "127.0.0.1", 9999)
+    loop.run_until_complete(server.start())
+    try:
+        loop.run_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.close()
+        loop.run_until_complete(server.wait_closed())
 
 
 Library reference
@@ -216,7 +224,7 @@ A ``Server`` can be used as an async context manager.
             message.send(**message)
 
     async with Server(echo_server, "127.0.0.1", 9999) as server:
-        asyncio.get_event_loop().run_forever()
+        pass  # Other code here.
     # Server will be closed.
 
 ``Server(client_connected, host, port, *, loop=None, auto_auth=True)``
