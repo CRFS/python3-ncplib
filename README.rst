@@ -3,13 +3,14 @@ ncplib
 
 NCP library for Python 3, by `CRFS <http://www.crfs.com/>`_
 
-**Note:** All code examples should be run from within a `coroutine <https://docs.python.org/3/reference/compound_stmts.html#async-def>`_.
+**Note:** Unless otherwise noted, all code examples should be run from within a `coroutine <https://docs.python.org/3/reference/compound_stmts.html#async-def>`_.
 
 
 Features
 --------
 
 - NCP client library.
+- NCP server library.
 - Asynchronous connections via `asyncio <https://docs.python.org/3/library/asyncio.html>`_.
 - Works in Python 3!
 
@@ -35,7 +36,8 @@ Run a simple command:
 
 .. code:: python
 
-    message = await client.execute("DSPC", "TIME", SAMP=1024, FCTR=1200)
+    response = client.send("DSPC", "TIME", SAMP=1024, FCTR=1200)
+    message = await response.recv()
     print(message["PDAT"])
 
 Schedule a recurring command on the DSPL loop and receive multiple responses:
@@ -61,6 +63,8 @@ NCP server usage
 ----------------
 
 Start a server:
+
+**Note:** This code example should not be run in a coroutine.
 
 .. code:: python
 
