@@ -1,15 +1,28 @@
 sudo: false
-os:
-  - linux
-  - osx
+language: python
 env:
-  matrix:
-    - PYTHON_VERSION=3.5
   global:
     - PYTHONASYNCIODEBUG=1
     - PYTHONWARNINGS=default,ignore::PendingDeprecationWarning
     - HYPOTHESIS_PROFILE=ci
     # ANACONDA_TOKEN
     - secure: "fFnozDXa9QBGjdFUPCLSC4sfa0yn+Zky3wT9pQV+bOMUyw3lHqR8TzQADGU3bYKULbbtk2d+6p9YogT71H7avPovhzfZ74gLUS5nS5abLGdtA3eLvn2zbt143PtsEZFFOfUqOLau7ZsD9HvMfp//X6q8AjBJghIkx2mHmcing0M="
+cache:
+  directories:
+    - $HOME/.cache/pip
+    - ./hypothesis
+install:
+  - pip install -e .[dev]
 script:
-- ./dist.sh
+  - coverage run -m unittest
+  - flake8 ncplib
+after_success:
+  - coverage report
+deploy:
+  provider: script
+  script: ./deploy.sh
+  on:
+    tags: true
+notifications:
+  on_success: never
+  on_failure: change
