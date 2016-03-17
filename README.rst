@@ -27,8 +27,8 @@ Connect to a NCP server:
 
 .. code:: python
 
-    from ncplib import Client
-    async with Client("127.0.0.1", 9999) as client:
+    from ncplib import connect
+    async with await connect("127.0.0.1", 9999) as client:
         pass  # Your client code here.
 
 Run a simple command:
@@ -65,15 +65,13 @@ Start a server:
 .. code:: python
 
     import asyncio
-    from ncplib import Server
+    from ncplib import start_server
 
     async def echo_server(client):
         for message in client:
             message.send(**message)
 
-    loop = asyncio.get_event_loop()
-    server = Server(echo_server, "127.0.0.1", 9999)
-    loop.run_until_complete(server.start())
+    server = loop.run_until_complete(start_server(echo_server, "127.0.0.1", 9999))
     try:
         loop.run_forever()
     except KeyboardInterrupt:
@@ -85,6 +83,35 @@ Start a server:
 
 Library reference
 -----------------
+
+
+``Top-level API``
+~~~~~~~~~~~~~~~~~
+
+``connect(host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
+    Creates a new NCP client ``Connection``.
+
+    ``loop`` can be used to override the default ``asyncio`` event loop.
+
+    ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
+
+    ``auto_erro``, if set, will handle NCP ``ERRO`` params by raising an ``ncplib.CommandError``.
+
+    ``auto_warn``, if set, will handle NCP ``WARN`` params by raising an ``ncplib.CommandWarning``
+    using ``warnings.warn``.
+
+    ``auto_ackn``, if set, will automatically handle NCP ``ACKN`` params by ignoring the message.
+
+
+``start_server(client_connected, host, port, *, loop=None, auto_auth=True)``
+    Creates a new NCP ``Server``.
+
+    ``client_connected`` is a coroutine callback that will be called on every client connection. It will be called with
+    a single positional argument that is a ``Connection`` to the client.
+
+    ``loop`` can be used to override the default ``asyncio`` event loop.
+
+    ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
 
 
 ``Connection``
@@ -185,62 +212,18 @@ A ``Response`` can be used as an async iterator of messages that are replies to 
     responses to a ``sent_packet()`` call containing multiple fields.
 
 
-``Client``
-~~~~~~~~~~
-
-An NCP client connection. This is a subclass of ``Connection``.
-
-``Client(host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
-    Creates a new ``Client``. The ``Client`` is initially not connected to the NCP server.
-
-    ``loop`` can be used to override the default ``asyncio`` event loop.
-
-    ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
-
-    ``auto_erro``, if set, will handle NCP ``ERRO`` params by raising an ``ncplib.CommandError``.
-
-    ``auto_warn``, if set, will handle NCP ``WARN`` params by raising an ``ncplib.CommandWarning``
-    using ``warnings.warn``.
-
-    ``auto_ackn``, if set, will automatically handle NCP ``ACKN`` params by ignoring the message.
-
-``async connect()``
-    Connects the ``Client`` to the NCP server.
-
-    **Note:** If you use ``Client`` as an async context manager, this method will be called automatically.
-
-
 ``Server``
 ~~~~~~~~~~
 
-An NCP ``Server``.
+An NCP ``Server``. Do not create this class directly, use ``start_server()``.
 
 A ``Server`` can be used as an async context manager.
 
 .. code:: python
 
-    async def echo_server(client):
-        for message in client:
-            message.send(**message)
-
-    async with Server(echo_server, "127.0.0.1", 9999) as server:
+    async with server:
         pass  # Other code here.
-    # Server will be closed.
-
-``Server(client_connected, host, port, *, loop=None, auto_auth=True)``
-    Creates a new ``Server``. The ``Server`` is initially not started.
-
-    ``client_connected`` is a coroutine callback that will be called on every client connection. It will be called with
-    a single positional argument that is a ``Connection`` to the client.
-
-    ``loop`` can be used to override the default ``asyncio`` event loop.
-
-    ``auto_auth``, if set, will automatically perform the authentication handshake on connection to the NCP server.
-
-``async connect()``
-    Starts the NCP ``Server``.
-
-    **Note:** If you use ``Server`` as an async context manager, this method will be called automatically.
+    # Server is now closed.
 
 ``close()``
     Closes the ``Server``. Use ``wait_closed()`` to wait for the ``Server`` to fully close.
