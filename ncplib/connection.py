@@ -95,7 +95,17 @@ class ConnectionLoggerAdapter(logging.LoggerAdapter):
         ), kwargs
 
 
-class Connection:
+class ClosableContextMixin:
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        self.close()
+        await self.wait_closed()
+
+
+class Connection(ClosableContextMixin):
 
     def __init__(self, host, port, reader, writer, logger, *, loop=None):
         # Logging.
@@ -202,13 +212,6 @@ class Connection:
         return self.send(packet_type, field_name, **(params or {})).recv()
 
     # Connection lifecycle.
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        self.close()
-        await self.wait_closed()
 
     def close(self):
         self._writer.write_eof()
