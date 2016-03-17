@@ -3,6 +3,7 @@
 ## 2.0.1 - 16/03/2014
 
 - Fixing infinite timeout when disabling auto_ackn in `Client`.
+- Not double-closing client sockets in `Server`.
 
 
 ## 2.0.0 - 15/03/2014

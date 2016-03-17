@@ -23,6 +23,8 @@ class Server:
         self.logger = logger
         # Packet handling.
         self._auto_auth = auto_auth
+        # Active handlers.
+        self._handlers = set()
 
     async def _handle_auth(self, connection):
         connection.send("LINK", "HELO")
@@ -34,18 +36,15 @@ class Server:
     async def _do_client_connected(self, reader, writer):
         remote_host, remote_port = writer.get_extra_info("peername")
         async with Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop) as client:
-            # Handle auth.
-            if self._auto_auth:
-                await self._handle_auth(client)
-            # Delegate to handler.
             try:
+                # Handle auth.
+                if self._auto_auth:
+                    await self._handle_auth(client)
+                # Delegate to handler.
                 await self._client_connected(client)
             except:
                 logger.exception("Unexpected error")
                 client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
-            finally:
-                client.close()
-                await client.wait_closed()
 
     async def __aenter__(self):
         await self.start()
