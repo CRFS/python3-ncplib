@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+shopt -s nullglob
 
 pip install anaconda-client
 python setup.py sdist
