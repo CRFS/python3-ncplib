@@ -4,7 +4,7 @@ from ncplib.connection import Connection, ClosableContextMixin
 
 
 __all__ = (
-    "ServerHandler",
+    "start_server",
 )
 
 
@@ -57,3 +57,29 @@ class ServerHandler(ClosableContextMixin):
     async def wait_closed(self):
         if self._handlers:
             await asyncio.gather(*self._handlers, loop=self._loop, return_exceptions=True)
+
+
+class Server(ClosableContextMixin):
+
+    def __init__(self, handler, server):
+        self._handler = handler
+        self._server = server
+
+    @property
+    def sockets(self):
+        return self._server.sockets
+
+    def close(self):
+        self._handler.close()
+        self._server.close()
+
+    async def wait_closed(self):
+        await self._handler.wait_closed()
+        await self._server.wait_closed()
+
+
+async def start_server(client_connected, host, port, *, loop=None, **kwargs):
+    loop = loop or asyncio.get_event_loop()
+    handler = ServerHandler(client_connected, loop=loop, **kwargs)
+    server = await asyncio.start_server(handler, host, port, loop=loop)
+    return Server(handler, server)

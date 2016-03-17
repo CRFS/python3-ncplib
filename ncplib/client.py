@@ -41,17 +41,13 @@ class Client(Connection):
         # Read the auth response packet.
         await self.recv_field("LINK", "SCON")
 
-    async def connect(self):
+    async def _connect(self):
         # Connect to the node.
         self._reader, self._writer = await asyncio.open_connection(self._host, self._port, loop=self._loop)
         self.logger.info("Connected")
         # Auto-authenticate.
         if self._auto_auth:
             await self._handle_auth()
-
-    async def __aenter__(self):
-        await self.connect()
-        return await super().__aenter__()
 
     # Receiving fields.
 
@@ -100,7 +96,6 @@ class Client(Connection):
 
 
 async def connect(host, port, **kwargs):  # pragma: no cover
-    warnings.warn(DeprecationWarning("Use ncplib.Client() directly instead of connect()."))
     client = Client(host, port, **kwargs)
-    await client.connect()
+    await client._connect()
     return client

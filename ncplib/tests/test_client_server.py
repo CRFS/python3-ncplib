@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from hypothesis import given, strategies as st
-from ncplib import Client, ServerHandler, CommandError, CommandWarning
+from ncplib import connect, start_server, CommandError, CommandWarning
 from ncplib.tests.base import AsyncTestCase
 from ncplib.tests.strategies import names, params, ints, values
 
@@ -16,19 +16,10 @@ class ClientServerBaseTestCase(AsyncTestCase):
     def setUp(self):
         super().setUp()
         # Create a server handler.
-        self.server_handler = self.setupAsyncFixture(ServerHandler(self.serverHandler, loop=self.loop))
-        # Start a server.
-        self.server = self.loop.run_until_complete(asyncio.start_server(
-            self.server_handler,
-            "127.0.0.1",
-            0,
-            loop=self.loop,
-        ))
-        self.addCleanup(self.loop.run_until_complete, self.server.wait_closed())
-        self.addCleanup(self.server.close)
+        self.server = self.setupAsyncFixture(start_server(self.serverHandler, "127.0.0.1", 0, loop=self.loop))
         # Create a client.
         port = self.server.sockets[0].getsockname()[1]
-        self.client = self.setupAsyncFixture(Client("127.0.0.1", port, loop=self.loop))
+        self.client = self.setupAsyncFixture(connect("127.0.0.1", port, loop=self.loop))
 
     async def assertMessages(self, response, packet_type, expected_messages):
         messages = {}
