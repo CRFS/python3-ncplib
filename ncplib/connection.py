@@ -115,6 +115,10 @@ class Connection:
         # Multiplexing.
         self._packet_receiver = None
 
+    @property
+    def transport(self):
+        return self._writer.transport
+
     def _gen_id(self):
         self._id_gen += 1
         return self._id_gen

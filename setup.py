@@ -22,8 +22,7 @@ setup(
     extras_require={
         "dev":  [
             "flake8==2.5.4",
-            "pytest==2.9.0",
-            "pytest-cov==2.2.1",
+            "coverage==4.0.3",
             "hypothesis[datetime]==3.1.0",
         ],
     },

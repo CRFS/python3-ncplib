@@ -26,6 +26,10 @@ class Server:
         # Active handlers.
         self._handlers = set()
 
+    @property
+    def sockets(self):
+        return self._server.sockets
+
     async def _handle_auth(self, connection):
         connection.send("LINK", "HELO")
         await connection.recv_field("LINK", "CCRE")
@@ -42,6 +46,8 @@ class Server:
                     await self._handle_auth(client)
                 # Delegate to handler.
                 await self._client_connected(client)
+            except asyncio.CancelledError:
+                pass
             except:
                 logger.exception("Unexpected error")
                 client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
