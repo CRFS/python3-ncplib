@@ -91,11 +91,11 @@ class Client(Connection):
     def _message_predicate(self, message):
         return (
             # Handle errors.
-            (self._auto_erro and self._handle_erro(message)) and
+            (not self._auto_erro or self._handle_erro(message)) and
             # Handle warnings.
-            (self._auto_warn and self._handle_warn(message)) and
+            (not self._auto_warn or self._handle_warn(message)) and
             # Handle acks.
-            (self._auto_ackn and self._handle_ackn(message))
+            (not self._auto_ackn or self._handle_ackn(message))
         )
 
 

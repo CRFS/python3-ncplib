@@ -1,5 +1,10 @@
 # ncplib changelog
 
+## 2.0.1 - 16/03/2014
+
+- Fixing infinite timeout when disabling auto_ackn in `Client`.
+
+
 ## 2.0.0 - 15/03/2014
 
 This release requires a minimum Python version of 3.5. This allows `ncplib` to take advantage of new native support
