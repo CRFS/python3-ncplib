@@ -12,7 +12,7 @@ build:
 test:
   commands:
     - pip install '{{ environ["SRC_DIR"] }}[dev]'
-    - python -m unittest
+    - python -m unittest discover ncplib.tests
     - coverage report
     - flake8 {{ environ["SRC_DIR"] }}/ncplib
 about:
