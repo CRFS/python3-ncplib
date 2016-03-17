@@ -18,11 +18,11 @@ class AsyncTestCase(unittest.TestCase):
 
     # Fixtures.
 
-    def setupFixture(self, fixture):
+    def setupFixture(self, fixture):  # pragma: no cover
         self.addCleanup(fixture.__exit__, None, None, None)
         return fixture.__enter__()
 
-    def setupAsyncFixture(self, fixture):
+    def setupAsyncFixture(self, fixture):  # pragma: no cover
         self.addCleanup(self.loop.run_until_complete, fixture.__aexit__(None, None, None))
         return self.loop.run_until_complete(fixture.__aenter__())
 

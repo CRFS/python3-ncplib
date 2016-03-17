@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 from hypothesis import given, strategies as st
 from ncplib import Client, Server, CommandError, CommandWarning
@@ -30,10 +31,13 @@ class ClientServerBaseTestCase(AsyncTestCase):
             self.assertIsInstance(message.field_id, int)
             self.assertEqual(len(message), len(expected_messages[message.field_name]))
         # Check the message content.
-        assert messages == expected_messages
+        self.assertEqual(messages, expected_messages)
 
 
 class ClientServerTestCase(ClientServerBaseTestCase):
+
+    def testClientTransport(self):
+        self.assertIsInstance(self.client.transport, asyncio.WriteTransport)
 
     @given(names(), names(), params())
     async def testExecuteDeprecated(self, packet_type, field_name, params):

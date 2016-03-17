@@ -46,7 +46,7 @@ class Server:
                     await self._handle_auth(client)
                 # Delegate to handler.
                 await self._client_connected(client)
-            except asyncio.CancelledError:
+            except asyncio.CancelledError:  # pragma: no cover
                 pass
             except:
                 logger.exception("Unexpected error")
