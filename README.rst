@@ -9,8 +9,8 @@ NCP library for Python 3, by `CRFS <http://www.crfs.com/>`_
 Features
 --------
 
-- NCP client library.
-- NCP server library.
+- NCP client.
+- NCP server.
 - Asynchronous connections via `asyncio <https://docs.python.org/3/library/asyncio.html>`_.
 - Works in Python 3!
 
@@ -93,7 +93,7 @@ Library reference
 ~~~~~~~~~~~~~~~~~
 
 ``connect(host, port, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True)``
-    Creates a new NCP client ``Connection``.
+    Returns a new NCP client ``Connection``.
 
     ``loop`` can be used to override the default ``asyncio`` event loop.
 
@@ -108,7 +108,7 @@ Library reference
 
 
 ``start_server(client_connected, host, port, *, loop=None, auto_auth=True)``
-    Creates a new NCP ``Server``.
+    Returns a new NCP ``Server``.
 
     ``client_connected`` is a coroutine callback that will be called on every client connection. It will be called with
     a single positional argument that is a ``Connection`` to the client.
