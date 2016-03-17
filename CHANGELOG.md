@@ -1,13 +1,7 @@
 # ncplib changelog
 
-## 2.0.1 - 16/03/2014
 
-- Fixing infinite timeout when disabling auto_ackn in `Client`.
-- Not double-closing client sockets in `Server`.
-- Better cleanup of client connections in `Server`.
-
-
-## 2.0.0 - 15/03/2014
+## 2.0.0 - 17/03/2014
 
 This release requires a minimum Python version of 3.5. This allows `ncplib` to take advantage of new native support
 for coroutines in Python 3.5. It also provides a new `Server` interface for creating NCP servers.
