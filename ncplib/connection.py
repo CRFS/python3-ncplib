@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import warnings
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
@@ -200,16 +199,7 @@ class Connection(ClosableContextMixin):
         ])
 
     def send(self, packet_type, field_name, **params):
-        # Handle deprecated send signature.
-        if isinstance(field_name, Mapping):
-            warnings.warn(DeprecationWarning("Use send_packet() to send multiple fields in one packet."))
-            return self.send_packet(packet_type, **field_name)
-        # Handle new send signature.
         return self._send_packet(packet_type, [Field(field_name, self._gen_id(), params)])
-
-    def execute(self, packet_type, field_name, params=None):
-        warnings.warn(DeprecationWarning("Use send(packet_type, field_name, **params).recv() instead of execute()."))
-        return self.send(packet_type, field_name, **(params or {})).recv()
 
     # Connection lifecycle.
 

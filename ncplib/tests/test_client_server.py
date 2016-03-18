@@ -42,12 +42,6 @@ class ClientServerTestCase(ClientServerBaseTestCase):
         self.assertIsInstance(self.client.transport, asyncio.WriteTransport)
 
     @given(names(), names(), params())
-    async def testExecuteDeprecated(self, packet_type, field_name, params):
-        with self.assertWarns(DeprecationWarning):
-            message = await self.client.execute(packet_type, field_name, params)
-        self.assertEqual(message, params)
-
-    @given(names(), names(), params())
     async def testSend(self, packet_type, field_name, params):
         response = self.client.send(packet_type, field_name, **params)
         await self.assertMessages(response, packet_type, {field_name: params})
@@ -63,12 +57,6 @@ class ClientServerTestCase(ClientServerBaseTestCase):
     @given(names(), st.dictionaries(names(), params()))
     async def testSendPacket(self, packet_type, fields):
         response = self.client.send_packet(packet_type, **fields)
-        await self.assertMessages(response, packet_type, fields)
-
-    @given(names(), st.dictionaries(names(), params()))
-    async def testSendPacketDeprecated(self, packet_type, fields):
-        with self.assertWarns(DeprecationWarning):
-            response = self.client.send(packet_type, fields)
         await self.assertMessages(response, packet_type, fields)
 
     @given(names(), names(), params(), names())
