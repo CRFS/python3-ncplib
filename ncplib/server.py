@@ -10,8 +10,8 @@ NCP server
 Overview
 --------
 
-Define a connection handler
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Defining a connection handler
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 A connection handler is a coroutine that starts whenever a new :doc:`client` connects to the server. The provided
 :class:`Connection` allows you to receive incoming NCP commands as :class:`Field` instances.
