@@ -4,8 +4,8 @@ Changelog
 .. currentmodule:: ncplib
 
 
-2.0.1
------
+Development
+-----------
 
 - Added :func:`run_app` function to :doc:`server`.
 
