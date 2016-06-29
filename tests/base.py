@@ -31,10 +31,3 @@ class AsyncTestCase(unittest.TestCase):
         super().setUp()
         self.loop = asyncio.new_event_loop()
         self.addCleanup(self.loop.close)
-
-    # Test running.
-
-    def execute_example(self, fn):
-        result = fn()
-        if asyncio.iscoroutine(result):
-            self.loop.run_until_complete(result)

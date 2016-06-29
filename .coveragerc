@@ -1,0 +1,17 @@
+[run]
+source =
+    ncplib
+    tests
+
+[report]
+exclude_lines =
+    # Have to re-enable the standard pragma
+    pragma: no cover
+
+    # Don't complain if tests don't hit defensive assertion code:
+    raise AssertionError
+    raise NotImplementedError
+    assert False
+
+show_missing = True
+skip_covered = True

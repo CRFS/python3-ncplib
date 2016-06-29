@@ -2,30 +2,22 @@ sudo: false
 language: python
 python:
   - 3.5
-env:
-  global:
-    - PYTHONASYNCIODEBUG=1
-    - PYTHONWARNINGS=default,ignore::PendingDeprecationWarning
-    - HYPOTHESIS_PROFILE=ci
-    # ANACONDA_TOKEN
-    - secure: "fFnozDXa9QBGjdFUPCLSC4sfa0yn+Zky3wT9pQV+bOMUyw3lHqR8TzQADGU3bYKULbbtk2d+6p9YogT71H7avPovhzfZ74gLUS5nS5abLGdtA3eLvn2zbt143PtsEZFFOfUqOLau7ZsD9HvMfp//X6q8AjBJghIkx2mHmcing0M="
 cache:
   directories:
     - $HOME/.cache/pip
-    - ./hypothesis
+env:
+  matrix:
+    - TOXENV=py35
+    - TOXENV=flake8
+    - TOXENV=docs
+  global:
+    - PYTHONASYNCIODEBUG=1
+    - PYTHONWARNINGS=default,ignore::PendingDeprecationWarning
+matrix:
+  fast_finish: true
 install:
-  - pip install -U pip
-  - pip install -e .[dev]
-script:
-  - coverage run -m unittest
-  - flake8 ncplib
-after_success:
-  - coverage report
-deploy:
-  provider: script
-  script: ./deploy.sh
-  on:
-    tags: true
+  - pip install 'tox>=2.3.1'
+script: tox
 notifications:
   on_success: never
   on_failure: change

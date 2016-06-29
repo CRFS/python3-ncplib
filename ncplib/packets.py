@@ -1,12 +1,8 @@
-import re
 from collections import namedtuple, OrderedDict
 from struct import Struct
 from ncplib.errors import DecodeError
 from ncplib.helpers import unix_to_datetime, datetime_to_unix_nano
 from ncplib.values import encode_value, decode_value
-
-
-RE_NAME = re.compile("^[A-Z]{3,4}$")
 
 
 # Packet structs.
@@ -29,16 +25,17 @@ PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 
 # Identifier encoding.
 
-def encode_name(value):
-    if RE_NAME.match(value) is None:  # pragma: no cover
-        raise ValueError("Invalid field/param name {}".format(value))
-    return value.encode(encoding="latin1", errors="ignore") + (b"\x00" * (len(value) % 4))
+def encode_identifier(value):
+    try:
+        return value.encode(encoding="latin1") + (b"\x00" * (len(value) % 4))
+    except UnicodeError:  # pragma: no cover
+        raise ValueError("Invalid identifier {}".format(value))
 
 
 # Identifier decoding.
 
-def decode_name(value):
-    return value.rstrip(b"\x00").decode(encoding="latin1", errors="ignore")
+def decode_identifier(value):
+    return value.rstrip(b"\x00").decode(encoding="latin1")
 
 
 # u24 size encoding.
@@ -62,7 +59,7 @@ def encode_params(params):
         size = PARAM_HEADER_STRUCT.size + len(encoded_value)
         padding_size = -size % 4
         buf.extend(PARAM_HEADER_STRUCT.pack(
-            encode_name(name),
+            encode_identifier(name),
             encode_u24_size(size + padding_size),
             type_id,
         ))
@@ -76,7 +73,7 @@ def encode_params(params):
 def decode_params(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
-        name = decode_name(name)
+        name = decode_identifier(name)
         size = decode_u24_size(u24_size)
         value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size])
         value = decode_value(type_id, value_encoded)
@@ -88,7 +85,7 @@ def decode_params(buf, offset, limit):
 
 # Field encoding.
 
-Field = namedtuple("Field", ("name", "id", "params",))
+FieldData = namedtuple("FieldData", ("name", "id", "params",))
 
 
 def encode_fields(fields):
@@ -96,7 +93,7 @@ def encode_fields(fields):
     for field in fields:
         encoded_params = encode_params(field.params)
         buf.extend(FIELD_HEADER_STRUCT.pack(
-            encode_name(field.name),
+            encode_identifier(field.name),
             encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
             0,  # Field type ID is ignored.
             field.id,
@@ -110,10 +107,10 @@ def encode_fields(fields):
 def decode_fields(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
-        name = decode_name(name)
+        name = decode_identifier(name)
         size = decode_u24_size(u24_size)
         params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
-        yield Field(
+        yield FieldData(
             name=name,
             id=field_id,
             params=params,
@@ -137,7 +134,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     timestamp_unix, timestamp_nano = datetime_to_unix_nano(timestamp)
     buf.extend(PACKET_HEADER_STRUCT.pack(
         PACKET_HEADER,
-        encode_name(packet_type),
+        encode_identifier(packet_type),
         (PACKET_HEADER_STRUCT.size + len(encoded_fields) + PACKET_FOOTER_STRUCT.size) // 4,
         packet_id,
         PACKET_FORMAT_ID,
@@ -156,9 +153,9 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     return buf
 
 
-# Packet decoding.
+# PacketData decoding.
 
-Packet = namedtuple("Packet", ("type", "id", "timestamp", "info", "fields",))
+PacketData = namedtuple("PacketData", ("type", "id", "timestamp", "info", "fields",))
 
 
 def decode_packet_cps(header_buf):
@@ -172,7 +169,7 @@ def decode_packet_cps(header_buf):
         nanotime,
         info,
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
-    packet_type = decode_name(packet_type)
+    packet_type = decode_identifier(packet_type)
     size = size_words * 4
     if header != PACKET_HEADER:  # pragma: no cover
         raise DecodeError("Invalid packet header {}".format(header))
@@ -194,7 +191,7 @@ def decode_packet_cps(header_buf):
         if footer != PACKET_FOOTER:  # pragma: no cover
             raise DecodeError("Invalid packet footer {}".format(footer))
         # All done!
-        return Packet(
+        return PacketData(
             type=packet_type,
             id=packet_id,
             timestamp=timestamp,
