@@ -1,4 +1,4 @@
-.. _continuous integration: https://travis-ci.org/crfs/python3-ncplib
+.. _continuous integration: https://travis-ci.org/CRFS/python3-ncplib
 .. _contributors: https://github.com/CRFS/python3-ncplib/graphs/contributors
 .. _CRFS: http://www.crfs.com/
 .. _documentation: https://ncplib.readthedocs.io/

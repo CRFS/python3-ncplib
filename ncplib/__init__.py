@@ -4,8 +4,8 @@ ncplib
 
 :term:`NCP` library for Python 3, developed by `CRFS`_.
 
-.. image:: https://travis-ci.org/crfs/python3-ncplib.svg?branch=master
-    :target: https://travis-ci.org/crfs/python3-ncplib
+.. image:: https://travis-ci.org/CRFS/python3-ncplib.svg?branch=master
+    :target: https://travis-ci.org/CRFS/python3-ncplib
 
 
 Features
