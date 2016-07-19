@@ -4,13 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
-Development
------------
+2.0.1 - 19/07/2016
+------------------
 
 - Added :func:`run_app` function to :doc:`server`.
 
 
-2.0.0 - 17/03/2014
+2.0.0 - 17/03/2016
 ------------------
 
 This release requires a minimum Python version of 3.5. This allows :mod:`ncplib` to take advantage of new native support for coroutines in Python 3.5. It also provides a new :func:`start_server` function for creating a :doc:`server`.
