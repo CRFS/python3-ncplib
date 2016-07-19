@@ -19,5 +19,5 @@ Resources
 ---------
 
 -   `Documentation <https://ncplib.readthedocs.io/>`_ is on Read the Docs.
--   `Issue tracking <https://github.com/crfs/python3-ncplib/issues>`_ and `source code <https://github.com/crfs/python3-ncplib>`_ is on GitHub.
+-   `Issue tracking <https://github.com/CRFS/python3-ncplib/issues>`_ and `source code <https://github.com/CRFS/python3-ncplib>`_ is on GitHub.
 -   `Continuous integration <https://travis-ci.org/crfs/python3-ncplib>`_ is on Travis CI.
