@@ -65,7 +65,7 @@ The return value of :meth:`Response.recv` is a :class:`Field`, representing a :t
 
 .. code:: python
 
-    print(field["PDAT"])
+    print(field["TSDC"])
 
 
 Advanced usage

@@ -25,10 +25,10 @@ Multiplex multiple parallel commands over a single :class:`Connection` using :mo
 
     import asyncio
 
-    lora_response = connection.send("DSPC", "LORA", GIDS=1)
+    time_response = connection.send("DSPC", "TIME", SAMP=1024, FCTR=1200)
     conf_response = connection.send("NODE", "CONF", CSTA=1)
 
-    lora_field, conf_field = await asyncio.gather(lora_response.recv(), conf_response.recv())
+    time_response, conf_field = await asyncio.gather(time_response.recv(), conf_response.recv())
 
 
 Spawning tasks
@@ -42,15 +42,15 @@ Spawn a concurrent task to handle long-running commands:
 
     loop = asyncio.get_event_loop()
 
-    async def handle_dspc_lora(field):
+    async def handle_dspc_time(field):
         field.send(ACKN=1)
         await asyncio.sleep(10)  # Simulate a blocking task.
-        field.send(ONID="foo")
+        field.send(TSDC=0, TIMM=1)
 
     for field in connection:
-        if field.packet_type == "DSPC" and field.name == "LORA":
+        if field.packet_type == "DSPC" and field.name == "TIME":
             # Spawn a concurrent task to avoid blocking the accept loop.
-            loop.create_task(handle_dspc_lora(field))
+            loop.create_task(handle_dspc_time(field))
         # Handle other field types here.
 
 
