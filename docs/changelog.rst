@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.2 - 01/09/2016
+------------------
+
+- Stripping trailing spaces from field names on decode, in addition to null bytes.
+
+
 2.0.1 - 19/07/2016
 ------------------
 

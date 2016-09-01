@@ -35,7 +35,7 @@ def encode_identifier(value):
 # Identifier decoding.
 
 def decode_identifier(value):
-    return value.rstrip(b"\x00").decode(encoding="latin1")
+    return value.rstrip(b" \x00").decode(encoding="latin1")
 
 
 # u24 size encoding.
