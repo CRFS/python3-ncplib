@@ -137,13 +137,6 @@ class Client(Connection):
         error_detail = field.get("ERRO", None)
         error_code = field.get("ERRC", None)
         if error_detail is not None or error_code is not None:
-            self.logger.error(
-                "Command error in %s %s '%s' (code %s)",
-                field.packet_type,
-                field.name,
-                error_detail,
-                error_code,
-            )
             raise CommandError(field, error_detail, error_code)
         # Ignore the rest of packet-level errors.
         return field.name != "ERRO"
@@ -152,13 +145,6 @@ class Client(Connection):
         warning_detail = field.get("WARN", None)
         warning_code = field.get("WARC", None)
         if warning_detail is not None or warning_code is not None:
-            self.logger.warning(
-                "Command warning in %s %s '%s' (code %s)",
-                field.packet_type,
-                field.name,
-                warning_detail,
-                warning_code,
-            )
             warnings.warn(CommandWarning(field, warning_detail, warning_code))
         # Ignore the rest of packet-level warnings.
         return field.name != "WARN"

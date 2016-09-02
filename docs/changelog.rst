@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.3 - 02/09/2016
+------------------
+
+- Not logging errors and warnings, since raising exceptions/warnings will do this automatically.
+
+
 2.0.2 - 01/09/2016
 ------------------
 

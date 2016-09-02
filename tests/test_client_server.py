@@ -68,7 +68,7 @@ class ClientServerTestCase(ClientServerBaseTestCase):
 
     async def testError(self):
         self.client.send("PACK", "FIEL", ERRO="Boom!", ERRC=10)
-        with self.assertLogs("ncplib.client", "ERROR"), self.assertRaises(CommandError) as cx:
+        with self.assertRaises(CommandError) as cx:
             await self.client.recv()
         self.assertEqual(cx.exception.field.packet_type, "PACK")
         self.assertEqual(cx.exception.field.name, "FIEL")
@@ -77,7 +77,7 @@ class ClientServerTestCase(ClientServerBaseTestCase):
 
     async def testWarning(self):
         self.client.send("PACK", "FIEL", WARN="Boom!", WARC=10)
-        with self.assertLogs("ncplib.client", "WARN"), self.assertWarns(CommandWarning) as cx:
+        with self.assertWarns(CommandWarning) as cx:
             await self.client.recv()
         self.assertEqual(cx.warning.field.packet_type, "PACK")
         self.assertEqual(cx.warning.field.name, "FIEL")
@@ -88,7 +88,7 @@ class ClientServerTestCase(ClientServerBaseTestCase):
         self.client._writer.write(b"Boom!" * 1024)
         self.client._writer.write_eof()
         with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertLogs("ncplib.client", "WARN"), self.assertRaises(CommandError) as cx:
+            with self.assertRaises(CommandError) as cx:
                 await self.client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "ERRO")
@@ -103,7 +103,7 @@ class ClientServerErrorTestCase(ClientServerBaseTestCase):
         raise Exception("BOOM")
 
     async def testServerError(self):
-        with self.assertLogs("ncplib.client", "ERROR"), self.assertLogs("ncplib.server", "ERROR"):
+        with self.assertLogs("ncplib.server", "ERROR"):
             with self.assertRaises(CommandError) as cx:
                 self.client.send("BOOM", "BOOM")
                 await self.client.recv()
