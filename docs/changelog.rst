@@ -4,8 +4,8 @@ Changelog
 .. currentmodule:: ncplib
 
 
-Development
------------
+2.0.4 - 05/09/2016
+------------------
 
 - Not validating packet format in incoming packets.
 
