@@ -174,9 +174,6 @@ def decode_packet_cps(header_buf):
     if header != PACKET_HEADER:  # pragma: no cover
         raise DecodeError("Invalid packet header {}".format(header))
     timestamp = unix_to_datetime(time, nanotime)
-    # Check the packet format.
-    if format_id != PACKET_FORMAT_ID:  # pragma: no cover
-        raise DecodeError("Unknown packet format {}".format(format_id))
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_STRUCT.size
 
