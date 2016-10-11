@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.5 - 11/10/2016
+------------------
+
+- Gracefully closing client connections on authentication error.
+
+
 2.0.4 - 05/09/2016
 ------------------
 
