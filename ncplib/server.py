@@ -167,7 +167,7 @@ class ServerHandler(ClosableContextMixin):
                     await self._handle_auth(client)
                 # Delegate to handler.
                 await self._client_connected(client)
-            except asyncio.CancelledError:  # pragma: no cover
+            except (asyncio.CancelledError, EOFError, OSError):  # pragma: no cover
                 pass
             except DecodeError as ex:
                 self.logger.warning("Decode error: {ex}".format(ex=ex))

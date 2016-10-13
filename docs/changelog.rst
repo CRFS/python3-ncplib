@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.8 - 13/10/2016
+------------------
+
+- Suppressing connection errors in NCP server.
+
+
 2.0.7 - 13/10/2016
 ------------------
 

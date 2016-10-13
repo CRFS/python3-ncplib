@@ -457,7 +457,7 @@ class Connection(ClosableContextMixin):
             try:
                 self._writer.write_eof()
                 self._writer.close()
-            except OSError:  # pragma: no cover
+            except (EOFError, OSError):  # pragma: no cover
                 # If the socket is already closed due to a connection error, we dont' really care.
                 pass
         self.logger.info("Closed")
