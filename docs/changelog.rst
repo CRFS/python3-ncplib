@@ -4,6 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.6 - 13/10/2016
+------------------
+
+- Handling more classes of client connection error gracefully.
+- Handling shutdown of broken connections gracefully.
+
+
 2.0.5 - 11/10/2016
 ------------------
 
