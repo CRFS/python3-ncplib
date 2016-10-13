@@ -481,5 +481,5 @@ class Connection(ClosableContextMixin):
         while True:
             try:
                 await self._recv_packet()
-            except (EOFError, DecodeError):
+            except (EOFError, OSError, DecodeError):
                 return

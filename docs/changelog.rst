@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.9 - 13/10/2016
+------------------
+
+- Handling more classes of shutdown errors.
+
+
 2.0.8 - 13/10/2016
 ------------------
 
