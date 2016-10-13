@@ -102,7 +102,7 @@ AUTH_ID = "python3-ncplib"
 class Client(Connection):
 
     def __init__(self, host, port, reader, writer, *, loop, auto_auth, auto_erro, auto_warn, auto_ackn):
-        super().__init__(host, port, reader, writer, None, logger, loop=loop)
+        super().__init__(host, port, reader, writer, logger, loop=loop)
         # PacketData handling.
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
