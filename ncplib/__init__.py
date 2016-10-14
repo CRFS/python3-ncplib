@@ -53,7 +53,7 @@ More information
 """
 
 
-__version__ = (2, 0, 10)
+__version__ = (2, 0, 11)
 
 
 from ncplib.client import *  # noqa
