@@ -159,7 +159,7 @@ class ServerHandler(ClosableContextMixin):
         connection.send("LINK", "SCON")
 
     async def _handle_client_connected(self, reader, writer):
-        remote_host, remote_port = writer.get_extra_info("peername")
+        remote_host, remote_port = writer.get_extra_info("peername")[:2]
         async with Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop) as client:
             try:
                 # Handle auth.

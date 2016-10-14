@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.10 - 14/10/2016
+------------------
+
+- Fixed IPv6 handling in NCP server.
+
+
 2.0.9 - 13/10/2016
 ------------------
 
