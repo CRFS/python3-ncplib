@@ -195,6 +195,5 @@ async def connect(host, port=9999, *, loop=None, auto_auth=True, auto_erro=True,
         await client._connect()
     except:
         client.close()
-        await client.wait_closed()
         raise
     return client

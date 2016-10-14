@@ -190,7 +190,7 @@ class ServerHandler(ClosableContextMixin):
 
     async def wait_closed(self):
         if self._handlers:
-            await asyncio.gather(*self._handlers, loop=self._loop, return_exceptions=True)
+            await asyncio.wait(self._handlers, loop=self._loop)
 
 
 class Server(ClosableContextMixin):

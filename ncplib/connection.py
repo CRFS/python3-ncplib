@@ -74,10 +74,10 @@ API reference
 
 import asyncio
 import logging
+import warnings
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
-from ncplib.errors import DecodeError
 from ncplib.packets import FieldData, encode_packet, decode_packet_cps, PACKET_HEADER_STRUCT
 
 
@@ -267,7 +267,6 @@ class ClosableContextMixin:
 
     async def __aexit__(self, exc_type, exc, tb):
         self.close()
-        await self.wait_closed()
 
 
 class Connection(ClosableContextMixin):
@@ -444,8 +443,6 @@ class Connection(ClosableContextMixin):
         """
         Closes the connection.
 
-        After calling this method, use :meth:`wait_closed` to wait for the connection to fully close.
-
         .. hint::
 
             If you use the connection as an *async context manager*, there's no need to call :meth:`Connection.close`
@@ -463,23 +460,4 @@ class Connection(ClosableContextMixin):
         self.logger.info("Closed")
 
     async def wait_closed(self):
-        """
-        Waits for the connection to fully close.
-
-        This method is a *coroutine*.
-
-        .. important::
-
-            Only call this method after first calling :meth:`close`.
-
-        .. hint::
-
-            If you use the connection as an *async context manager*, there's no need to call
-            :meth:`Connection.wait_closed` manually.
-        """
-        # Keep reading packets until we get an EOF, meaning that the connection was closed.
-        while True:
-            try:
-                await self._recv_packet()
-            except (EOFError, OSError, DecodeError):
-                return
+        warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v2.1", DeprecationWarning)

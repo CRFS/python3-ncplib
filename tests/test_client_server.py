@@ -1,16 +1,20 @@
 import asyncio
 from datetime import datetime
+from functools import partial
 from ncplib import connect, start_server, CommandError, CommandWarning
 from tests.base import AsyncTestCase
 
 
-async def success_server_handler(client):
+async def success_server_handler(client_disconnected_queue, client):
     async for field in client:
         field.send(ACKN=True)
         field.send(**field)
+    # Allow testing.
+    if client_disconnected_queue is not None:
+        client_disconnected_queue.put_nowait(None)
 
 
-async def error_server_handler(client):
+async def error_server_handler(client_disconnected_queue, client):
     raise Exception("BOOM")
 
 
@@ -18,13 +22,17 @@ class ClientServerTestCase(AsyncTestCase):
 
     # Helpers.
 
-    async def createServer(self, client_connected=success_server_handler, **kwargs):
-        server = await start_server(client_connected, "127.0.0.1", 0, loop=self.loop, **kwargs)
+    async def createServer(self, client_connected=success_server_handler, client_disconnected_queue=None, **kwargs):
+        server = await start_server(
+            partial(client_connected, client_disconnected_queue),
+            "127.0.0.1", 0,
+            loop=self.loop,
+            **kwargs,
+        )
         self.addCleanup(self.loop.run_until_complete, server.wait_closed())
         self.addCleanup(server.close)
         port = server.sockets[0].getsockname()[1]
         client = await connect("127.0.0.1", port, loop=self.loop)
-        self.addCleanup(self.loop.run_until_complete, client.wait_closed())
         self.addCleanup(client.close)
         return client
 
@@ -130,3 +138,15 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.field.name, "ERRO")
         self.assertEqual(cx.exception.detail, "Server error")
         self.assertEqual(cx.exception.code, 500)
+
+    async def testConnectionWaitClosedDeprecated(self):
+        client = await self.createServer()
+        client.close()
+        with self.assertWarns(DeprecationWarning):
+            await client.wait_closed()
+
+    async def testClientGracefulDisconnect(self):
+        client_disconnected_queue = asyncio.Queue(loop=self.loop)
+        client = await self.createServer(client_disconnected_queue=client_disconnected_queue)
+        client.close()
+        await client_disconnected_queue.get()

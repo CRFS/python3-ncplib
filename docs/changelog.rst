@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.11 - 14/10/2016
+-------------------
+
+- Deprecated ``wait_closed()`` on :class:`Connection`. It's now a no-op, and :meth:`Connection.close()` is sufficient to close the connection.
+
+
 2.0.10 - 14/10/2016
 -------------------
 
