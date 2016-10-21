@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.12 - 21/10/2016
+-------------------
+
+- :meth:`Connection.recv_field` and :meth:`Response.recv_field` now raise an exception on network error to match the behavior of :meth:`Connection.recv` and :meth:`Response.recv`. Previously they returned ``None`` on network error, an undocumented and undesired behavior.
+
+
 2.0.11 - 14/10/2016
 -------------------
 

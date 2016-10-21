@@ -244,7 +244,8 @@ class Response:
 
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
-        async for field in self:
+        while True:
+            field = await self.recv()
             if field.name == field_name:
                 return field
     recv_field.__doc__ += _recv_return_doc
@@ -379,7 +380,8 @@ class Connection(ClosableContextMixin):
         :param str packet_type: The packet type, must be a valid :term:`identifier`.
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
-        async for field in self:
+        while True:
+            field = await self.recv()
             if field.packet_type == packet_type and field.name == field_name:
                 return field
     recv_field.__doc__ += _recv_return_doc
