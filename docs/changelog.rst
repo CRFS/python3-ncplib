@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.13 - 21/10/2016
+-------------------
+
+- Using ``transport.is_closing()`` to detect lost connection, making ncplib compatible with ``uvloop``.
+
+
 2.0.12 - 21/10/2016
 -------------------
 
