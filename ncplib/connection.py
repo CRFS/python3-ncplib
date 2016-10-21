@@ -452,7 +452,7 @@ class Connection(ClosableContextMixin):
         """
         # The socket is removed by the transport on connection lost, but there doens't seem to be a documented
         # API for checking this before closing the transport.
-        if self.transport._sock is not None:
+        if not self.transport.is_closing():
             try:
                 self._writer.write_eof()
                 self._writer.close()
