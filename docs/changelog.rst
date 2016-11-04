@@ -8,6 +8,7 @@ Changelog
 -------------------
 
 - Added support for parsing known embedded footer bug from Axis nodes.
+- Fixed pending deprecation warning for legacy ``__aiter__`` protocol.
 
 
 2.0.13 - 21/10/2016

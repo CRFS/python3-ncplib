@@ -207,7 +207,7 @@ class Response:
         self._predicate = predicate
         self._field_list = field_list
 
-    async def __aiter__(self):  # pragma: no cover
+    def __aiter__(self):  # pragma: no cover
         return self
 
     async def __anext__(self):
@@ -358,7 +358,7 @@ class Connection(ClosableContextMixin):
 
     # Receiving fields.
 
-    async def __aiter__(self):
+    def __aiter__(self):
         return Response(self, lambda field: True, [])
 
     async def recv(self):
@@ -368,7 +368,7 @@ class Connection(ClosableContextMixin):
         This method is a *coroutine*.
 
         """
-        return await (await self.__aiter__()).recv()
+        return await self.__aiter__().recv()
     recv.__doc__ += _recv_return_doc
 
     async def recv_field(self, packet_type, field_name):
