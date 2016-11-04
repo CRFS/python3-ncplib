@@ -4,6 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.1.0 - Development
+-------------------
+
+- Client hostname used in :func:`connect` defaults to system hostname, instead of ``"python3-ncplib"``.
+- Added ``hostname`` parameter to :func:`connect`, to override default client hostname.
+
+
 2.0.14 - 04/11/2016
 -------------------
 

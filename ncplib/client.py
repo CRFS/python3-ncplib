@@ -82,6 +82,7 @@ API reference
 
 import asyncio
 import logging
+import platform
 import warnings
 from ncplib.connection import Connection
 from ncplib.errors import CommandError, CommandWarning
@@ -96,18 +97,15 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-AUTH_ID = "python3-ncplib"
-
-
 class Client(Connection):
 
-    def __init__(self, host, port, reader, writer, *, loop, auto_auth, auto_erro, auto_warn, auto_ackn):
+    def __init__(self, host, port, reader, writer, *, loop, auto_auth, auto_erro, auto_warn, auto_ackn, hostname):
         super().__init__(host, port, reader, writer, logger, loop=loop)
-        # PacketData handling.
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
+        self._hostname = hostname
 
     # Connection lifecycle.
 
@@ -115,11 +113,11 @@ class Client(Connection):
         # Read the initial LINK HELO packet.
         await self.recv_field("LINK", "HELO")
         # Send the connection request.
-        self.send("LINK", "CCRE", CIW=AUTH_ID)
+        self.send("LINK", "CCRE", CIW=self._hostname)
         # Read the connection response packet.
         await self.recv_field("LINK", "SCAR")
         # Send the auth request packet.
-        self.send("LINK", "CARE", CAR=AUTH_ID)
+        self.send("LINK", "CARE", CAR=self._hostname)
         # Read the auth response packet.
         await self.recv_field("LINK", "SCON")
 
@@ -162,7 +160,15 @@ class Client(Connection):
         )
 
 
-async def connect(host, port=9999, *, loop=None, auto_auth=True, auto_erro=True, auto_warn=True, auto_ackn=True):
+async def connect(
+    host, port=9999, *,
+    loop=None,
+    auto_auth=True,
+    auto_erro=True,
+    auto_warn=True,
+    auto_ackn=True,
+    hostname=None
+):
     """
     Connects to a :doc:`server`.
 
@@ -176,9 +182,12 @@ async def connect(host, port=9999, *, loop=None, auto_auth=True, auto_erro=True,
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
         :term:`NCP parameter`.
+    :param string hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
+        enabled. Defaults to the system hostname.
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
+    hostname = hostname or platform.node() or "python3-ncplib"
     reader, writer = await asyncio.open_connection(host, port, loop=loop)
     client = Client(
         host,
@@ -190,6 +199,7 @@ async def connect(host, port=9999, *, loop=None, auto_auth=True, auto_erro=True,
         auto_erro=auto_erro,
         auto_warn=auto_warn,
         auto_ackn=auto_ackn,
+        hostname=hostname,
     )
     try:
         await client._connect()
