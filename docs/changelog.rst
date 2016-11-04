@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.0.14 - 04/11/2016
+-------------------
+
+- Added support for parsing known embedded footer bug from Axis nodes.
+
+
 2.0.13 - 21/10/2016
 -------------------
 

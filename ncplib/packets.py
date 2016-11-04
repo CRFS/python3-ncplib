@@ -1,6 +1,7 @@
+import warnings
 from collections import namedtuple, OrderedDict
 from struct import Struct
-from ncplib.errors import DecodeError
+from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.helpers import unix_to_datetime, datetime_to_unix_nano
 from ncplib.values import encode_value, decode_value
 
@@ -21,6 +22,8 @@ PACKET_FOOTER_STRUCT = Struct("<I4s")
 PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
 
 PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
+
+PACKET_FOOTER_BUG = b"\x00\x00\x00\x00" + PACKET_FOOTER
 
 
 # Identifier encoding.
@@ -72,6 +75,12 @@ def encode_params(params):
 
 def decode_params(buf, offset, limit):
     while offset < limit:
+        # HACK: Work around a known garbled NCP packet problem from Axis nodes.
+        if buf[offset:offset+8] == PACKET_FOOTER_BUG:
+            warnings.warn(DecodeWarning("Encountered embedded packet footer bug"))
+            offset += 8
+            continue
+        # Keep decoding.
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
         name = decode_identifier(name)
         size = decode_u24_size(u24_size)

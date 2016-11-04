@@ -2,7 +2,7 @@ import unittest
 from array import array
 from datetime import datetime, timezone
 from ncplib.packets import decode_packet, encode_packet, PacketData, FieldData
-from ncplib import uint
+from ncplib import uint, DecodeWarning
 
 
 REAL_PACKET = (
@@ -10,6 +10,19 @@ REAL_PACKET = (
     b"\x00\x00\x00\x00\x00\x00\x00NCPV\x0f\x00\x00\x02Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__\x00"
     b"SEID\x04\x00\x00\x02monitor\x00MACA\x07\x00\x00\x0200:24:81:b4:49:34\x00\x00\x00\x00\x00\x00\x00\xaa\xbb"
     b"\xcc\xdd"
+)
+
+
+REAL_PACKET_EMBEDDED_FOOTER_BUG = (
+    b'\xdd\xcc\xbb\xaaSTAT[\x00\x00\x00\n\x00\x00\x00\x01\x00\x00\x00\xb5_\xe4U\x10\xd9A\x0c\t\x07\x00\x89'
+    b'STAT*\x00\x00\x00\x01\x00\x00\x00OCON\x03\x00\x00\x00\x03\x00\x00\x00CADD\x0b\x00\x00\x02127.0.0.1,'
+    b'127.0.0.1,192.168.1.28\x00\x00\x00\x00CIDS\x0c\x00\x00\x02rfeye000709,rfeye000709,python3-ncplib\x00'
+    b'IRGPS\x08\x00\x00\x02no GPS,no GPS,no GPS\x00"maELOC\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    b'\xaa\xbb\xcc\xddSGPS\'\x00\x00\x00\x01\x00\x00\x00LATI\x03\x00\x00\x00\x00\xf5\x0c\x03LONG\x03\x00'
+    b'\x00\x00`y\xfe\xffSTAT\x03\x00\x00\x00\x01\x00\x00\x00GFIX\x03\x00\x00\x00\x01\x00\x00\x00SATS\x03'
+    b'\x00\x00\x00\t\x00\x00\x00SPEE\x03\x00\x00\x00\x94O\x00\x00HEAD\x03\x00\x00\x00\xa0\x10\x00\x00ALTI'
+    b'\x03\x00\x00\x00(#\x00\x00UTIM\x03\x00\x00\x00\xb4_\xe4UTSTR\t\x00\x00\x02Mon Aug 31 14:07:48 2015'
+    b'\x00on"\x00\x00\x00\x00\xaa\xbb\xcc\xdd'
 )
 
 
@@ -76,6 +89,34 @@ class PacketDatasTestCase(unittest.TestCase):
                 "MACA": "00:24:81:b4:49:34",
             }),
         ])
+
+    def testDecodeEmbeddedPacketFooterBug(self):
+        with self.assertWarns(DecodeWarning) as cm:
+            self.assertEqual(
+                decode_packet(REAL_PACKET_EMBEDDED_FOOTER_BUG).fields,
+                [
+                    FieldData(name='STAT', id=1, params={
+                        'OCON': 3,
+                        'CADD': '127.0.0.1,127.0.0.1,192.168.1.28',
+                        'CIDS': 'rfeye000709,rfeye000709,python3-ncplib',
+                        'RGPS': 'no GPS,no GPS,no GPS',
+                        'ELOC': 0,
+                    }),
+                    FieldData(name='SGPS', id=1, params={
+                        'LATI': 51180800,
+                        'LONG': -100000,
+                        'STAT': 1,
+                        'GFIX': 1,
+                        'SATS': 9,
+                        'SPEE': 20372,
+                        'HEAD': 4256,
+                        'ALTI': 9000,
+                        'UTIM': 1441030068,
+                        'TSTR': 'Mon Aug 31 14:07:48 2015',
+                    }),
+                ],
+            )
+        self.assertEqual(str(cm.warning), "Encountered embedded packet footer bug")
 
     def testEncodeDecodeValue(self):
         packet_timestamp = datetime.now(tz=timezone.utc)
