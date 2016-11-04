@@ -236,16 +236,6 @@ class Response(AsyncIteratorMixin):
     recv_field.__doc__ += _recv_return_doc
 
 
-class ConnectionLoggerAdapter(logging.LoggerAdapter):
-
-    def process(self, msg, kwargs):
-        msg, kwargs = super().process(msg, kwargs)
-        return "ncp://{host}:{port} - {msg}".format(
-            msg=msg,
-            **self.extra
-        ), kwargs
-
-
 class ClosableContextMixin:
 
     async def __aenter__(self):
@@ -289,7 +279,7 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
         # Logging.
         self._host = host
         self._port = port
-        self.logger = ConnectionLoggerAdapter(logger, {
+        self.logger = logging.LoggerAdapter(logger, {
             "host": host,
             "port": port,
         })

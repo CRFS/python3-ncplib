@@ -11,6 +11,8 @@ Changelog
 - Added ``hostname`` parameter to :func:`connect`, to override default client hostname.
 - Removed multiplexing support for multiple :class:`Response` over a single connection. This must now be implemented in
   application code.
+- :class:`Connection` logger no longer formats the host and port in log messages. This must now be done using the
+  standard Python :class:`logging.Formatter`.
 
 
 2.0.14 - 04/11/2016
