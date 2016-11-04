@@ -9,6 +9,8 @@ Changelog
 
 - Client hostname used in :func:`connect` defaults to system hostname, instead of ``"python3-ncplib"``.
 - Added ``hostname`` parameter to :func:`connect`, to override default client hostname.
+- Removed multiplexing support for multiple :class:`Response` over a single connection. This must now be implemented in
+  application code.
 
 
 2.0.14 - 04/11/2016

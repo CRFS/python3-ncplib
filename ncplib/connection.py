@@ -16,21 +16,6 @@ Getting started
 -   :doc:`NCP server documentation <client>`.
 
 
-Multiplexing
-^^^^^^^^^^^^
-
-Multiplex multiple parallel commands over a single :class:`Connection` using :mod:`asyncio` task functions:
-
-.. code:: python
-
-    import asyncio
-
-    time_response = connection.send("DSPC", "TIME", SAMP=1024, FCTR=1200)
-    conf_response = connection.send("NODE", "CONF", CSTA=1)
-
-    time_response, conf_field = await asyncio.gather(time_response.recv(), conf_response.recv())
-
-
 Spawning tasks
 ^^^^^^^^^^^^^^
 
@@ -75,6 +60,7 @@ API reference
 import asyncio
 import logging
 import warnings
+from collections import deque
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
@@ -183,7 +169,19 @@ class Field(Mapping):
     send.__doc__ += _send_return_doc
 
 
-class Response:
+class AsyncIteratorMixin:
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return await self.recv()
+        except EOFError:
+            raise StopAsyncIteration
+
+
+class Response(AsyncIteratorMixin):
 
     """
     A response to a :term:`NCP packet`, returned by :meth:`Connection.send`, :meth:`Connection.send_packet` and
@@ -202,19 +200,9 @@ class Response:
         The *async for loop* will only terminate when the underlying connection closes.
     """
 
-    def __init__(self, connection, predicate, field_list):
+    def __init__(self, connection, predicate):
         self._connection = connection
         self._predicate = predicate
-        self._field_list = field_list
-
-    def __aiter__(self):  # pragma: no cover
-        return self
-
-    async def __anext__(self):
-        try:
-            return await self.recv()
-        except EOFError:
-            raise StopAsyncIteration
 
     async def recv(self):
         """
@@ -224,12 +212,9 @@ class Response:
 
         """
         while True:
-            while not self._field_list:
-                self._field_list = await self._connection._recv_packet()
-            while self._field_list:
-                field = self._field_list.pop(0)
-                if self._predicate(field):
-                    return field
+            field = await self._connection.recv()
+            if self._predicate(field):
+                return field
     recv.__doc__ += _recv_return_doc
 
     async def recv_field(self, field_name):
@@ -270,7 +255,7 @@ class ClosableContextMixin:
         self.close()
 
 
-class Connection(ClosableContextMixin):
+class Connection(AsyncIteratorMixin, ClosableContextMixin):
 
     """
     A connection between a :doc:`client` and a :doc:`server`.
@@ -310,13 +295,12 @@ class Connection(ClosableContextMixin):
         })
         # Packet reading.
         self._reader = reader
+        self._field_buffer = deque()
         # Packet writing.
         self._writer = writer
         self._id_gen = 0
         # Asyncio.
         self._loop = loop or asyncio.get_event_loop()
-        # Multiplexing.
-        self._packet_receiver = None
 
     @property
     def transport(self):
@@ -334,32 +318,7 @@ class Connection(ClosableContextMixin):
     def _field_predicate(self, field):
         return True
 
-    async def _recv_packet_primary(self):
-        try:
-            # Decode the packet.
-            header_buf = await self._reader.readexactly(PACKET_HEADER_STRUCT.size)
-            size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-            body_buf = await self._reader.readexactly(size_remaining)
-            packet = decode_packet_body(body_buf)
-            self.logger.debug("Received packet %s %s", packet.type, packet.fields)
-            # All done!
-            return list(filter(self._field_predicate, (
-                Field(self, packet, field)
-                for field
-                in packet.fields
-            )))
-        finally:
-            self._packet_receiver = None
-
-    async def _recv_packet(self):
-        if self._packet_receiver is None:
-            self._packet_receiver = self._loop.create_task(self._recv_packet_primary())
-        return (await asyncio.shield(self._packet_receiver, loop=self._loop))
-
     # Receiving fields.
-
-    def __aiter__(self):
-        return Response(self, lambda field: True, [])
 
     async def recv(self):
         """
@@ -368,7 +327,21 @@ class Connection(ClosableContextMixin):
         This method is a *coroutine*.
 
         """
-        return await self.__aiter__().recv()
+        while True:
+            # Return buffered fields.
+            if self._field_buffer:
+                return self._field_buffer.popleft()
+            # Read some more fields.
+            header_buf = await self._reader.readexactly(PACKET_HEADER_STRUCT.size)
+            size_remaining, decode_packet_body = decode_packet_cps(header_buf)
+            body_buf = await self._reader.readexactly(size_remaining)
+            packet = decode_packet_body(body_buf)
+            self.logger.debug("Received packet %s %s", packet.type, packet.fields)
+            self._field_buffer.extend(filter(self._field_predicate, (
+                Field(self, packet, field)
+                for field
+                in packet.fields
+            )))
     recv.__doc__ += _recv_return_doc
 
     async def recv_field(self, packet_type, field_name):
@@ -401,7 +374,7 @@ class Connection(ClosableContextMixin):
         return Response(self, lambda field: (
             field.packet_type == packet_type and
             (field.name, field.id) in expected_fields
-        ), [])
+        ))
 
     # Sending fields.
 
