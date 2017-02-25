@@ -151,36 +151,41 @@ class ServerHandler(ClosableContextMixin):
         # Active handlers.
         self._handlers = set()
 
-    async def _handle_auth(self, connection):
+    @asyncio.coroutine
+    def _handle_auth(self, connection):
         connection.send("LINK", "HELO")
-        await connection.recv_field("LINK", "CCRE")
+        yield from connection.recv_field("LINK", "CCRE")
         connection.send("LINK", "SCAR")
-        await connection.recv_field("LINK", "CARE")
+        yield from connection.recv_field("LINK", "CARE")
         connection.send("LINK", "SCON")
 
-    async def _handle_client_connected(self, reader, writer):
+    @asyncio.coroutine
+    def _handle_client_connected(self, reader, writer):
         remote_host, remote_port = writer.get_extra_info("peername")[:2]
-        async with Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop) as client:
-            try:
-                # Handle auth.
-                if self._auto_auth:
-                    await self._handle_auth(client)
-                # Delegate to handler.
-                await self._client_connected(client)
-            except (asyncio.CancelledError, EOFError, OSError):  # pragma: no cover
-                pass
-            except DecodeError as ex:
-                self.logger.warning("Decode error: {ex}".format(ex=ex))
-                client.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-            except:
-                self.logger.exception("Unexpected error")
-                client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+        client = Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop)
+        try:
+            # Handle auth.
+            if self._auto_auth:
+                yield from self._handle_auth(client)
+            # Delegate to handler.
+            yield from self._client_connected(client)
+        except (asyncio.CancelledError, EOFError, OSError):  # pragma: no cover
+            pass
+        except DecodeError as ex:
+            self.logger.warning("Decode error: {ex}".format(ex=ex))
+            client.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+        except:
+            self.logger.exception("Unexpected error")
+            client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+        finally:
+            client.close()
 
-    async def __call__(self, reader, writer):
+    @asyncio.coroutine
+    def __call__(self, reader, writer):
         handler = self._loop.create_task(self._handle_client_connected(reader, writer))
         self._handlers.add(handler)
         try:
-            await handler
+            yield from handler
         finally:
             self._handlers.remove(handler)
 
@@ -188,9 +193,10 @@ class ServerHandler(ClosableContextMixin):
         for handler in self._handlers:
             handler.cancel()
 
-    async def wait_closed(self):
+    @asyncio.coroutine
+    def wait_closed(self):
         if self._handlers:
-            await asyncio.wait(self._handlers, loop=self._loop)
+            yield from asyncio.wait(self._handlers, loop=self._loop)
 
 
 class Server(ClosableContextMixin):
@@ -234,7 +240,8 @@ class Server(ClosableContextMixin):
         self._handler.close()
         self._server.close()
 
-    async def wait_closed(self):
+    @asyncio.coroutine
+    def wait_closed(self):
         """
         Waits for the server to fully shut down.
 
@@ -249,8 +256,8 @@ class Server(ClosableContextMixin):
             If you use the server as an *async context manager*, there's no need to call
             :meth:`Server.wait_closed` manually.
         """
-        await self._handler.wait_closed()
-        await self._server.wait_closed()
+        yield from self._handler.wait_closed()
+        yield from self._server.wait_closed()
 
 
 DEFAULT_HOST = "0.0.0.0"
@@ -267,7 +274,8 @@ _start_server_args = """:param callable client_connected: A coroutine function t
     """
 
 
-async def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_auth=True):
+@asyncio.coroutine
+def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_auth=True):
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
@@ -277,8 +285,10 @@ async def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *
     """
     loop = loop or asyncio.get_event_loop()
     handler = ServerHandler(client_connected, loop=loop, auto_auth=auto_auth)
-    server = await asyncio.start_server(handler, host, port, loop=loop)
+    server = yield from asyncio.start_server(handler, host, port, loop=loop)
     return Server(handler, server)
+
+
 start_server.__doc__ += _start_server_args + """:return: The created :class:`Server`.
     :rtype: Server
     """
@@ -300,4 +310,6 @@ def run_app(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None
     finally:
         server.close()
         loop.run_until_complete(server.wait_closed())
+
+
 run_app.__doc__ += _start_server_args

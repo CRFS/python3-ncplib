@@ -1,22 +1,18 @@
-sudo: false
+dist: trusty
 language: python
 python:
-  - 3.5
-cache:
-  directories:
-    - $HOME/.cache/pip
+- 3.5
+sudo: false
 env:
-  matrix:
-    - TOXENV=py35
-    - TOXENV=flake8
-    - TOXENV=docs
   global:
-    - PYTHONASYNCIODEBUG=1
     - PYTHONWARNINGS=default,ignore::PendingDeprecationWarning
-matrix:
-  fast_finish: true
+    - PYTHONASYNCIODEBUG=1
+before_install:
+- rm -rf ~/.pyenv
+- curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-installer | bash
+- cat .python-version | xargs -n 1 pyenv install
 install:
-  - pip install 'tox>=2.3.1'
+- pip install 'tox>=2.3.1'
 script: tox
 notifications:
   on_success: never

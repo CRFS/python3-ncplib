@@ -174,9 +174,10 @@ class AsyncIteratorMixin:
     def __aiter__(self):
         return self
 
-    async def __anext__(self):
+    @asyncio.coroutine
+    def __anext__(self):
         try:
-            return await self.recv()
+            return (yield from self.recv())
         except EOFError:
             raise StopAsyncIteration
 
@@ -204,7 +205,8 @@ class Response(AsyncIteratorMixin):
         self._connection = connection
         self._predicate = predicate
 
-    async def recv(self):
+    @asyncio.coroutine
+    def recv(self):
         """
         Waits for the next :class:`Field` received in reply to the sent :term:`NCP packet`.
 
@@ -212,12 +214,13 @@ class Response(AsyncIteratorMixin):
 
         """
         while True:
-            field = await self._connection.recv()
+            field = yield from self._connection.recv()
             if self._predicate(field):
                 return field
     recv.__doc__ += _recv_return_doc
 
-    async def recv_field(self, field_name):
+    @asyncio.coroutine
+    def recv_field(self, field_name):
         """
         Waits for the next matching :class:`Field` received in reply to the sent :term:`NCP packet`.
 
@@ -230,7 +233,7 @@ class Response(AsyncIteratorMixin):
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
         while True:
-            field = await self.recv()
+            field = yield from self.recv()
             if field.name == field_name:
                 return field
     recv_field.__doc__ += _recv_return_doc
@@ -238,10 +241,12 @@ class Response(AsyncIteratorMixin):
 
 class ClosableContextMixin:
 
-    async def __aenter__(self):
+    @asyncio.coroutine
+    def __aenter__(self):
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc, tb):
         self.close()
 
 
@@ -310,7 +315,8 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
 
     # Receiving fields.
 
-    async def recv(self):
+    @asyncio.coroutine
+    def recv(self):
         """
         Waits for the next :class:`Field` received by the connection.
 
@@ -322,9 +328,9 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
             if self._field_buffer:
                 return self._field_buffer.popleft()
             # Read some more fields.
-            header_buf = await self._reader.readexactly(PACKET_HEADER_STRUCT.size)
+            header_buf = yield from self._reader.readexactly(PACKET_HEADER_STRUCT.size)
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-            body_buf = await self._reader.readexactly(size_remaining)
+            body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
             self.logger.debug("Received packet %s %s", packet.type, packet.fields)
             self._field_buffer.extend(filter(self._field_predicate, (
@@ -334,7 +340,8 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
             )))
     recv.__doc__ += _recv_return_doc
 
-    async def recv_field(self, packet_type, field_name):
+    @asyncio.coroutine
+    def recv_field(self, packet_type, field_name):
         """
         Waits for the next matching :class:`Field` received by the connection.
 
@@ -344,7 +351,7 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
         while True:
-            field = await self.recv()
+            field = yield from self.recv()
             if field.packet_type == packet_type and field.name == field_name:
                 return field
     recv_field.__doc__ += _recv_return_doc
@@ -413,9 +420,8 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
             If you use the connection as an *async context manager*, there's no need to call :meth:`Connection.close`
             manually.
         """
-        # The socket is removed by the transport on connection lost, but there doens't seem to be a documented
-        # API for checking this before closing the transport.
-        if not self.transport.is_closing():
+        # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
+        if not self.transport._closing:
             try:
                 self._writer.write_eof()
                 self._writer.close()
@@ -424,5 +430,6 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
                 pass
         self.logger.info("Closed")
 
-    async def wait_closed(self):
+    @asyncio.coroutine
+    def wait_closed(self):
         warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v2.1", DeprecationWarning)

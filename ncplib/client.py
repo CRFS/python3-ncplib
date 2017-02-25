@@ -109,22 +109,24 @@ class Client(Connection):
 
     # Connection lifecycle.
 
-    async def _handle_auth(self):
+    @asyncio.coroutine
+    def _handle_auth(self):
         # Read the initial LINK HELO packet.
-        await self.recv_field("LINK", "HELO")
+        yield from self.recv_field("LINK", "HELO")
         # Send the connection request.
         self.send("LINK", "CCRE", CIW=self._hostname)
         # Read the connection response packet.
-        await self.recv_field("LINK", "SCAR")
+        yield from self.recv_field("LINK", "SCAR")
         # Send the auth request packet.
         self.send("LINK", "CARE", CAR=self._hostname)
         # Read the auth response packet.
-        await self.recv_field("LINK", "SCON")
+        yield from self.recv_field("LINK", "SCON")
 
-    async def _connect(self):
+    @asyncio.coroutine
+    def _connect(self):
         # Auto-authenticate.
         if self._auto_auth:
-            await self._handle_auth()
+            yield from self._handle_auth()
         # All done.
         self.logger.info("Connected")
 
@@ -160,7 +162,8 @@ class Client(Connection):
         )
 
 
-async def connect(
+@asyncio.coroutine
+def connect(
     host, port=9999, *,
     loop=None,
     auto_auth=True,
@@ -188,7 +191,7 @@ async def connect(
     :rtype: Connection
     """
     hostname = hostname or platform.node() or "python3-ncplib"
-    reader, writer = await asyncio.open_connection(host, port, loop=loop)
+    reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
     client = Client(
         host,
         port,
@@ -202,7 +205,7 @@ async def connect(
         hostname=hostname,
     )
     try:
-        await client._connect()
+        yield from client._connect()
     except:
         client.close()
         raise
