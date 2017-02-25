@@ -181,7 +181,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
                     return
             # Delegate to handler.
             yield from self._client_connected(client)
-        except (asyncio.CancelledError, EOFError, OSError):  # pragma: no cover
+        except (EOFError, OSError):  # pragma: no cover
             pass
         except DecodeError as ex:
             self.logger.warning("Decode error: {ex}".format(ex=ex))
@@ -285,6 +285,8 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
     loop = loop or asyncio.get_event_loop()
     handler = ServerHandler(client_connected, loop=loop, auto_auth=auto_auth, auto_link=auto_link)
     server = yield from asyncio.start_server(handler, host, port, loop=loop)
+    for socket in server.sockets:
+        logger.debug("Listening on %s:%s", *socket.getsockname()[:2])
     return Server(handler, server)
 
 

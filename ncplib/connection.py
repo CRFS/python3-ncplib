@@ -160,7 +160,7 @@ class Field(Mapping):
         """
         Sends a :term:`NCP packet` containing a single field in reply to this field.
 
-        :param \**params: Keyword arguments, one per :term:`NCP parameter`. Each parameter name should be a valid
+        :param \\**params: Keyword arguments, one per :term:`NCP parameter`. Each parameter name should be a valid
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
@@ -363,13 +363,14 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         while True:
             # Return buffered fields.
             if self._field_buffer:
-                return self._field_buffer.popleft()
+                field = self._field_buffer.popleft()
+                self.logger.debug("Received field %s %s", field.packet_type, field.name)
+                return field
             # Read some more fields.
             header_buf = yield from self._reader.readexactly(PACKET_HEADER_STRUCT.size)
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
-            self.logger.debug("Received packet %s %s", packet.type, packet.fields)
             self._field_buffer.extend(filter(self._field_predicate, (
                 Field(self, packet, field)
                 for field
@@ -421,7 +422,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             Prefer :meth:`send` unless you need to send multiple fields in a single packet.
 
         :param str packet_type: The packet type, must be a valid :term:`identifier`.
-        :param \**fields: Keyword arguments, one per field. Each field name should be a valid :term:`identifier`, and
+        :param \\**fields: Keyword arguments, one per field. Each field name should be a valid :term:`identifier`, and
             the field value should be a :class:`dict` of parameter names mapped to parameter values. Each parameter name
             should be a valid :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
@@ -439,7 +440,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
         :param str packet_type: The packet type, must be a valid :term:`identifier`.
         :param str field_name: The field name, must be a valid :term:`identifier`.
-        :param \**params: Keyword arguments, one per :term:`NCP parameter`. Each parameter name should be a valid
+        :param \\**params: Keyword arguments, one per :term:`NCP parameter`. Each parameter name should be a valid
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
