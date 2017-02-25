@@ -159,7 +159,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             connection.hostname = str(field["CIW"])
         except KeyError:
             self.logger.warning("Invalid NCP authentication")
-            field.send(ERRO="CIW - This field is required.", ERRC=400)
+            field.send(ERRO="CIW - This field is required", ERRC=401)
             return False
         # Complete authentication.
         connection.send("LINK", "SCAR")

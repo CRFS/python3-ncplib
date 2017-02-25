@@ -8,6 +8,7 @@ from tests.base import AsyncTestCase
 
 @asyncio.coroutine
 def success_server_handler(client_disconnected_queue, client):
+    assert client.hostname == "ncplib-test"
     client_iter = client.__aiter__()
     try:
         while True:
@@ -42,17 +43,27 @@ class ClientServerTestCase(AsyncTestCase):
     # Helpers.
 
     @asyncio.coroutine
-    def createServer(self, client_connected=success_server_handler, client_disconnected_queue=None, **kwargs):
+    def createServer(
+        self, client_connected=success_server_handler, *,
+        client_disconnected_queue=None,
+        server_auto_auth=True,
+        client_auto_auth=True
+    ):
         server = yield from start_server(
             partial(client_connected, client_disconnected_queue),
             "127.0.0.1", 0,
             loop=self.loop,
-            **kwargs
+            auto_auth=server_auto_auth,
         )
         yield from server.__aenter__()
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
         port = server.sockets[0].getsockname()[1]
-        client = yield from connect("127.0.0.1", port, loop=self.loop)
+        client = yield from connect(
+            "127.0.0.1", port,
+            loop=self.loop,
+            auto_auth=client_auto_auth,
+            hostname="ncplib-test",
+        )
         yield from client.__aenter__()
         self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))
         return client
@@ -139,6 +150,19 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.warning.code, 10)
 
     @asyncio.coroutine
+    def testAuthenticationError(self):
+        client = yield from self.createServer(client_auto_auth=False)
+        yield from client.recv_field("LINK", "HELO")
+        client.send("LINK", "CCRE")
+        with self.assertLogs("ncplib.server", "WARN"):
+            with self.assertRaises(CommandError) as cx:
+                yield from client.recv()
+        self.assertEqual(cx.exception.field.packet_type, "LINK")
+        self.assertEqual(cx.exception.field.name, "CCRE")
+        self.assertEqual(cx.exception.detail, "CIW - This field is required")
+        self.assertEqual(cx.exception.code, 401)
+
+    @asyncio.coroutine
     def testEncodeError(self):
         client = yield from self.createServer()
         client._writer.write(b"Boom!" * 1024)
@@ -166,7 +190,7 @@ class ClientServerTestCase(AsyncTestCase):
     def testServerConnectionError(self):
         with self.assertLogs("ncplib.server", "ERROR"):
             with self.assertRaises(CommandError) as cx:
-                yield from self.createServer(error_server_handler, auto_auth=False)
+                yield from self.createServer(error_server_handler, server_auto_auth=False)
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "ERRO")
         self.assertEqual(cx.exception.detail, "Server error")
