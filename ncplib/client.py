@@ -130,7 +130,7 @@ class Client(Connection):
         if self._auto_auth:
             yield from self._handle_auth()
         # All done.
-        self.logger.info("Connected")
+        self.logger.debug("Connected")
 
     # Receiving fields.
 

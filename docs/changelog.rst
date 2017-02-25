@@ -11,6 +11,7 @@ Changelog
 - Added :meth:`Connection.wait_closed`.
 - Added ``auto_link`` parameter to :func:`connect`, :func:`start_server` and :func:`run_app`.
 - Added :attr:`Connection.hostname`.
+- Connection open and close log messages demoted from ``INFO`` to ``DEBUG`` level.
 
 
 2.1.0 - 04/11/2016

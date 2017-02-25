@@ -468,7 +468,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             except (EOFError, OSError):  # pragma: no cover
                 # If the socket is already closed due to a connection error, we dont' really care.
                 pass
-        self.logger.info("Closed")
+        self.logger.debug("Closed")
 
     def wait_closed(self):
         """
