@@ -315,6 +315,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             "host": host,
             "port": port,
         })
+        self.logger.debug("Connected")
         # Packet reading.
         self._reader = reader
         self._field_buffer = deque()
@@ -342,7 +343,6 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
         while not self.transport._closing:
             self.send_packet("LINK")
-            self.logger.debug("Sent LINK packet")
             yield from asyncio.sleep(3, loop=self._loop)
 
     # Packet reading.
@@ -371,6 +371,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
+            self.logger.debug("Received packet %s", packet.type)
             self._field_buffer.extend(filter(self._field_predicate, (
                 Field(self, packet, field)
                 for field
@@ -399,7 +400,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     def _send_packet(self, packet_type, fields):
         encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
-        self.logger.debug("Sent packet %s %s", packet_type, fields)
+        self.logger.debug("Sent packet %s", packet_type)
         # Create an iterator of response fields.
         expected_fields = frozenset(
             (field.name, field.id)

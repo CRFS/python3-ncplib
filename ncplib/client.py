@@ -129,8 +129,6 @@ class Client(Connection):
         # Auto-authenticate.
         if self._auto_auth:
             yield from self._handle_auth()
-        # All done.
-        self.logger.debug("Connected")
 
     # Receiving fields.
 
