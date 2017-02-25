@@ -181,10 +181,12 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
                     return
             # Delegate to handler.
             yield from self._client_connected(client)
+        except asyncio.CancelledError:  # pragma: no cover
+            raise
         except (EOFError, OSError):  # pragma: no cover
             pass
         except DecodeError as ex:
-            self.logger.warning("Decode error: {ex}".format(ex=ex))
+            self.logger.warning("Connection error: {ex}".format(ex=ex))
             client.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
         except:
             self.logger.exception("Unexpected error")
