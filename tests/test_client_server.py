@@ -1,23 +1,35 @@
 import asyncio
 from datetime import datetime
 from functools import partial
+import sys
 from ncplib import connect, start_server, CommandError, CommandWarning
 from tests.base import AsyncTestCase
 
 
 @asyncio.coroutine
 def success_server_handler(client_disconnected_queue, client):
-    while True:
-        try:
-            field = yield from client.recv()
-        except EOFError:
-            # Allow testing.
-            if client_disconnected_queue is not None:
-                client_disconnected_queue.put_nowait(None)
-            break
-        else:
+    client_iter = client.__aiter__()
+    try:
+        while True:
+            # Use the new async iteration protocol.
+            if sys.version_info >= (3, 5):
+                try:
+                    field = yield from client_iter.__anext__()
+                except StopAsyncIteration:
+                    break
+            else:
+                # Use the old recv() protocol.
+                try:
+                    field = yield from client.recv()
+                except EOFError:
+                    break
+            # Send a response.
             field.send(ACKN=True)
             field.send(**field)
+    finally:
+        # Allow testing.
+        if client_disconnected_queue is not None:
+            client_disconnected_queue.put_nowait(None)
 
 
 @asyncio.coroutine
@@ -37,12 +49,12 @@ class ClientServerTestCase(AsyncTestCase):
             loop=self.loop,
             **kwargs
         )
-        self.addCleanup(self.loop.run_until_complete, server.wait_closed())
-        self.addCleanup(server.close)
+        yield from server.__aenter__()
+        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
         port = server.sockets[0].getsockname()[1]
         client = yield from connect("127.0.0.1", port, loop=self.loop)
-        self.addCleanup(self.loop.run_until_complete, client.wait_closed())
-        self.addCleanup(client.close)
+        yield from client.__aenter__()
+        self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))
         return client
 
     @asyncio.coroutine
@@ -164,6 +176,5 @@ class ClientServerTestCase(AsyncTestCase):
     def testClientGracefulDisconnect(self):
         client_disconnected_queue = asyncio.Queue(loop=self.loop)
         client = yield from self.createServer(client_disconnected_queue=client_disconnected_queue)
-        client.close()
-        yield from client.wait_closed()
+        yield from client.__aexit__(None, None, None)
         yield from client_disconnected_queue.get()
