@@ -4,6 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.2.0 - Development
+-------------------
+
+- Added Python 3.4 support.
+
+
+
 2.1.0 - 04/11/2016
 ------------------
 
