@@ -99,8 +99,11 @@ logger = logging.getLogger(__name__)
 
 class Client(Connection):
 
-    def __init__(self, host, port, reader, writer, *, loop, auto_auth, auto_erro, auto_warn, auto_ackn, hostname):
-        super().__init__(host, port, reader, writer, logger, loop=loop)
+    def __init__(
+        self, host, port, reader, writer, *,
+        loop, auto_auth, auto_link, auto_erro, auto_warn, auto_ackn, hostname
+    ):
+        super().__init__(host, port, reader, writer, logger, loop=loop, auto_link=auto_link)
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
@@ -167,6 +170,7 @@ def connect(
     host, port=9999, *,
     loop=None,
     auto_auth=True,
+    auto_link=True,
     auto_erro=True,
     auto_warn=True,
     auto_ackn=True,
@@ -181,6 +185,7 @@ def connect(
     :param int port: The port number of the :doc:`server`.
     :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
+    :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
@@ -199,6 +204,7 @@ def connect(
         writer,
         loop=loop,
         auto_auth=auto_auth,
+        auto_link=auto_link,
         auto_erro=auto_erro,
         auto_warn=auto_warn,
         auto_ackn=auto_ackn,
@@ -208,5 +214,6 @@ def connect(
         yield from client._connect()
     except:
         client.close()
+        yield from client.wait_closed()
         raise
     return client

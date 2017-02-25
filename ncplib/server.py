@@ -125,7 +125,7 @@ API reference
 
 import asyncio
 import logging
-from ncplib.connection import Connection, ClosableContextMixin
+from ncplib.connection import AsyncHandlerMixin, ClosableContextMixin, Connection
 from ncplib.errors import DecodeError
 
 
@@ -139,17 +139,16 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-class ServerHandler(ClosableContextMixin):
+class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
 
-    def __init__(self, client_connected, *, loop, auto_auth):
+    def __init__(self, client_connected, *, loop, auto_auth, auto_link):
+        super().__init__(loop=loop)
         self._client_connected = client_connected
-        self._loop = loop or asyncio.get_event_loop()
         # Logging.
         self.logger = logger
         # PacketData handling.
         self._auto_auth = auto_auth
-        # Active handlers.
-        self._handlers = set()
+        self._auto_link = auto_link
 
     @asyncio.coroutine
     def _handle_auth(self, connection):
@@ -162,7 +161,10 @@ class ServerHandler(ClosableContextMixin):
     @asyncio.coroutine
     def _handle_client_connected(self, reader, writer):
         remote_host, remote_port = writer.get_extra_info("peername")[:2]
-        client = Connection(remote_host, remote_port, reader, writer, self.logger, loop=self._loop)
+        client = Connection(
+            remote_host, remote_port, reader, writer, self.logger,
+            loop=self._loop, auto_link=self._auto_link,
+        )
         try:
             # Handle auth.
             if self._auto_auth:
@@ -179,24 +181,10 @@ class ServerHandler(ClosableContextMixin):
             client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
             client.close()
+            yield from client.wait_closed()
 
-    @asyncio.coroutine
     def __call__(self, reader, writer):
-        handler = self._loop.create_task(self._handle_client_connected(reader, writer))
-        self._handlers.add(handler)
-        try:
-            yield from handler
-        finally:
-            self._handlers.remove(handler)
-
-    def close(self):
-        for handler in self._handlers:
-            handler.cancel()
-
-    @asyncio.coroutine
-    def wait_closed(self):
-        if self._handlers:
-            yield from asyncio.wait(self._handlers, loop=self._loop)
+        return self.create_handler(self._handle_client_connected(reader, writer))
 
 
 class Server(ClosableContextMixin):
@@ -271,11 +259,12 @@ _start_server_args = """:param callable client_connected: A coroutine function t
     :param int port: The port to bind the server to.
     :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
+    :param bool auto_link: Automatically send periodic LINK packets over the connection.
     """
 
 
 @asyncio.coroutine
-def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_auth=True):
+def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_auth=True, auto_link=True):
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
@@ -284,7 +273,7 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
 
     """
     loop = loop or asyncio.get_event_loop()
-    handler = ServerHandler(client_connected, loop=loop, auto_auth=auto_auth)
+    handler = ServerHandler(client_connected, loop=loop, auto_auth=auto_auth, auto_link=auto_link)
     server = yield from asyncio.start_server(handler, host, port, loop=loop)
     return Server(handler, server)
 
@@ -294,7 +283,10 @@ start_server.__doc__ += _start_server_args + """:return: The created :class:`Ser
     """
 
 
-def run_app(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_auth=True):  # pragma: no cover
+def run_app(
+    client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *,
+    loop=None, auto_auth=True, auto_link=True
+):  # pragma: no cover
     """
     Runs a new :doc:`server` on the given host and port.
 
@@ -302,7 +294,10 @@ def run_app(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None
 
     """
     loop = loop or asyncio.get_event_loop()
-    server = loop.run_until_complete(start_server(client_connected, host, port, loop=loop, auto_auth=auto_auth))
+    server = loop.run_until_complete(start_server(
+        client_connected, host, port,
+        loop=loop, auto_auth=auto_auth, auto_link=auto_link,
+    ))
     try:
         loop.run_forever()
     except KeyboardInterrupt:

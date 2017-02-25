@@ -59,7 +59,6 @@ API reference
 
 import asyncio
 import logging
-import warnings
 from collections import deque
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -169,6 +168,28 @@ class Field(Mapping):
     send.__doc__ += _send_return_doc
 
 
+class AsyncHandlerMixin:
+
+    def __init__(self, *, loop):
+        self._loop = loop or asyncio.get_event_loop()
+        self._handlers = set()
+
+    def create_handler(self, coro):
+        handler = self._loop.create_task(coro)
+        self._handlers.add(handler)
+        handler.add_done_callback(self._handlers.remove)
+        return handler
+
+    def close(self):
+        for handler in self._handlers:
+            handler.cancel()
+
+    @asyncio.coroutine
+    def wait_closed(self):
+        if self._handlers:
+            yield from asyncio.wait(self._handlers, loop=self._loop)
+
+
 class AsyncIteratorMixin:
 
     def __aiter__(self):
@@ -248,9 +269,10 @@ class ClosableContextMixin:
     @asyncio.coroutine
     def __aexit__(self, exc_type, exc, tb):
         self.close()
+        yield from self.wait_closed()
 
 
-class Connection(AsyncIteratorMixin, ClosableContextMixin):
+class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
     """
     A connection between a :doc:`client` and a :doc:`server`.
@@ -280,7 +302,8 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
         the connection.
     """
 
-    def __init__(self, host, port, reader, writer, logger, *, loop):
+    def __init__(self, host, port, reader, writer, logger, *, loop, auto_link):
+        super().__init__(loop=loop)
         # Logging.
         self._host = host
         self._port = port
@@ -294,8 +317,9 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
         # Packet writing.
         self._writer = writer
         self._id_gen = 0
-        # Asyncio.
-        self._loop = loop or asyncio.get_event_loop()
+        # Config.
+        if auto_link:
+            self.create_handler(self._handle_link())
 
     @property
     def transport(self):
@@ -307,6 +331,14 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
     def _gen_id(self):
         self._id_gen += 1
         return self._id_gen
+
+    @asyncio.coroutine
+    def _handle_link(self):
+        # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
+        while not self.transport._closing:
+            self.send_packet("LINK")
+            self.logger.debug("Sent LINK packet")
+            yield from asyncio.sleep(3, loop=self._loop)
 
     # Packet reading.
 
@@ -415,11 +447,14 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
         """
         Closes the connection.
 
+        After calling this method, use :meth:`wait_closed` to wait for the connection to fully close.
+
         .. hint::
 
             If you use the connection as an *async context manager*, there's no need to call :meth:`Connection.close`
             manually.
         """
+        super().close()
         # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
         if not self.transport._closing:
             try:
@@ -430,6 +465,19 @@ class Connection(AsyncIteratorMixin, ClosableContextMixin):
                 pass
         self.logger.info("Closed")
 
-    @asyncio.coroutine
     def wait_closed(self):
-        warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v2.1", DeprecationWarning)
+        """
+        Waits for the connection to fully close.
+
+        This method is a *coroutine*.
+
+        .. important::
+
+            Only call this method after first calling :meth:`close`.
+
+        .. hint::
+
+            If you use the connection as an *async context manager*, there's no need to call
+            :meth:`Connection.wait_closed` manually.
+        """
+        return super().wait_closed()

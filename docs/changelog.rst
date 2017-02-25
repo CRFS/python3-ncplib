@@ -8,7 +8,8 @@ Changelog
 -------------------
 
 - Added Python 3.4 support.
-
+- Added :meth:`Connection.wait_closed`.
+- Added ``auto_link`` parameter to :func:`connect`, :func:`start_server` and :func:`run_app`.
 
 
 2.1.0 - 04/11/2016

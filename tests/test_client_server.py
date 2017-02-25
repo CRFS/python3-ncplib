@@ -14,7 +14,7 @@ def success_server_handler(client_disconnected_queue, client):
             # Allow testing.
             if client_disconnected_queue is not None:
                 client_disconnected_queue.put_nowait(None)
-                break
+            break
         else:
             field.send(ACKN=True)
             field.send(**field)
@@ -41,6 +41,7 @@ class ClientServerTestCase(AsyncTestCase):
         self.addCleanup(server.close)
         port = server.sockets[0].getsockname()[1]
         client = yield from connect("127.0.0.1", port, loop=self.loop)
+        self.addCleanup(self.loop.run_until_complete, client.wait_closed())
         self.addCleanup(client.close)
         return client
 
@@ -160,15 +161,9 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.code, 500)
 
     @asyncio.coroutine
-    def testConnectionWaitClosedDeprecated(self):
-        client = yield from self.createServer()
-        client.close()
-        with self.assertWarns(DeprecationWarning):
-            yield from client.wait_closed()
-
-    @asyncio.coroutine
     def testClientGracefulDisconnect(self):
         client_disconnected_queue = asyncio.Queue(loop=self.loop)
         client = yield from self.createServer(client_disconnected_queue=client_disconnected_queue)
         client.close()
+        yield from client.wait_closed()
         yield from client_disconnected_queue.get()
