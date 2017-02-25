@@ -103,12 +103,11 @@ class Client(Connection):
         self, host, port, reader, writer, *,
         loop, auto_auth, auto_link, auto_erro, auto_warn, auto_ackn, hostname
     ):
-        super().__init__(host, port, reader, writer, logger, loop=loop, auto_link=auto_link)
+        super().__init__(host, port, reader, writer, logger, loop=loop, auto_link=auto_link, hostname=hostname)
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
-        self._hostname = hostname
 
     # Connection lifecycle.
 
@@ -117,11 +116,11 @@ class Client(Connection):
         # Read the initial LINK HELO packet.
         yield from self.recv_field("LINK", "HELO")
         # Send the connection request.
-        self.send("LINK", "CCRE", CIW=self._hostname)
+        self.send("LINK", "CCRE", CIW=self.hostname)
         # Read the connection response packet.
         yield from self.recv_field("LINK", "SCAR")
         # Send the auth request packet.
-        self.send("LINK", "CARE", CAR=self._hostname)
+        self.send("LINK", "CARE", CAR=self.hostname)
         # Read the auth response packet.
         yield from self.recv_field("LINK", "SCON")
 
@@ -195,7 +194,7 @@ def connect(
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
-    hostname = hostname or platform.node() or "python3-ncplib"
+    hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
     client = Client(
         host,

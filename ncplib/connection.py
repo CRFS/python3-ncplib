@@ -300,9 +300,13 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
         The :class:`logging.Logger` used by this connection. Log messages will be prefixed with the host and port of
         the connection.
+
+    .. attribute:: hostname
+
+        The identifying hostname for the connection. If ``auto_auth`` is disabled, this will be None.
     """
 
-    def __init__(self, host, port, reader, writer, logger, *, loop, auto_link):
+    def __init__(self, host, port, reader, writer, logger, *, loop, auto_link, hostname):
         super().__init__(loop=loop)
         # Logging.
         self._host = host
@@ -320,6 +324,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         # Config.
         if auto_link:
             self.create_handler(self._handle_link())
+        self.hostname = hostname
 
     @property
     def transport(self):

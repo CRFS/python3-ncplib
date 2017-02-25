@@ -146,29 +146,39 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
         self._client_connected = client_connected
         # Logging.
         self.logger = logger
-        # PacketData handling.
+        # Config.
         self._auto_auth = auto_auth
         self._auto_link = auto_link
 
     @asyncio.coroutine
     def _handle_auth(self, connection):
         connection.send("LINK", "HELO")
-        yield from connection.recv_field("LINK", "CCRE")
+        # Read the hostname.
+        field = yield from connection.recv_field("LINK", "CCRE")
+        try:
+            connection.hostname = str(field["CIW"])
+        except KeyError:
+            self.logger.warning("Invalid NCP authentication")
+            field.send(ERRO="CIW - This field is required.", ERRC=400)
+            return False
+        # Complete authentication.
         connection.send("LINK", "SCAR")
         yield from connection.recv_field("LINK", "CARE")
         connection.send("LINK", "SCON")
+        return True
 
     @asyncio.coroutine
     def _handle_client_connected(self, reader, writer):
         remote_host, remote_port = writer.get_extra_info("peername")[:2]
         client = Connection(
             remote_host, remote_port, reader, writer, self.logger,
-            loop=self._loop, auto_link=self._auto_link,
+            loop=self._loop, auto_link=self._auto_link, hostname=None,
         )
         try:
             # Handle auth.
             if self._auto_auth:
-                yield from self._handle_auth(client)
+                if not (yield from self._handle_auth(client)):
+                    return
             # Delegate to handler.
             yield from self._client_connected(client)
         except (asyncio.CancelledError, EOFError, OSError):  # pragma: no cover
