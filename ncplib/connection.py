@@ -422,7 +422,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     def _send_packet(self, packet_type, fields):
         encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
-        self.logger.debug("Sent packet %s to %s", packet_type, self.remote_hostname)
+        self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
         # Create an iterator of response fields.
         expected_fields = frozenset(
             (field.name, field.id)
