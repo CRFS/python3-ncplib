@@ -62,6 +62,7 @@ from collections import deque
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
+from ncplib.errors import DecodeError, CommandError
 from ncplib.packets import FieldData, encode_packet, decode_packet_cps, PACKET_HEADER_STRUCT
 
 
@@ -337,11 +338,31 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         self._id_gen += 1
         return self._id_gen
 
+    # Handlers.
+
     @asyncio.coroutine
     def _handle_link(self):
         while not self.transport._closing:
             self.send_packet("LINK")
             yield from asyncio.sleep(3, loop=self._loop)
+
+    @asyncio.coroutine
+    def _run_handler(self, coro):
+        try:
+            return (yield from coro)
+        except asyncio.CancelledError:  # pragma: no cover
+            raise  # The handler was cancelled, so let it propagate.
+        except (EOFError, OSError):  # pragma: no cover
+            pass  # The connection was closed, so ignore the error.
+        except (DecodeError, CommandError) as ex:
+            self.logger.warning("Connection error from %s over NCP: %s", self.remote_host, ex)
+            self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+        except:
+            self.logger.exception("Unexpected error from %s over NCP", self.remote_host)
+            self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+
+    def create_handler(self, coro):
+        return super().create_handler(self._run_handler(coro))
 
     # Packet reading.
 

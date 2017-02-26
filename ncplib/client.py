@@ -116,20 +116,16 @@ class Client(Connection):
     def _connect(self):
         # Auto-authenticate.
         if self._auto_auth:
-            yield from self._handle_auth()
-
-    @asyncio.coroutine
-    def _handle_auth(self):
-        # Read the initial LINK HELO packet.
-        yield from self.recv_field("LINK", "HELO")
-        # Send the connection request.
-        self.send("LINK", "CCRE", CIW=self._hostname)
-        # Read the connection response packet.
-        yield from self.recv_field("LINK", "SCAR")
-        # Send the auth request packet.
-        self.send("LINK", "CARE", CAR=self._hostname)
-        # Read the auth response packet.
-        yield from self.recv_field("LINK", "SCON")
+            # Read the initial LINK HELO packet.
+            yield from self.recv_field("LINK", "HELO")
+            # Send the connection request.
+            self.send("LINK", "CCRE", CIW=self._hostname)
+            # Read the connection response packet.
+            yield from self.recv_field("LINK", "SCAR")
+            # Send the auth request packet.
+            self.send("LINK", "CARE", CAR=self._hostname)
+            # Read the auth response packet.
+            yield from self.recv_field("LINK", "SCON")
 
     # Receiving fields.
 

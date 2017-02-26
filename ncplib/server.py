@@ -126,7 +126,6 @@ API reference
 import asyncio
 import logging
 from ncplib.connection import AsyncHandlerMixin, ClosableContextMixin, Connection
-from ncplib.errors import DecodeError
 
 
 __all__ = (
@@ -149,21 +148,25 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
         self._auto_auth = auto_auth
 
     @asyncio.coroutine
-    def _handle_auth(self, connection):
-        connection.send("LINK", "HELO")
-        # Read the hostname.
-        field = yield from connection.recv_field("LINK", "CCRE")
-        try:
-            connection.remote_host = str(field["CIW"])
-        except KeyError:
-            connection.logger.warning("Invalid authentication from %s over NCP", connection.remote_host)
-            field.send(ERRO="CIW - This field is required", ERRC=401)
-            return False
-        # Complete authentication.
-        connection.send("LINK", "SCAR")
-        yield from connection.recv_field("LINK", "CARE")
-        connection.send("LINK", "SCON")
-        return True
+    def _handle_client_connection(self, connection):
+        # Handle auth.
+        if self._auto_auth:
+            connection.send("LINK", "HELO")
+            # Read the hostname.
+            field = yield from connection.recv_field("LINK", "CCRE")
+            try:
+                connection.remote_host = str(field["CIW"])
+            except KeyError:
+                # Handle authentication failure.
+                connection.logger.warning("Invalid authentication from %s over NCP", connection.remote_host)
+                field.send(ERRO="CIW - This field is required", ERRC=401)
+                return
+            # Complete authentication.
+            connection.send("LINK", "SCAR")
+            yield from connection.recv_field("LINK", "CARE")
+            connection.send("LINK", "SCON")
+        # Delegate to handler.
+        yield from self._client_connected(connection)
 
     @asyncio.coroutine
     def _handle_client_connected(self, reader, writer):
@@ -175,22 +178,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             auto_link=self._auto_link,
         )
         try:
-            # Handle auth.
-            if self._auto_auth:
-                if not (yield from self._handle_auth(connection)):
-                    return
-            # Delegate to handler.
-            yield from self._client_connected(connection)
-        except asyncio.CancelledError:  # pragma: no cover
-            raise  # The handler was cancelled, so let it propagate.
-        except (EOFError, OSError):  # pragma: no cover
-            pass  # The connection was closed, so ignore the error.
-        except DecodeError as ex:
-            connection.logger.warning("Connection error from %s over NCP: %s", connection.remote_host, ex)
-            connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-        except Exception as ex:
-            connection.logger.error("Unexpected error from %s over NCP", connection.remote_host, exc_info=ex)
-            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+            yield from connection._run_handler(self._handle_client_connection(connection))
         finally:
             connection.close()
             yield from connection.wait_closed()
