@@ -100,35 +100,36 @@ logger = logging.getLogger(__name__)
 class Client(Connection):
 
     def __init__(
-        self, host, port, reader, writer, *,
-        loop, auto_auth, auto_link, auto_erro, auto_warn, auto_ackn, hostname
+        self, reader, writer, *,
+        loop, logger, remote_host, auto_link, auto_auth, auto_erro, auto_warn, auto_ackn, hostname
     ):
-        super().__init__(host, port, reader, writer, logger, loop=loop, auto_link=auto_link, hostname=hostname)
+        super().__init__(reader, writer, loop=loop, logger=logger, remote_host=remote_host, auto_link=auto_link)
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
+        self._hostname = hostname
 
     # Connection lifecycle.
-
-    @asyncio.coroutine
-    def _handle_auth(self):
-        # Read the initial LINK HELO packet.
-        yield from self.recv_field("LINK", "HELO")
-        # Send the connection request.
-        self.send("LINK", "CCRE", CIW=self.hostname)
-        # Read the connection response packet.
-        yield from self.recv_field("LINK", "SCAR")
-        # Send the auth request packet.
-        self.send("LINK", "CARE", CAR=self.hostname)
-        # Read the auth response packet.
-        yield from self.recv_field("LINK", "SCON")
 
     @asyncio.coroutine
     def _connect(self):
         # Auto-authenticate.
         if self._auto_auth:
             yield from self._handle_auth()
+
+    @asyncio.coroutine
+    def _handle_auth(self):
+        # Read the initial LINK HELO packet.
+        yield from self.recv_field("LINK", "HELO")
+        # Send the connection request.
+        self.send("LINK", "CCRE", CIW=self._hostname)
+        # Read the connection response packet.
+        yield from self.recv_field("LINK", "SCAR")
+        # Send the auth request packet.
+        self.send("LINK", "CARE", CAR=self._hostname)
+        # Read the auth response packet.
+        yield from self.recv_field("LINK", "SCON")
 
     # Receiving fields.
 
@@ -166,8 +167,8 @@ class Client(Connection):
 def connect(
     host, port=9999, *,
     loop=None,
-    auto_auth=True,
     auto_link=True,
+    auto_auth=True,
     auto_erro=True,
     auto_warn=True,
     auto_ackn=True,
@@ -181,8 +182,8 @@ def connect(
     :param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.
     :param int port: The port number of the :doc:`server`.
     :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
-    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
+    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
@@ -195,13 +196,12 @@ def connect(
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
     client = Client(
-        host,
-        port,
-        reader,
-        writer,
+        reader, writer,
         loop=loop,
-        auto_auth=auto_auth,
+        logger=logger,
+        remote_host="{host}:{port}".format(host=host, port=port),
         auto_link=auto_link,
+        auto_auth=auto_auth,
         auto_erro=auto_erro,
         auto_warn=auto_warn,
         auto_ackn=auto_ackn,

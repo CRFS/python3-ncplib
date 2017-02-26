@@ -58,7 +58,6 @@ API reference
 """
 
 import asyncio
-import logging
 from collections import deque
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -301,21 +300,21 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         The :class:`logging.Logger` used by this connection. Log messages will be prefixed with the host and port of
         the connection.
 
-    .. attribute:: hostname
+    .. attribute:: remote_host
 
-        The identifying hostname for the connection. If ``auto_auth`` is disabled, this will be None.
+        The identifying hostname for the remote end of the connection.
+
+        For client connections, this is the host:port of the remote NCP server.
+        For server connections, this is the host:port of the remote NCP client. This will be updated to the hostname
+        sent by the remote client's ``auto_auth`` handshake if the handshake is successful
+
     """
 
-    def __init__(self, host, port, reader, writer, logger, *, loop, auto_link, hostname):
+    def __init__(self, reader, writer, *, loop, logger, remote_host, auto_link):
         super().__init__(loop=loop)
         # Logging.
-        self._host = host
-        self._port = port
-        self.logger = logging.LoggerAdapter(logger, {
-            "host": host,
-            "port": port,
-        })
-        self.logger.debug("Connected")
+        self.logger = logger
+        self.logger.debug("Connected to %s over NCP", remote_host)
         # Packet reading.
         self._reader = reader
         self._field_buffer = deque()
@@ -323,9 +322,9 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         self._writer = writer
         self._id_gen = 0
         # Config.
+        self.remote_host = remote_host
         if auto_link:
             self.create_handler(self._handle_link())
-        self.hostname = hostname
 
     @property
     def transport(self):
@@ -340,7 +339,6 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
     @asyncio.coroutine
     def _handle_link(self):
-        # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
         while not self.transport._closing:
             self.send_packet("LINK")
             yield from asyncio.sleep(3, loop=self._loop)
@@ -364,14 +362,17 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             # Return buffered fields.
             if self._field_buffer:
                 field = self._field_buffer.popleft()
-                self.logger.debug("Received field %s %s", field.packet_type, field.name)
+                self.logger.debug(
+                    "Received field %s %s from %s over NCP",
+                    field.packet_type, field.name, self.remote_host
+                )
                 return field
             # Read some more fields.
             header_buf = yield from self._reader.readexactly(PACKET_HEADER_STRUCT.size)
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
-            self.logger.debug("Received packet %s", packet.type)
+            self.logger.debug("Received packet %s from %s over NCP", packet.type, self.remote_host)
             self._field_buffer.extend(filter(self._field_predicate, (
                 Field(self, packet, field)
                 for field
@@ -400,7 +401,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     def _send_packet(self, packet_type, fields):
         encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
-        self.logger.debug("Sent packet %s", packet_type)
+        self.logger.debug("Sent packet %s to %s", packet_type, self.remote_host)
         # Create an iterator of response fields.
         expected_fields = frozenset(
             (field.name, field.id)
@@ -450,6 +451,15 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
     # Connection lifecycle.
 
+    def is_closing(self):
+        """
+        Returns True if the connection is closing.
+
+        A closing connection should not be written to.
+        """
+        # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
+        return self.transport._closing
+
     def close(self):
         """
         Closes the connection.
@@ -462,15 +472,15 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             manually.
         """
         super().close()
-        # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
-        if not self.transport._closing:
+        # Close the connection.
+        if not self.is_closing():
             try:
                 self._writer.write_eof()
                 self._writer.close()
             except (EOFError, OSError):  # pragma: no cover
                 # If the socket is already closed due to a connection error, we dont' really care.
                 pass
-        self.logger.debug("Closed")
+            self.logger.debug("Disconnected from %s over NCP", self.remote_host)
 
     def wait_closed(self):
         """

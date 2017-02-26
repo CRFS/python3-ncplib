@@ -10,7 +10,7 @@ Changelog
 - Added Python 3.4 support.
 - Added :meth:`Connection.wait_closed`.
 - Added ``auto_link`` parameter to :func:`connect`, :func:`start_server` and :func:`run_app`.
-- Added :attr:`Connection.hostname`.
+- Added :attr:`Connection.remote_host`.
 - Connection open and close log messages demoted from ``INFO`` to ``DEBUG`` level.
 
 

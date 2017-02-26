@@ -141,14 +141,12 @@ logger = logging.getLogger(__name__)
 
 class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
 
-    def __init__(self, client_connected, *, loop, auto_auth, auto_link):
+    def __init__(self, client_connected, *, loop, auto_link, auto_auth):
         super().__init__(loop=loop)
         self._client_connected = client_connected
-        # Logging.
-        self.logger = logger
         # Config.
-        self._auto_auth = auto_auth
         self._auto_link = auto_link
+        self._auto_auth = auto_auth
 
     @asyncio.coroutine
     def _handle_auth(self, connection):
@@ -156,9 +154,9 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
         # Read the hostname.
         field = yield from connection.recv_field("LINK", "CCRE")
         try:
-            connection.hostname = str(field["CIW"])
+            connection.remote_host = str(field["CIW"])
         except KeyError:
-            self.logger.warning("Invalid NCP authentication")
+            connection.logger.warning("Invalid authentication from %s over NCP", connection.remote_host)
             field.send(ERRO="CIW - This field is required", ERRC=401)
             return False
         # Complete authentication.
@@ -169,31 +167,33 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
 
     @asyncio.coroutine
     def _handle_client_connected(self, reader, writer):
-        remote_host, remote_port = writer.get_extra_info("peername")[:2]
-        client = Connection(
-            remote_host, remote_port, reader, writer, self.logger,
-            loop=self._loop, auto_link=self._auto_link, hostname=None,
+        connection = Connection(
+            reader, writer,
+            loop=self._loop,
+            logger=logger,
+            remote_host=":".join(map(str, writer.get_extra_info("peername")[:2])),
+            auto_link=self._auto_link,
         )
         try:
             # Handle auth.
             if self._auto_auth:
-                if not (yield from self._handle_auth(client)):
+                if not (yield from self._handle_auth(connection)):
                     return
             # Delegate to handler.
-            yield from self._client_connected(client)
+            yield from self._client_connected(connection)
         except asyncio.CancelledError:  # pragma: no cover
-            raise
+            raise  # The handler was cancelled, so let it propagate.
         except (EOFError, OSError):  # pragma: no cover
-            pass
+            pass  # The connection was closed, so ignore the error.
         except DecodeError as ex:
-            self.logger.warning("Connection error: {ex}".format(ex=ex))
-            client.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-        except:
-            self.logger.exception("Unexpected error")
-            client.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+            connection.logger.warning("Connection error from %s over NCP: %s", connection.remote_host, ex)
+            connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+        except Exception as ex:
+            connection.logger.error("Unexpected error from %s over NCP", connection.remote_host, exc_info=ex)
+            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
-            client.close()
-            yield from client.wait_closed()
+            connection.close()
+            yield from connection.wait_closed()
 
     def __call__(self, reader, writer):
         return self.create_handler(self._handle_client_connected(reader, writer))
@@ -270,13 +270,13 @@ _start_server_args = """:param callable client_connected: A coroutine function t
     :param str host: The host to bind the server to.
     :param int port: The port to bind the server to.
     :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
-    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
+    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
     """
 
 
 @asyncio.coroutine
-def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_auth=True, auto_link=True):
+def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_link=True, auto_auth=True):
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
@@ -285,7 +285,7 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
 
     """
     loop = loop or asyncio.get_event_loop()
-    handler = ServerHandler(client_connected, loop=loop, auto_auth=auto_auth, auto_link=auto_link)
+    handler = ServerHandler(client_connected, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
     server = yield from asyncio.start_server(handler, host, port, loop=loop)
     for socket in server.sockets:
         logger.debug("Listening on %s:%s", *socket.getsockname()[:2])
@@ -299,7 +299,7 @@ start_server.__doc__ += _start_server_args + """:return: The created :class:`Ser
 
 def run_app(
     client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *,
-    loop=None, auto_auth=True, auto_link=True
+    loop=None, auto_link=True, auto_auth=True
 ):  # pragma: no cover
     """
     Runs a new :doc:`server` on the given host and port.
@@ -310,7 +310,7 @@ def run_app(
     loop = loop or asyncio.get_event_loop()
     server = loop.run_until_complete(start_server(
         client_connected, host, port,
-        loop=loop, auto_auth=auto_auth, auto_link=auto_link,
+        loop=loop, auto_link=auto_link, auto_auth=auto_auth,
     ))
     try:
         loop.run_forever()
