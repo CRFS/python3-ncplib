@@ -350,7 +350,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             raise  # The handler was cancelled, so let it propagate.
         except (EOFError, OSError):  # pragma: no cover
             pass  # The connection was closed, so ignore the error.
-        except (DecodeError, CommandError) as ex:
+        except (DecodeError, CommandError, asyncio.TimeoutError) as ex:
             self._handle_expected_error(ex)
         except Exception as ex:
             self._handle_unexpected_error(ex)
@@ -423,6 +423,8 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
+        for field in fields:
+            self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field.name, self.remote_hostname)
         # Create an iterator of response fields.
         expected_fields = frozenset(
             (field.name, field.id)
