@@ -138,6 +138,17 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
+class ServerConnection(Connection):
+
+    def _handle_expected_error(self, ex):
+        super()._handle_expected_error(ex)
+        self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+
+    def _handle_unexpected_error(self, ex):
+        super()._handle_unexpected_error(ex)
+        self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+
+
 class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
 
     def __init__(self, client_connected, *, loop, auto_link, auto_auth):
@@ -155,10 +166,10 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             # Read the hostname.
             field = yield from connection.recv_field("LINK", "CCRE")
             try:
-                connection.remote_host = str(field["CIW"])
+                connection.remote_hostname = str(field["CIW"])
             except KeyError:
                 # Handle authentication failure.
-                connection.logger.warning("Invalid authentication from %s over NCP", connection.remote_host)
+                connection.logger.warning("Invalid authentication from %s over NCP", connection.remote_hostname)
                 field.send(ERRO="CIW - This field is required", ERRC=401)
                 return
             # Complete authentication.
@@ -169,14 +180,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
         yield from self._client_connected(connection)
 
     @asyncio.coroutine
-    def _handle_client_connected(self, reader, writer):
-        connection = Connection(
-            reader, writer,
-            loop=self._loop,
-            logger=logger,
-            remote_host=":".join(map(str, writer.get_extra_info("peername")[:2])),
-            auto_link=self._auto_link,
-        )
+    def _handle_client_connected(self, connection):
         try:
             yield from connection._run_handler(self._handle_client_connection(connection))
         finally:
@@ -184,7 +188,14 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             yield from connection.wait_closed()
 
     def __call__(self, reader, writer):
-        return self.create_handler(self._handle_client_connected(reader, writer))
+        connection = ServerConnection(
+            reader, writer,
+            loop=self._loop,
+            logger=logger,
+            remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
+            auto_link=self._auto_link,
+        )
+        return self.create_handler(self._handle_client_connected(connection))
 
 
 class Server(ClosableContextMixin):

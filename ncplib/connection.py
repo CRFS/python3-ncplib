@@ -301,21 +301,17 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         The :class:`logging.Logger` used by this connection. Log messages will be prefixed with the host and port of
         the connection.
 
-    .. attribute:: remote_host
+    .. attribute:: remote_hostname
 
         The identifying hostname for the remote end of the connection.
 
-        For client connections, this is the host:port of the remote NCP server.
-        For server connections, this is the host:port of the remote NCP client. This will be updated to the hostname
-        sent by the remote client's ``auto_auth`` handshake if the handshake is successful
-
     """
 
-    def __init__(self, reader, writer, *, loop, logger, remote_host, auto_link):
+    def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link):
         super().__init__(loop=loop)
         # Logging.
         self.logger = logger
-        self.logger.debug("Connected to %s over NCP", remote_host)
+        self.logger.debug("Connected to %s over NCP", remote_hostname)
         # Packet reading.
         self._reader = reader
         self._field_buffer = deque()
@@ -323,7 +319,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         self._writer = writer
         self._id_gen = 0
         # Config.
-        self.remote_host = remote_host
+        self.remote_hostname = remote_hostname
         if auto_link:
             self.create_handler(self._handle_link())
 
@@ -355,11 +351,15 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         except (EOFError, OSError):  # pragma: no cover
             pass  # The connection was closed, so ignore the error.
         except (DecodeError, CommandError) as ex:
-            self.logger.warning("Connection error from %s over NCP: %s", self.remote_host, ex)
-            self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-        except:
-            self.logger.exception("Unexpected error from %s over NCP", self.remote_host)
-            self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+            self._handle_expected_error(ex)
+        except Exception as ex:
+            self._handle_unexpected_error(ex)
+
+    def _handle_expected_error(self, ex):
+        self.logger.warning("Connection error from %s over NCP: %s", self.remote_hostname, ex)
+
+    def _handle_unexpected_error(self, ex):
+        self.logger.exception("Unexpected error from %s over NCP", self.remote_hostname)
 
     def create_handler(self, coro):
         return super().create_handler(self._run_handler(coro))
@@ -385,7 +385,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
                 field = self._field_buffer.popleft()
                 self.logger.debug(
                     "Received field %s %s from %s over NCP",
-                    field.packet_type, field.name, self.remote_host
+                    field.packet_type, field.name, self.remote_hostname
                 )
                 return field
             # Read some more fields.
@@ -393,7 +393,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
-            self.logger.debug("Received packet %s from %s over NCP", packet.type, self.remote_host)
+            self.logger.debug("Received packet %s from %s over NCP", packet.type, self.remote_hostname)
             self._field_buffer.extend(filter(self._field_predicate, (
                 Field(self, packet, field)
                 for field
@@ -422,7 +422,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     def _send_packet(self, packet_type, fields):
         encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
-        self.logger.debug("Sent packet %s to %s", packet_type, self.remote_host)
+        self.logger.debug("Sent packet %s to %s", packet_type, self.remote_hostname)
         # Create an iterator of response fields.
         expected_fields = frozenset(
             (field.name, field.id)
@@ -501,7 +501,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             except (EOFError, OSError):  # pragma: no cover
                 # If the socket is already closed due to a connection error, we dont' really care.
                 pass
-            self.logger.debug("Disconnected from %s over NCP", self.remote_host)
+            self.logger.debug("Disconnected from %s over NCP", self.remote_hostname)
 
     def wait_closed(self):
         """

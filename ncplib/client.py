@@ -101,9 +101,9 @@ class Client(Connection):
 
     def __init__(
         self, reader, writer, *,
-        loop, logger, remote_host, auto_link, auto_auth, auto_erro, auto_warn, auto_ackn, hostname
+        loop, logger, remote_hostname, auto_link, auto_auth, auto_erro, auto_warn, auto_ackn, hostname
     ):
-        super().__init__(reader, writer, loop=loop, logger=logger, remote_host=remote_host, auto_link=auto_link)
+        super().__init__(reader, writer, loop=loop, logger=logger, remote_hostname=remote_hostname, auto_link=auto_link)
         self._auto_auth = auto_auth
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
@@ -168,6 +168,7 @@ def connect(
     auto_erro=True,
     auto_warn=True,
     auto_ackn=True,
+    remote_hostname=None,
     hostname=None
 ):
     """
@@ -184,18 +185,21 @@ def connect(
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
         :term:`NCP parameter`.
+    :param string remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
+        be the host:port of the NCP server.
     :param string hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
         enabled. Defaults to the system hostname.
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
+    remote_hostname = "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
     client = Client(
         reader, writer,
         loop=loop,
         logger=logger,
-        remote_host="{host}:{port}".format(host=host, port=port),
+        remote_hostname=remote_hostname,
         auto_link=auto_link,
         auto_auth=auto_auth,
         auto_erro=auto_erro,

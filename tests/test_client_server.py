@@ -8,7 +8,7 @@ from tests.base import AsyncTestCase
 
 @asyncio.coroutine
 def success_server_handler(client_disconnected_queue, client):
-    assert client.remote_host == "ncplib-test"
+    assert client.remote_hostname == "ncplib-test"
     client_iter = client.__aiter__()
     try:
         while True:
