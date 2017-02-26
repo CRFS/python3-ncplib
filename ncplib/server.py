@@ -276,7 +276,7 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
     handler = ServerHandler(client_connected, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
     server = yield from asyncio.start_server(handler, host, port, loop=loop)
     for socket in server.sockets:
-        logger.debug("Listening on %s:%s", *socket.getsockname()[:2])
+        logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
     return Server(handler, server)
 
 
