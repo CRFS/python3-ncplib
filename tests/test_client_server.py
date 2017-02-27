@@ -47,6 +47,7 @@ class ClientServerTestCase(AsyncTestCase):
         self, client_connected=success_server_handler, *,
         client_disconnected_queue=None,
         server_auto_auth=True,
+        client_auto_link=True,
         client_auto_auth=True
     ):
         server = yield from start_server(
@@ -61,6 +62,7 @@ class ClientServerTestCase(AsyncTestCase):
         client = yield from connect(
             "127.0.0.1", port,
             loop=self.loop,
+            auto_link=client_auto_link,
             auto_auth=client_auto_auth,
             hostname="ncplib-test",
         )
@@ -164,7 +166,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testEncodeError(self):
-        client = yield from self.createServer()
+        client = yield from self.createServer(client_auto_link=False)
         client._writer.write(b"Boom!" * 1024)
         client._writer.write_eof()
         with self.assertLogs("ncplib.server", "WARN"):

@@ -320,8 +320,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         self._id_gen = 0
         # Config.
         self.remote_hostname = remote_hostname
-        if auto_link:
-            self.create_handler(self._handle_link())
+        self._auto_link = auto_link
 
     @property
     def transport(self):
@@ -335,6 +334,11 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         return self._id_gen
 
     # Handlers.
+
+    @asyncio.coroutine
+    async def _connect(self):
+        if self._auto_link:
+            self.create_handler(self._handle_link())
 
     @asyncio.coroutine
     def _handle_link(self):
@@ -499,10 +503,11 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         if not self.is_closing():
             try:
                 self._writer.write_eof()
-                self._writer.close()
             except (EOFError, OSError):  # pragma: no cover
                 # If the socket is already closed due to a connection error, we dont' really care.
                 pass
+            finally:
+                self._writer.close()
             self.logger.debug("Disconnected from %s over NCP", self.remote_hostname)
 
     def wait_closed(self):

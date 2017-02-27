@@ -177,6 +177,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             yield from connection.recv_field("LINK", "CARE")
             connection.send("LINK", "SCON")
         # Delegate to handler.
+        yield from connection._connect()
         yield from self._client_connected(connection)
 
     @asyncio.coroutine

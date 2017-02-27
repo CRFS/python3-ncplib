@@ -126,6 +126,8 @@ class Client(Connection):
             self.send("LINK", "CARE", CAR=self._hostname)
             # Read the auth response packet.
             yield from self.recv_field("LINK", "SCON")
+        # All done!
+        yield from super()._connect()
 
     # Receiving fields.
 
