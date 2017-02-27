@@ -336,7 +336,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     # Handlers.
 
     @asyncio.coroutine
-    async def _connect(self):
+    def _connect(self):
         if self._auto_link:
             self.create_handler(self._handle_link())
 
