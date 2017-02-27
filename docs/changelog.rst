@@ -4,6 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.2.1 - 27/02/2017
+------------------
+
+- Fixed bug with Node authentication due to premature sending of LINK packets.
+- Fixed edge-case bug in connection closing.
+
+
 2.2.0 - 27/02/2017
 ------------------
 
