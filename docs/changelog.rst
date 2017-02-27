@@ -4,8 +4,8 @@ Changelog
 .. currentmodule:: ncplib
 
 
-2.2.0 - Development
--------------------
+2.2.0 - 27/02/2017
+------------------
 
 - Added Python 3.4 support.
 - Added :meth:`Connection.wait_closed`.
