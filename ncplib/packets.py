@@ -16,12 +16,16 @@ PARAM_HEADER_STRUCT = Struct("<4s3sB")
 
 PACKET_FOOTER_STRUCT = Struct("<I4s")
 
+PACKET_ENVELOPE_SIZE = PACKET_HEADER_STRUCT.size + PACKET_FOOTER_STRUCT.size
+
 
 # Packet constants.
 
 PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
 
 PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
+
+PACKET_FOOTER_NO_CHECKSUM = PACKET_FOOTER_STRUCT.pack(0, PACKET_FOOTER)
 
 PACKET_FOOTER_BUG = b"\x00\x00\x00\x00" + PACKET_FOOTER
 
@@ -141,7 +145,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     buf.extend(PACKET_HEADER_STRUCT.pack(
         PACKET_HEADER,
         encode_identifier(packet_type),
-        (PACKET_HEADER_STRUCT.size + len(encoded_fields) + PACKET_FOOTER_STRUCT.size) // 4,
+        (PACKET_ENVELOPE_SIZE + len(encoded_fields)) // 4,
         packet_id,
         PACKET_FORMAT_ID,
         timestamp_unix,
@@ -151,10 +155,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     # Write the packet fields.
     buf.extend(encoded_fields)
     # Encode the packet footer.
-    buf.extend(PACKET_FOOTER_STRUCT.pack(
-        0,  # No checksum.
-        PACKET_FOOTER,
-    ))
+    buf.extend(PACKET_FOOTER_NO_CHECKSUM)
     # All done!
     return buf
 
