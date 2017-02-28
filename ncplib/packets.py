@@ -41,13 +41,13 @@ def decode_identifier(value):
 # u24 size encoding.
 
 def encode_u24_size(value):
-    return (value // 4).to_bytes(length=4, byteorder="little", signed=False)
+    return (value // 4).to_bytes(4, "little")
 
 
 # u24 size decoding.
 
 def decode_u24_size(value):
-    return int.from_bytes(value, byteorder="little", signed=False) * 4
+    return int.from_bytes(value, "little") * 4
 
 
 # Param encoding.
