@@ -35,7 +35,6 @@ API reference
 import warnings
 from array import array
 from ncplib.errors import DecodeWarning
-from ncplib.functional import valuedispatch
 
 
 __all__ = (
@@ -135,37 +134,27 @@ ENCODERS = {
 }
 
 
-def encode_value(value):  # pragma: no cover
+def encode_value(value):
     try:
         return ENCODERS[value.__class__](value)
-    except KeyError:
+    except KeyError:  # pragma: no cover
         raise TypeError("Unsupported value type {}".format(type(value)))
 
 
 # Decoders.
 
-@valuedispatch
-def decode_value(type_id, encoded_value):  # pragma: no cover
-    warnings.warn(DecodeWarning("Unsupported type ID", type_id))
-    return encoded_value
-
-
-@decode_value.register(TYPE_I32)
 def decode_value_i32(type_id, encoded_value):
-    return int.from_bytes(encoded_value, byteorder="little", signed=True)
+    return int.from_bytes(encoded_value, "little", signed=True)
 
 
-@decode_value.register(TYPE_U32)
 def decode_value_u32(type_id, encoded_value):
-    return uint.from_bytes(encoded_value, byteorder="little", signed=False)
+    return uint.from_bytes(encoded_value, "little")
 
 
-@decode_value.register(TYPE_STRING)
 def decode_value_string(type_id, encoded_value):
-    return encoded_value.split(b"\x00", 1)[0].decode(encoding="utf-8", errors="ignore")
+    return encoded_value.split(b"\x00", 1)[0].decode()
 
 
-@decode_value.register(TYPE_RAW)
 def decode_value_raw(type_id, encoded_value):
     return encoded_value
 
@@ -173,11 +162,27 @@ def decode_value_raw(type_id, encoded_value):
 TYPE_ID_TO_ARRAY_TYPE_CODES = dict(map(reversed, ARRAY_TYPE_CODES_TO_TYPE_ID.items()))
 
 
-@decode_value.register(TYPE_ARRAY_U8)
-@decode_value.register(TYPE_ARRAY_U16)
-@decode_value.register(TYPE_ARRAY_U32)
-@decode_value.register(TYPE_ARRAY_I8)
-@decode_value.register(TYPE_ARRAY_I16)
-@decode_value.register(TYPE_ARRAY_I32)
-def decode_value_array_u8(type_id, encoded_value):
+def decode_value_array(type_id, encoded_value):
     return array(TYPE_ID_TO_ARRAY_TYPE_CODES[type_id], encoded_value)
+
+
+DECODERS = {
+    TYPE_I32: decode_value_i32,
+    TYPE_U32: decode_value_u32,
+    TYPE_STRING: decode_value_string,
+    TYPE_RAW: decode_value_raw,
+    TYPE_ARRAY_U8: decode_value_array,
+    TYPE_ARRAY_U16: decode_value_array,
+    TYPE_ARRAY_U32: decode_value_array,
+    TYPE_ARRAY_I8: decode_value_array,
+    TYPE_ARRAY_I16: decode_value_array,
+    TYPE_ARRAY_I32: decode_value_array,
+}
+
+
+def decode_value(type_id, encoded_value):
+    try:
+        return DECODERS[type_id](type_id, encoded_value)
+    except KeyError:  # pragma: no cover
+        warnings.warn(DecodeWarning("Unsupported type ID", type_id))
+        return encoded_value
