@@ -17,15 +17,6 @@ PARAM_HEADER_STRUCT = Struct("<4s3sB")
 PACKET_FOOTER_STRUCT = Struct("<I4s")
 
 
-# Packet constants.
-
-PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
-
-PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
-
-PACKET_FOOTER_BUG = b"\x00\x00\x00\x00" + PACKET_FOOTER
-
-
 # Identifier encoding.
 
 def encode_identifier(value):
@@ -73,7 +64,7 @@ def encode_params(params):
 def decode_params(buf, offset, limit):
     while offset < limit:
         # HACK: Work around a known garbled NCP packet problem from Axis nodes.
-        if buf[offset:offset+8] == PACKET_FOOTER_BUG:
+        if buf[offset:offset+8] == b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd":
             warnings.warn(DecodeWarning("Encountered embedded packet footer bug"))
             offset += 8
             continue
@@ -132,12 +123,12 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
     encoded_fields = encode_fields(fields)
     # Encode the header.
-    buf = bytearray(32)
+    buf = bytearray(32)  # 32 is the size of the packet header.
     PACKET_HEADER_STRUCT.pack_into(
         buf, 0,
-        PACKET_HEADER,
+        b"\xdd\xcc\xbb\xaa",  # Hardcoded packet header.
         encode_identifier(packet_type),
-        (40 + len(encoded_fields)) // 4,
+        (40 + len(encoded_fields)) // 4,  # 40 is the size of the packet header plus footer.
         packet_id,
         b'\x01\x00\x00\x00',
         timestamp_unix, timestamp_nano,
@@ -169,7 +160,7 @@ def decode_packet_cps(header_buf):
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
     packet_type = decode_identifier(packet_type)
     size = size_words * 4
-    if header != PACKET_HEADER:  # pragma: no cover
+    if header != b"\xdd\xcc\xbb\xaa":  # pragma: no cover
         raise DecodeError("Invalid packet header {}".format(header))
     timestamp = unix_to_datetime(time, nanotime)
     # Decode the rest of the body data.
@@ -183,7 +174,7 @@ def decode_packet_cps(header_buf):
             checksum,
             footer,
         ) = PACKET_FOOTER_STRUCT.unpack_from(body_buf, size_remaining - PACKET_FOOTER_STRUCT.size)
-        if footer != PACKET_FOOTER:  # pragma: no cover
+        if footer != b"\xaa\xbb\xcc\xdd":  # pragma: no cover
             raise DecodeError("Invalid packet footer {}".format(footer))
         # All done!
         return PacketData(
