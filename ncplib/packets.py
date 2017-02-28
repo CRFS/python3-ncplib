@@ -10,7 +10,7 @@ from ncplib.values import encode_value, decode_value
 
 PACKET_HEADER_STRUCT = Struct("<4s4sII4sII4s")
 
-FIELD_HEADER_STRUCT = Struct("<4s3sBI")
+FIELD_HEADER_STRUCT = Struct("<4s3s1sI")
 
 PARAM_HEADER_STRUCT = Struct("<4s3sB")
 
@@ -39,24 +39,6 @@ def encode_u24_size(value):
 
 def decode_u24_size(value):
     return int.from_bytes(value, "little") * 4
-
-
-# Param encoding.
-
-def encode_params(params):
-    buf = bytearray()
-    for name, value in params.items():
-        type_id, encoded_value = encode_value(value)
-        size = PARAM_HEADER_STRUCT.size + len(encoded_value)
-        padding_size = -size % 4
-        buf.extend(PARAM_HEADER_STRUCT.pack(
-            encode_identifier(name),
-            encode_u24_size(size + padding_size),
-            type_id,
-        ))
-        buf.extend(encoded_value)
-        buf.extend(b"\x00" * padding_size)
-    return buf
 
 
 # Param decoding.
@@ -118,21 +100,40 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         info,
     )
     # Write the packet fields.
-    packet_size = 40  # 40 is the size of the packet header plus footer.
-    for name, field_id, params in fields:
-        encoded_params = encode_params(params)
+    offset = 32  # 32 is the size of the packet header.
+    for field_name, field_id, params in fields:
+        field_offset = offset
+        # Write the field header.
         buf.extend(FIELD_HEADER_STRUCT.pack(
-            encode_identifier(name),
-            encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
-            0,  # Field type ID is ignored.
+            encode_identifier(field_name),
+            b"\x00\x00\x00",  # Placeholder for the field size, which we will calculate soom.
+            b"\x00",  # Field type ID is ignored.
             field_id,
         ))
-        buf.extend(encoded_params)
-        packet_size += FIELD_HEADER_STRUCT.size + len(encoded_params)
-    # Write the packet size.
-    buf[8:12] = (packet_size // 4).to_bytes(4, "little")
+        # Write the params.
+        offset += 12  # 12 is the size of the field header.
+        for param_name, param_value in params.items():
+            # Encode the param value.
+            param_type_id, param_encoded_value = encode_value(param_value)
+            # Write the param header.
+            param_size = 8 + len(param_encoded_value)  # 8 is the size of the param header.
+            param_padding_size = -param_size % 4
+            buf.extend(PARAM_HEADER_STRUCT.pack(
+                encode_identifier(param_name),
+                encode_u24_size(param_size + param_padding_size),
+                param_type_id,
+            ))
+            # Write the param value.
+            buf.extend(param_encoded_value)
+            buf.extend(b"\x00" * param_padding_size)
+            # Keep track of field size.
+            offset += param_size + param_padding_size
+        # Write the field size.
+        buf[field_offset+4:field_offset+7] = encode_u24_size(offset - field_offset)[:3]
     # Encode the packet footer.
     buf.extend(b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd")  # Hardcoded packet footer with no checksum.
+    # Write the packet size.
+    buf[8:12] = ((offset + 8) // 4).to_bytes(4, "little")  # 8 is the size of the packet footer.
     # All done!
     return buf
 
