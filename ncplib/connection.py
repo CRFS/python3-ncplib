@@ -73,7 +73,7 @@ __all__ = (
 
 
 # The last four bytes of the MAC address is used as an ID field.
-CLIENT_ID = get_mac().to_bytes(6, "little", signed=False)[-4:]
+CLIENT_ID = get_mac().to_bytes(6, "little")[-4:]
 
 
 _send_return_doc = """:return: A :class:`Response` providing access to any :class:`Field` instances received in reply to
