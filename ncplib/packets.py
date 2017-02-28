@@ -29,12 +29,6 @@ def decode_identifier(value):
     return value.rstrip(b" \x00").decode("latin1")
 
 
-# u24 size encoding.
-
-def encode_u24_size(value):
-    return (value // 4).to_bytes(4, "little")
-
-
 # u24 size decoding.
 
 def decode_u24_size(value):
@@ -120,7 +114,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
             param_padding_size = -param_size % 4
             buf.extend(PARAM_HEADER_STRUCT.pack(
                 encode_identifier(param_name),
-                encode_u24_size(param_size + param_padding_size),
+                ((param_size + param_padding_size) // 4).to_bytes(3, "little"),
                 param_type_id,
             ))
             # Write the param value.
@@ -129,7 +123,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
             # Keep track of field size.
             offset += param_size + param_padding_size
         # Write the field size.
-        buf[field_offset+4:field_offset+7] = encode_u24_size(offset - field_offset)[:3]
+        buf[field_offset+4:field_offset+7] = ((offset - field_offset) // 4).to_bytes(3, "little")[:3]
     # Encode the packet footer.
     buf.extend(b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd")  # Hardcoded packet footer with no checksum.
     # Write the packet size.

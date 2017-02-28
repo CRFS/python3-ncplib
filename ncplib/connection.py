@@ -427,12 +427,12 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
-        for field in fields:
-            self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field.name, self.remote_hostname)
+        for field_name, field_id, params in fields:
+            self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field_name, self.remote_hostname)
         # Create an iterator of response fields.
         expected_fields = frozenset(
-            (field.name, field.id)
-            for field
+            (field_name, field_id)
+            for (field_name, field_id, _)
             in fields
         )
         return Response(self, lambda field: (
@@ -457,7 +457,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             :doc:`value types <values>`.
         """
         return self._send_packet(packet_type, [
-            FieldData(field_name, self._gen_id(), field_params)
+            (field_name, self._gen_id(), field_params)
             for field_name, field_params
             in fields.items()
         ])
@@ -473,7 +473,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, [FieldData(field_name, self._gen_id(), params)])
+        return self._send_packet(packet_type, [(field_name, self._gen_id(), params)])
     send.__doc__ += _send_return_doc
 
     # Connection lifecycle.
