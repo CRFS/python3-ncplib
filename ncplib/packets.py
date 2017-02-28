@@ -80,26 +80,10 @@ def decode_params(buf, offset, limit):
         raise DecodeError("Parameter overflow by {} bytes".format(offset - limit))
 
 
-# Field encoding.
+# Field decoding.
 
 FieldData = namedtuple("FieldData", ("name", "id", "params",))
 
-
-def encode_fields(fields):
-    buf = bytearray()
-    for name, field_id, params in fields:
-        encoded_params = encode_params(params)
-        buf.extend(FIELD_HEADER_STRUCT.pack(
-            encode_identifier(name),
-            encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
-            0,  # Field type ID is ignored.
-            field_id,
-        ))
-        buf.extend(encoded_params)
-    return buf
-
-
-# Field decoding.
 
 def decode_fields(buf, offset, limit):
     while offset < limit:
@@ -121,21 +105,32 @@ def decode_fields(buf, offset, limit):
 
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
     timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
-    encoded_fields = encode_fields(fields)
     # Encode the header.
     buf = bytearray(32)  # 32 is the size of the packet header.
     PACKET_HEADER_STRUCT.pack_into(
         buf, 0,
         b"\xdd\xcc\xbb\xaa",  # Hardcoded packet header.
         encode_identifier(packet_type),
-        (40 + len(encoded_fields)) // 4,  # 40 is the size of the packet header plus footer.
+        0,  # Placeholder for the packet size, which we will calculate soon.
         packet_id,
         b'\x01\x00\x00\x00',
         timestamp_unix, timestamp_nano,
         info,
     )
     # Write the packet fields.
-    buf.extend(encoded_fields)
+    packet_size = 40  # 40 is the size of the packet header plus footer.
+    for name, field_id, params in fields:
+        encoded_params = encode_params(params)
+        buf.extend(FIELD_HEADER_STRUCT.pack(
+            encode_identifier(name),
+            encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
+            0,  # Field type ID is ignored.
+            field_id,
+        ))
+        buf.extend(encoded_params)
+        packet_size += FIELD_HEADER_STRUCT.size + len(encoded_params)
+    # Write the packet size.
+    buf[8:12] = (packet_size // 4).to_bytes(4, "little")
     # Encode the packet footer.
     buf.extend(b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd")  # Hardcoded packet footer with no checksum.
     # All done!
