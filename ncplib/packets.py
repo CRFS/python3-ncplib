@@ -1,5 +1,5 @@
 import warnings
-from collections import namedtuple, OrderedDict
+from collections import namedtuple
 from struct import Struct
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.helpers import unix_to_datetime, datetime_to_unix
@@ -36,7 +36,7 @@ def decode_fields(buf, offset, field_limit):
         param_limit = offset + int.from_bytes(field_size, "little") * 4
         offset += 12  # 12 is the size of the field header.
         # Decode params.
-        params = OrderedDict()
+        params = {}
         while offset < param_limit:
             # HACK: Work around a known garbled NCP packet problem from Axis nodes.
             if buf[offset:offset+8] == b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd":
