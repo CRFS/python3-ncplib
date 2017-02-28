@@ -14,8 +14,6 @@ FIELD_HEADER_STRUCT = Struct("<4s3s1sI")
 
 PARAM_HEADER_STRUCT = Struct("<4s3sB")
 
-PACKET_FOOTER_STRUCT = Struct("<I4s")
-
 
 # Identifier decoding.
 
@@ -125,36 +123,28 @@ def decode_packet_cps(header_buf):
     (
         header,
         packet_type,
-        size_words,
+        size,
         packet_id,
         format_id,
         time,
         nanotime,
         info,
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
-    packet_type = decode_identifier(packet_type)
-    size = size_words * 4
+    size = size * 4
     if header != b"\xdd\xcc\xbb\xaa":  # pragma: no cover
         raise DecodeError("Invalid packet header {}".format(header))
-    timestamp = unix_to_datetime(time, nanotime)
     # Decode the rest of the body data.
-    size_remaining = size - PACKET_HEADER_STRUCT.size
+    size_remaining = size - 32  # 32 is the size of the packet header.
 
     def decode_packet_body(body_buf):
-        if len(body_buf) > size_remaining:  # pragma: no cover
-            raise DecodeError("Packet body overflow by {} bytes".format(len(body_buf) - size_remaining))
-        fields = decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size)
-        (
-            checksum,
-            footer,
-        ) = PACKET_FOOTER_STRUCT.unpack_from(body_buf, size_remaining - PACKET_FOOTER_STRUCT.size)
-        if footer != b"\xaa\xbb\xcc\xdd":  # pragma: no cover
-            raise DecodeError("Invalid packet footer {}".format(footer))
+        fields = decode_fields(body_buf, 0, size_remaining - 8)
+        if body_buf[-4:] != b"\xaa\xbb\xcc\xdd":  # pragma: no cover
+            raise DecodeError("Invalid packet footer {}".format(body_buf[-4:]))
         # All done!
         return PacketData(
-            type=packet_type,
+            type=decode_identifier(packet_type),
             id=packet_id,
-            timestamp=timestamp,
+            timestamp=unix_to_datetime(time, nanotime),
             info=info,
             fields=fields,
         )
@@ -164,5 +154,5 @@ def decode_packet_cps(header_buf):
 
 
 def decode_packet(buf):
-    body_size, decode_packet_body = decode_packet_cps(buf[:PACKET_HEADER_STRUCT.size])
-    return decode_packet_body(buf[PACKET_HEADER_STRUCT.size:])
+    body_size, decode_packet_body = decode_packet_cps(buf[:32])  # 32 is the size of the packet header.
+    return decode_packet_body(buf[32:])  # 32 is the size of the packet header.

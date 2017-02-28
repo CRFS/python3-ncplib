@@ -62,7 +62,7 @@ from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
 from ncplib.errors import DecodeError, CommandError
-from ncplib.packets import FieldData, encode_packet, decode_packet_cps, PACKET_HEADER_STRUCT
+from ncplib.packets import FieldData, encode_packet, decode_packet_cps
 
 
 __all__ = (
@@ -393,7 +393,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
                 if self._field_predicate(field):
                     return field
             # Read some more fields.
-            header_buf = yield from self._reader.readexactly(PACKET_HEADER_STRUCT.size)
+            header_buf = yield from self._reader.readexactly(32)  # 32 is the size of the packet header.
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
