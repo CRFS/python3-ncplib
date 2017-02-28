@@ -8,7 +8,7 @@ from ncplib.values import encode_value, decode_value
 
 # Packet structs.
 
-PACKET_HEADER_STRUCT = Struct("<4s4sIIIII4s")
+PACKET_HEADER_STRUCT = Struct("<4s4sII4sII4s")
 
 FIELD_HEADER_STRUCT = Struct("<4s3sBI")
 
@@ -16,16 +16,12 @@ PARAM_HEADER_STRUCT = Struct("<4s3sB")
 
 PACKET_FOOTER_STRUCT = Struct("<I4s")
 
-PACKET_ENVELOPE_SIZE = PACKET_HEADER_STRUCT.size + PACKET_FOOTER_STRUCT.size
-
 
 # Packet constants.
 
 PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
 
 PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
-
-PACKET_FOOTER_NO_CHECKSUM = PACKET_FOOTER_STRUCT.pack(0, PACKET_FOOTER)
 
 PACKET_FOOTER_BUG = b"\x00\x00\x00\x00" + PACKET_FOOTER
 
@@ -130,32 +126,27 @@ def decode_fields(buf, offset, limit):
         raise DecodeError("Field overflow by {} bytes".format(offset - limit))
 
 
-# Packet formats.
-
-PACKET_FORMAT_ID = 1
-
-
 # Packet encoding.
 
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
+    timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
     encoded_fields = encode_fields(fields)
     # Encode the header.
-    buf = bytearray()
-    timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
-    buf.extend(PACKET_HEADER_STRUCT.pack(
+    buf = bytearray(32)
+    PACKET_HEADER_STRUCT.pack_into(
+        buf, 0,
         PACKET_HEADER,
         encode_identifier(packet_type),
-        (PACKET_ENVELOPE_SIZE + len(encoded_fields)) // 4,
+        (40 + len(encoded_fields)) // 4,
         packet_id,
-        PACKET_FORMAT_ID,
-        timestamp_unix,
-        timestamp_nano,
+        b'\x01\x00\x00\x00',
+        timestamp_unix, timestamp_nano,
         info,
-    ))
+    )
     # Write the packet fields.
     buf.extend(encoded_fields)
     # Encode the packet footer.
-    buf.extend(PACKET_FOOTER_NO_CHECKSUM)
+    buf.extend(b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd")  # Hardcoded packet footer with no checksum.
     # All done!
     return buf
 
