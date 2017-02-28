@@ -135,7 +135,7 @@ class Client(Connection):
             if error_detail is not None or error_code is not None:
                 raise CommandError(field, error_detail, error_code)
             # Ignore the rest of packet-level errors.
-            if field.name == "ERRO":
+            if field.name == "ERRO":  # pragma: no cover
                 return False
         # Handle warnings.
         if self._auto_warn:
@@ -144,7 +144,7 @@ class Client(Connection):
             if warning_detail is not None or warning_code is not None:
                 warnings.warn(CommandWarning(field, warning_detail, warning_code))
             # Ignore the rest of packet-level warnings.
-            if field.name == "WARN":
+            if field.name == "WARN":  # pragma: no cover
                 return False
         # Handle acks.
         return not self._auto_ackn or "ACKN" not in field

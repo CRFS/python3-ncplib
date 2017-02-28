@@ -2,7 +2,7 @@ import warnings
 from collections import namedtuple, OrderedDict
 from struct import Struct
 from ncplib.errors import DecodeError, DecodeWarning
-from ncplib.helpers import unix_to_datetime, datetime_to_unix_nano
+from ncplib.helpers import unix_to_datetime, datetime_to_unix
 from ncplib.values import encode_value, decode_value
 
 
@@ -137,7 +137,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     encoded_fields = encode_fields(fields)
     # Encode the header.
     buf = bytearray()
-    timestamp_unix, timestamp_nano = datetime_to_unix_nano(timestamp)
+    timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
     buf.extend(PACKET_HEADER_STRUCT.pack(
         PACKET_HEADER,
         encode_identifier(packet_type),
