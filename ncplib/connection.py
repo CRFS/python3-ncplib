@@ -58,11 +58,10 @@ API reference
 """
 
 import asyncio
-from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
 from ncplib.errors import DecodeError, CommandError
-from ncplib.packets import FieldData, encode_packet, decode_packet_cps
+from ncplib.packets import encode_packet, decode_packet_cps
 
 
 __all__ = (
@@ -94,7 +93,7 @@ _recv_return_doc = """:return: The next :class:`Field` received.
         """
 
 
-class Field(Mapping):
+class Field(dict):
 
     """
     A :term:`NCP field` received by a :class:`Connection`.
@@ -104,55 +103,43 @@ class Field(Mapping):
     .. code:: python
 
         print(field["PDAT"])
+
+    .. attribute:: connection
+
+        The :class:`Connection` that created this field.
+
+    .. attribute:: packet_type
+
+        The type of :term:`NCP packet` that contained this field. This will be a valid :term:`identifier`.
+
+    .. attribute:: packet_timestamp
+
+        A timezone-aware :class:`datetime.datetime` describing when the containing packet was sent.
+
+    .. attribute:: name
+
+        The name of the :term:`NCP field`. This will be a valid :term:`identifier`.
+
+    .. attribute:: id
+
+        The unique :class:`int` ID of this field.
     """
 
-    def __init__(self, connection, packet, field):
-        self._connection = connection
-        self._packet = packet
-        self._field = field
+    __slots__ = ("connection", "packet_type", "packet_timestamp", "name", "id",)
 
-    @property
-    def packet_type(self):
-        """
-        The type of :term:`NCP packet` that contained this field. This will be a valid :term:`identifier`.
-        """
-        return self._packet.type
-
-    @property
-    def packet_timestamp(self):
-        """
-        A timezone-aware :class:`datetime.datetime` describing when the containing packet was sent.
-        """
-        return self._packet.timestamp
-
-    @property
-    def name(self):
-        """
-        The name of the :term:`NCP field`. This will be a valid :term:`identifier`.
-        """
-        return self._field.name
-
-    @property
-    def id(self):
-        """
-        The unique :class:`int` ID of this field.
-        """
-        return self._field.id
-
-    def __getitem__(self, name):
-        return self._field.params[name]
-
-    def __iter__(self):
-        return iter(self._field.params)
-
-    def __len__(self):
-        return len(self._field.params)
+    def __init__(self, connection, packet_type, packet_timestamp, name, id, params):
+        super().__init__(params)
+        self.connection = connection
+        self.packet_type = packet_type
+        self.packet_timestamp = packet_timestamp
+        self.name = name
+        self.id = id
 
     def __repr__(self):  # pragma: no cover
         return "<Field {packet_type!r} {field_name!r} {params!r}>".format(
             packet_type=self.packet_type,
             field_name=self.name,
-            params=dict(self._field.params.items()),
+            params=dict(self.items()),
         )
 
     def send(self, **params):
@@ -163,7 +150,7 @@ class Field(Mapping):
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
-        return self._connection._send_packet(self.packet_type, [FieldData(self.name, self.id, params)])
+        return self.connection._send_packet(self.packet_type, [(self.name, self.id, params)])
     send.__doc__ += _send_return_doc
 
 
@@ -190,6 +177,8 @@ class AsyncHandlerMixin:
 
 
 class AsyncIteratorMixin:
+
+    __slots__ = ()
 
     def __aiter__(self):
         return self
@@ -220,6 +209,8 @@ class Response(AsyncIteratorMixin):
     .. important::
         The *async for loop* will only terminate when the underlying connection closes.
     """
+
+    __slots__ = ("_connection", "_predicate")
 
     def __init__(self, connection, predicate):
         self._connection = connection
@@ -396,11 +387,11 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             header_buf = yield from self._reader.readexactly(32)  # 32 is the size of the packet header.
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
-            packet = decode_packet_body(body_buf)
-            self.logger.debug("Received packet %s from %s over NCP", packet.type, self.remote_hostname)
+            packet_type, packet_id, packet_timestamp, packet_info, fields = decode_packet_body(body_buf)
+            self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
             self._field_buffer = [
-                Field(self, packet, field)
-                for field in packet.fields
+                Field(self, packet_type, packet_timestamp, field_name, field_id, params)
+                for field_name, field_id, params in fields
             ]
             self._field_buffer.reverse()
     recv.__doc__ += _recv_return_doc

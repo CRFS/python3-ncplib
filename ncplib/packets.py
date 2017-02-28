@@ -1,5 +1,4 @@
 import warnings
-from collections import namedtuple
 from struct import Struct
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.helpers import unix_to_datetime, datetime_to_unix
@@ -77,11 +76,6 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
 
 # PacketData decoding.
 
-PacketData = namedtuple("PacketData", ("type", "id", "timestamp", "info", "fields",))
-
-FieldData = namedtuple("FieldData", ("name", "id", "params",))
-
-
 def decode_packet_cps(header_buf):
     (
         header,
@@ -131,18 +125,18 @@ def decode_packet_cps(header_buf):
                 if offset > param_limit:  # pragma: no cover
                     raise DecodeError("Parameter overflow by {} bytes".format(offset - param_limit))
             # Store the field.
-            fields.append(FieldData(decode_identifier(field_name), field_id, params))
+            fields.append((decode_identifier(field_name), field_id, params))
         # Check for field overflow.
         if offset > field_limit:  # pragma: no cover
             raise DecodeError("Field overflow by {} bytes".format(offset - field_limit))
 
         # All done!
-        return PacketData(
-            type=decode_identifier(packet_type),
-            id=packet_id,
-            timestamp=unix_to_datetime(time, nanotime),
-            info=info,
-            fields=fields,
+        return (
+            decode_identifier(packet_type),
+            packet_id,
+            unix_to_datetime(time, nanotime),
+            info,
+            fields,
         )
 
     # Return the number of bytes to read, and the function to finish decoding.

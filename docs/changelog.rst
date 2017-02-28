@@ -4,6 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.3.0 - Development
+-------------------
+
+- Added :attr:`Field.connection`.
+- Micro-optimizations.
+
+
 2.2.1 - 27/02/2017
 ------------------
 

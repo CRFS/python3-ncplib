@@ -1,7 +1,7 @@
 import unittest
 from array import array
 from datetime import datetime, timezone
-from ncplib.packets import decode_packet, encode_packet, PacketData, FieldData
+from ncplib.packets import decode_packet, encode_packet
 from ncplib import uint, DecodeWarning
 
 
@@ -82,8 +82,8 @@ PACKET_VALUES = [
 class PacketDatasTestCase(unittest.TestCase):
 
     def testDecodeRealPacketData(self):
-        self.assertEqual(decode_packet(REAL_PACKET).fields, [
-            FieldData(name="HELO", id=0, params={
+        self.assertEqual(decode_packet(REAL_PACKET)[4], [
+            ("HELO", 0, {
                 "NCPV": "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__",
                 "SEID": "monitor",
                 "MACA": "00:24:81:b4:49:34",
@@ -93,16 +93,16 @@ class PacketDatasTestCase(unittest.TestCase):
     def testDecodeEmbeddedPacketFooterBug(self):
         with self.assertWarns(DecodeWarning) as cm:
             self.assertEqual(
-                decode_packet(REAL_PACKET_EMBEDDED_FOOTER_BUG).fields,
+                decode_packet(REAL_PACKET_EMBEDDED_FOOTER_BUG)[4],
                 [
-                    FieldData(name='STAT', id=1, params={
+                    ('STAT', 1, {
                         'OCON': 3,
                         'CADD': '127.0.0.1,127.0.0.1,192.168.1.28',
                         'CIDS': 'rfeye000709,rfeye000709,python3-ncplib',
                         'RGPS': 'no GPS,no GPS,no GPS',
                         'ELOC': 0,
                     }),
-                    FieldData(name='SGPS', id=1, params={
+                    ('SGPS', 1, {
                         'LATI': 51180800,
                         'LONG': -100000,
                         'STAT': 1,
@@ -122,10 +122,10 @@ class PacketDatasTestCase(unittest.TestCase):
         packet_timestamp = datetime.now(tz=timezone.utc)
         for value, expected_value in PACKET_VALUES:
             with self.subTest(value=value, expected_value=expected_value):
-                expected_packet = PacketData("PACK", 10, packet_timestamp, b"INFO", [
-                    FieldData("FIEL", 20, {"PARA": expected_value}),
+                expected_packet = ("PACK", 10, packet_timestamp, b"INFO", [
+                    ("FIEL", 20, {"PARA": expected_value}),
                 ])
                 decoded_packet = decode_packet(encode_packet("PACK", 10, packet_timestamp, b"INFO", [
-                    FieldData("FIEL", 20, {"PARA": value}),
+                    ("FIEL", 20, {"PARA": value}),
                 ]))
                 self.assertEqual(decoded_packet, expected_packet)
