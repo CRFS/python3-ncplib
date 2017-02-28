@@ -56,19 +56,25 @@ FieldData = namedtuple("FieldData", ("name", "id", "params",))
 
 
 def decode_fields(buf, offset, limit):
+    fields = []
     while offset < limit:
+        # Decode field header.
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         name = decode_identifier(name)
         size = int.from_bytes(u24_size, "little") * 4
+        # Decode params.
         params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
-        yield FieldData(
+        fields.append(FieldData(
             name=name,
             id=field_id,
             params=params,
-        )
+        ))
         offset += size
+    # Check for field overflow.
     if offset > limit:  # pragma: no cover
         raise DecodeError("Field overflow by {} bytes".format(offset - limit))
+    # All done!
+    return fields
 
 
 # Packet encoding.
@@ -153,7 +159,7 @@ def decode_packet_cps(header_buf):
     def decode_packet_body(body_buf):
         if len(body_buf) > size_remaining:  # pragma: no cover
             raise DecodeError("Packet body overflow by {} bytes".format(len(body_buf) - size_remaining))
-        fields = list(decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size))
+        fields = decode_fields(body_buf, 0, size_remaining - PACKET_FOOTER_STRUCT.size)
         (
             checksum,
             footer,
