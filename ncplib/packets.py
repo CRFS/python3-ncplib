@@ -96,13 +96,13 @@ FieldData = namedtuple("FieldData", ("name", "id", "params",))
 
 def encode_fields(fields):
     buf = bytearray()
-    for field in fields:
-        encoded_params = encode_params(field.params)
+    for name, field_id, params in fields:
+        encoded_params = encode_params(params)
         buf.extend(FIELD_HEADER_STRUCT.pack(
-            encode_identifier(field.name),
+            encode_identifier(name),
             encode_u24_size(FIELD_HEADER_STRUCT.size + len(encoded_params)),
             0,  # Field type ID is ignored.
-            field.id,
+            field_id,
         ))
         buf.extend(encoded_params)
     return buf
