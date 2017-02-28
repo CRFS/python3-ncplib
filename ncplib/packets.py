@@ -29,12 +29,6 @@ def decode_identifier(value):
     return value.rstrip(b" \x00").decode("latin1")
 
 
-# u24 size decoding.
-
-def decode_u24_size(value):
-    return int.from_bytes(value, "little") * 4
-
-
 # Param decoding.
 
 def decode_params(buf, offset, limit):
@@ -47,7 +41,7 @@ def decode_params(buf, offset, limit):
         # Keep decoding.
         name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
         name = decode_identifier(name)
-        size = decode_u24_size(u24_size)
+        size = int.from_bytes(u24_size, "little") * 4
         value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size])
         value = decode_value(type_id, value_encoded)
         yield name, value
@@ -65,7 +59,7 @@ def decode_fields(buf, offset, limit):
     while offset < limit:
         name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
         name = decode_identifier(name)
-        size = decode_u24_size(u24_size)
+        size = int.from_bytes(u24_size, "little") * 4
         params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
         yield FieldData(
             name=name,
