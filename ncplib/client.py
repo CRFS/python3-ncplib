@@ -110,8 +110,6 @@ class Client(Connection):
         self._auto_ackn = auto_ackn
         self._hostname = hostname
 
-    # Connection lifecycle.
-
     @asyncio.coroutine
     def _connect(self):
         # Auto-authenticate.
@@ -129,33 +127,27 @@ class Client(Connection):
         # All done!
         yield from super()._connect()
 
-    # Receiving fields.
-
-    def _handle_erro(self, field):
+    def _field_predicate(self, field):
+        # Handle errors.
         if self._auto_erro:
-            error_detail = field.get("ERRO", None)
-            error_code = field.get("ERRC", None)
+            error_detail = field.get("ERRO")
+            error_code = field.get("ERRC")
             if error_detail is not None or error_code is not None:
                 raise CommandError(field, error_detail, error_code)
             # Ignore the rest of packet-level errors.
-            return field.name != "ERRO"
-        return True  # pragma: no cover
-
-    def _handle_warn(self, field):
+            if field.name == "ERRO":
+                return False
+        # Handle warnings.
         if self._auto_warn:
-            warning_detail = field.get("WARN", None)
-            warning_code = field.get("WARC", None)
+            warning_detail = field.get("WARN")
+            warning_code = field.get("WARC")
             if warning_detail is not None or warning_code is not None:
                 warnings.warn(CommandWarning(field, warning_detail, warning_code))
             # Ignore the rest of packet-level warnings.
-            return field.name != "WARN"
-        return True  # pragma: no cover
-
-    def _handle_ackn(self, field):
+            if field.name == "WARN":
+                return False
+        # Handle acks.
         return not self._auto_ackn or "ACKN" not in field
-
-    def _field_predicate(self, field):
-        return self._handle_erro(field) and self._handle_warn(field) and self._handle_ackn(field)
 
 
 @asyncio.coroutine
