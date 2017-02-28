@@ -32,11 +32,8 @@ API reference
     :members:
 """
 
-
 import warnings
 from array import array
-from functools import singledispatch
-
 from ncplib.errors import DecodeWarning
 from ncplib.functional import valuedispatch
 
@@ -96,29 +93,18 @@ class uint(int):
 
 # Encoders.
 
-@singledispatch
-def encode_value(value):  # pragma: no cover
-    raise TypeError("Unsupported value type {}".format(type(value)))
-
-
-@encode_value.register(int)
 def encode_value_int(value):
-    return TYPE_I32, value.to_bytes(length=4, byteorder="little", signed=True)
+    return TYPE_I32, value.to_bytes(4, "little", signed=True)
 
 
-@encode_value.register(uint)
 def encode_value_uint(value):
-    return TYPE_U32, value.to_bytes(length=4, byteorder="little", signed=False)
+    return TYPE_U32, value.to_bytes(4, "little")
 
 
-@encode_value.register(str)
 def encode_value_str(value):
-    return TYPE_STRING, value.encode(encoding="utf-8", errors="ignore") + b"\x00"
+    return TYPE_STRING, value.encode("utf-8") + b"\x00"
 
 
-@encode_value.register(bytes)
-@encode_value.register(bytearray)
-@encode_value.register(memoryview)
 def encode_value_bytes(value):
     return TYPE_RAW, value
 
@@ -133,12 +119,27 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 }
 
 
-@encode_value.register(array)
 def encode_value_array(value):
+    return ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode], value.tobytes()
+
+
+ENCODERS = {
+    bool: encode_value_int,
+    int: encode_value_int,
+    uint: encode_value_uint,
+    str: encode_value_str,
+    bytes: encode_value_bytes,
+    bytearray: encode_value_bytes,
+    memoryview: encode_value_bytes,
+    array: encode_value_array,
+}
+
+
+def encode_value(value):  # pragma: no cover
     try:
-        return ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode], value.tobytes()
-    except KeyError:  # pragma: no cover
-        raise TypeError("Unsupported array type {}".format(value.typecode))
+        return ENCODERS[value.__class__](value)
+    except KeyError:
+        raise TypeError("Unsupported value type {}".format(type(value)))
 
 
 # Decoders.

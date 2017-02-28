@@ -139,7 +139,7 @@ class Client(Connection):
                 raise CommandError(field, error_detail, error_code)
             # Ignore the rest of packet-level errors.
             return field.name != "ERRO"
-        return True
+        return True  # pragma: no cover
 
     def _handle_warn(self, field):
         if self._auto_warn:
@@ -149,7 +149,7 @@ class Client(Connection):
                 warnings.warn(CommandWarning(field, warning_detail, warning_code))
             # Ignore the rest of packet-level warnings.
             return field.name != "WARN"
-        return True
+        return True  # pragma: no cover
 
     def _handle_ackn(self, field):
         return not self._auto_ackn or "ACKN" not in field
