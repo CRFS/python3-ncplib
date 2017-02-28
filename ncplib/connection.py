@@ -58,7 +58,6 @@ API reference
 """
 
 import asyncio
-from collections import deque
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
@@ -314,7 +313,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         self.logger.debug("Connected to %s over NCP", remote_hostname)
         # Packet reading.
         self._reader = reader
-        self._field_buffer = deque()
+        self._field_buffer = []
         # Packet writing.
         self._writer = writer
         self._id_gen = 0
@@ -370,7 +369,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
     # Packet reading.
 
-    def _field_predicate(self, field):
+    def _field_predicate(self, field_data):
         return True
 
     # Receiving fields.
@@ -386,23 +385,24 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         while True:
             # Return buffered fields.
             if self._field_buffer:
-                field = self._field_buffer.popleft()
+                field = self._field_buffer.pop()
                 self.logger.debug(
                     "Received field %s %s from %s over NCP",
                     field.packet_type, field.name, self.remote_hostname
                 )
-                return field
+                if self._field_predicate(field):
+                    return field
             # Read some more fields.
             header_buf = yield from self._reader.readexactly(PACKET_HEADER_STRUCT.size)
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = yield from self._reader.readexactly(size_remaining)
             packet = decode_packet_body(body_buf)
             self.logger.debug("Received packet %s from %s over NCP", packet.type, self.remote_hostname)
-            self._field_buffer.extend(filter(self._field_predicate, (
+            self._field_buffer = [
                 Field(self, packet, field)
-                for field
-                in packet.fields
-            )))
+                for field in packet.fields
+            ]
+            self._field_buffer.reverse()
     recv.__doc__ += _recv_return_doc
 
     @asyncio.coroutine

@@ -29,16 +29,13 @@ PACKET_FOOTER_BUG = b"\x00\x00\x00\x00" + PACKET_FOOTER
 # Identifier encoding.
 
 def encode_identifier(value):
-    try:
-        return value.encode(encoding="latin1") + (b"\x00" * (len(value) % 4))
-    except UnicodeError:  # pragma: no cover
-        raise ValueError("Invalid identifier {}".format(value))
+    return value.encode("latin1").ljust(4, b" ")
 
 
 # Identifier decoding.
 
 def decode_identifier(value):
-    return value.rstrip(b" \x00").decode(encoding="latin1")
+    return value.rstrip(b" \x00").decode("latin1")
 
 
 # u24 size encoding.
