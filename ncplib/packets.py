@@ -17,12 +17,6 @@ PARAM_HEADER_STRUCT = Struct("<4s3sB")
 PACKET_FOOTER_STRUCT = Struct("<I4s")
 
 
-# Identifier encoding.
-
-def encode_identifier(value):
-    return value.encode("latin1").ljust(4, b" ")
-
-
 # Identifier decoding.
 
 def decode_identifier(value):
@@ -77,7 +71,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     PACKET_HEADER_STRUCT.pack_into(
         buf, 0,
         b"\xdd\xcc\xbb\xaa",  # Hardcoded packet header.
-        encode_identifier(packet_type),
+        packet_type.encode("latin1"),
         0,  # Placeholder for the packet size, which we will calculate soon.
         packet_id,
         b'\x01\x00\x00\x00',
@@ -90,7 +84,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         field_offset = offset
         # Write the field header.
         buf.extend(FIELD_HEADER_STRUCT.pack(
-            encode_identifier(field_name),
+            field_name.encode("latin1"),
             b"\x00\x00\x00",  # Placeholder for the field size, which we will calculate soom.
             b"\x00",  # Field type ID is ignored.
             field_id,
@@ -104,7 +98,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
             param_size = 8 + len(param_encoded_value)  # 8 is the size of the param header.
             param_padding_size = -param_size % 4
             buf.extend(PARAM_HEADER_STRUCT.pack(
-                encode_identifier(param_name),
+                param_name.encode("latin1"),
                 ((param_size + param_padding_size) // 4).to_bytes(3, "little"),
                 param_type_id,
             ))
