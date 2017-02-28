@@ -29,50 +29,41 @@ def decode_identifier(value):
     return value.rstrip(b" \x00").decode("latin1")
 
 
-# Param decoding.
-
-def decode_params(buf, offset, limit):
-    while offset < limit:
-        # HACK: Work around a known garbled NCP packet problem from Axis nodes.
-        if buf[offset:offset+8] == b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd":
-            warnings.warn(DecodeWarning("Encountered embedded packet footer bug"))
-            offset += 8
-            continue
-        # Keep decoding.
-        name, u24_size, type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
-        name = decode_identifier(name)
-        size = int.from_bytes(u24_size, "little") * 4
-        value_encoded = bytes(buf[offset+PARAM_HEADER_STRUCT.size:offset+size])
-        value = decode_value(type_id, value_encoded)
-        yield name, value
-        offset += size
-    if offset > limit:  # pragma: no cover
-        raise DecodeError("Parameter overflow by {} bytes".format(offset - limit))
-
-
 # Field decoding.
 
 FieldData = namedtuple("FieldData", ("name", "id", "params",))
 
 
-def decode_fields(buf, offset, limit):
+def decode_fields(buf, offset, field_limit):
     fields = []
-    while offset < limit:
+    while offset < field_limit:
         # Decode field header.
-        name, u24_size, type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
-        name = decode_identifier(name)
-        size = int.from_bytes(u24_size, "little") * 4
+        field_name, field_size, field_type_id, field_id = FIELD_HEADER_STRUCT.unpack_from(buf, offset)
+        param_limit = offset + int.from_bytes(field_size, "little") * 4
+        offset += 12  # 12 is the size of the field header.
         # Decode params.
-        params = OrderedDict(decode_params(buf, offset+FIELD_HEADER_STRUCT.size, offset+size))
-        fields.append(FieldData(
-            name=name,
-            id=field_id,
-            params=params,
-        ))
-        offset += size
+        params = OrderedDict()
+        while offset < param_limit:
+            # HACK: Work around a known garbled NCP packet problem from Axis nodes.
+            if buf[offset:offset+8] == b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd":
+                warnings.warn(DecodeWarning("Encountered embedded packet footer bug"))
+                offset += 8
+                continue
+            # Decode the param header.
+            param_name, param_size, param_type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
+            param_size = int.from_bytes(param_size, "little") * 4
+            # Decode the param value.
+            param_value_encoded = bytes(buf[offset+8:offset+param_size])  # 8 is the size of the param header.
+            params[decode_identifier(param_name)] = decode_value(param_type_id, param_value_encoded)
+            offset += param_size
+            # Check for param overflow.
+            if offset > param_limit:  # pragma: no cover
+                raise DecodeError("Parameter overflow by {} bytes".format(offset - param_limit))
+        # Store the field.
+        fields.append(FieldData(decode_identifier(field_name), field_id, params))
     # Check for field overflow.
-    if offset > limit:  # pragma: no cover
-        raise DecodeError("Field overflow by {} bytes".format(offset - limit))
+    if offset > field_limit:  # pragma: no cover
+        raise DecodeError("Field overflow by {} bytes".format(offset - field_limit))
     # All done!
     return fields
 
@@ -93,8 +84,8 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         timestamp_unix, timestamp_nano,
         info,
     )
-    # Write the packet fields.
     offset = 32  # 32 is the size of the packet header.
+    # Write the packet fields.
     for field_name, field_id, params in fields:
         field_offset = offset
         # Write the field header.
@@ -104,8 +95,8 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
             b"\x00",  # Field type ID is ignored.
             field_id,
         ))
-        # Write the params.
         offset += 12  # 12 is the size of the field header.
+        # Write the params.
         for param_name, param_value in params.items():
             # Encode the param value.
             param_type_id, param_encoded_value = encode_value(param_value)
@@ -120,7 +111,6 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
             # Write the param value.
             buf.extend(param_encoded_value)
             buf.extend(b"\x00" * param_padding_size)
-            # Keep track of field size.
             offset += param_size + param_padding_size
         # Write the field size.
         buf[field_offset+4:field_offset+7] = ((offset - field_offset) // 4).to_bytes(3, "little")[:3]
