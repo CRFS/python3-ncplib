@@ -14,12 +14,6 @@ FIELD_HEADER_STRUCT = Struct("<4s3s1sI")
 PARAM_HEADER_STRUCT = Struct("<4s3sB")
 
 
-# Identifier decoding.
-
-def decode_identifier(value):
-    return value.rstrip(b" \x00").decode("latin1")
-
-
 # Packet encoding.
 
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
@@ -119,20 +113,20 @@ def decode_packet_cps(header_buf):
                 param_size = int.from_bytes(param_size, "little") * 4
                 # Decode the param value.
                 param_value_encoded = bytes(buf[offset+8:offset+param_size])  # 8 is the size of the param header.
-                params[decode_identifier(param_name)] = decode_value(param_type_id, param_value_encoded)
+                params[param_name.rstrip(b" \x00").decode("latin1")] = decode_value(param_type_id, param_value_encoded)
                 offset += param_size
                 # Check for param overflow.
                 if offset > param_limit:  # pragma: no cover
                     raise DecodeError("Parameter overflow by {} bytes".format(offset - param_limit))
             # Store the field.
-            fields.append((decode_identifier(field_name), field_id, params))
+            fields.append((field_name.rstrip(b" \x00").decode("latin1"), field_id, params))
         # Check for field overflow.
         if offset > field_limit:  # pragma: no cover
             raise DecodeError("Field overflow by {} bytes".format(offset - field_limit))
 
         # All done!
         return (
-            decode_identifier(packet_type),
+            packet_type.rstrip(b" \x00").decode("latin1"),
             packet_id,
             unix_to_datetime(time, nanotime),
             info,
@@ -141,8 +135,3 @@ def decode_packet_cps(header_buf):
 
     # Return the number of bytes to read, and the function to finish decoding.
     return size_remaining, decode_packet_body
-
-
-def decode_packet(buf):
-    body_size, decode_packet_body = decode_packet_cps(buf[:32])  # 32 is the size of the packet header.
-    return decode_packet_body(buf[32:])  # 32 is the size of the packet header.
