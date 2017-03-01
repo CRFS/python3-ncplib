@@ -1,8 +1,8 @@
 from array import array
+from datetime import datetime, timezone
 from struct import Struct
 import warnings
 from ncplib.errors import DecodeError, DecodeWarning
-from ncplib.helpers import unix_to_datetime, datetime_to_unix
 from ncplib.values import uint
 
 
@@ -73,7 +73,7 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 
 
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
-    packet_time, packet_nanotime = datetime_to_unix(timestamp)
+    timestamp = timestamp.astimezone(timezone.utc)
     # Encode the header.
     packet_header = bytearray(PACKET_HEADER_SIZE)
     PACKET_HEADER_STRUCT.pack_into(
@@ -83,7 +83,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         0,  # Placeholder for the packet size, which we will calculate soon.
         packet_id,
         PACKET_VERSION,
-        packet_time, packet_nanotime,
+        int(timestamp.timestamp()), timestamp.microsecond * 1000,
         info,
     )
     chunks = [packet_header]
@@ -242,7 +242,7 @@ def decode_packet_cps(header_buf):
         return (
             packet_type.rstrip(b" \x00").decode("latin1"),
             packet_id,
-            unix_to_datetime(packet_time, packet_nanotime),
+            datetime.fromtimestamp(packet_time, tz=timezone.utc).replace(microsecond=packet_nanotime // 1000),
             packet_info,
             fields,
         )

@@ -59,6 +59,5 @@ __version__ = (2, 2, 1)
 from ncplib.client import *  # noqa
 from ncplib.connection import *  # noqa
 from ncplib.errors import *  # noqa
-from ncplib.helpers import *  # noqa
 from ncplib.server import *  # noqa
 from ncplib.values import *  # noqa
