@@ -44,7 +44,6 @@ class ClientServerTestCase(AsyncTestCase):
         self, client_connected=success_server_handler, *,
         client_disconnected_queue=None,
         server_auto_auth=True,
-        server_auto_link=True,
         client_auto_link=True,
         client_auto_auth=True
     ):
@@ -52,7 +51,6 @@ class ClientServerTestCase(AsyncTestCase):
             partial(client_connected, client_disconnected_queue),
             "127.0.0.1", 0,
             loop=self.loop,
-            auto_link=server_auto_link,
             auto_auth=server_auto_auth,
         )
         yield from server.__aenter__()
