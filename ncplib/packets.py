@@ -1,8 +1,9 @@
-import warnings
+from array import array
 from struct import Struct
+import warnings
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.helpers import unix_to_datetime, datetime_to_unix
-from ncplib.values import encode_value, decode_value
+from ncplib.values import uint
 
 
 # Packet structs.
@@ -34,6 +35,73 @@ PACKET_VERSION = (1).to_bytes(4, "little", signed=False)
 PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
 
 PACKET_FOOTER_NO_CHECKSUM = b"\x00\x00\x00\x00" + PACKET_FOOTER
+
+
+# Known type codes.
+
+TYPE_I32 = 0x00
+
+TYPE_U32 = 0x01
+
+TYPE_STRING = 0x02
+
+TYPE_RAW = 0x80
+
+TYPE_ARRAY_U8 = 0x81
+
+TYPE_ARRAY_U16 = 0x82
+
+TYPE_ARRAY_U32 = 0x83
+
+TYPE_ARRAY_I8 = 0x84
+
+TYPE_ARRAY_I16 = 0x85
+
+TYPE_ARRAY_I32 = 0x86
+
+
+# Encoders.
+
+def encode_value_int(value):
+    return TYPE_I32, value.to_bytes(4, "little", signed=True)
+
+
+def encode_value_uint(value):
+    return TYPE_U32, value.to_bytes(4, "little")
+
+
+def encode_value_str(value):
+    return TYPE_STRING, value.encode("utf-8") + b"\x00"
+
+
+def encode_value_bytes(value):
+    return TYPE_RAW, value
+
+
+ARRAY_TYPE_CODES_TO_TYPE_ID = {
+    "B": TYPE_ARRAY_U8,
+    "H": TYPE_ARRAY_U16,
+    "I": TYPE_ARRAY_U32,
+    "b": TYPE_ARRAY_I8,
+    "h": TYPE_ARRAY_I16,
+    "i": TYPE_ARRAY_I32,
+}
+
+
+def encode_value_array(value):
+    return ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode], value.tobytes()
+
+
+ENCODERS = {
+    int: encode_value_int,
+    bool: encode_value_int,
+    uint: encode_value_uint,
+    str: encode_value_str,
+    bytes: encode_value_bytes,
+    bytearray: encode_value_bytes,
+    memoryview: encode_value_bytes,
+    array: encode_value_array,
+}
 
 
 # Packet encoding.
@@ -71,9 +139,13 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         # Write the params.
         for param_name, param_value in params:
             # Encode the param value.
-            param_type_id, param_encoded_value = encode_value(param_value)
+            # In benchmarks, a dict lookup of encode function is consistently faster than a big elif chain.
+            try:
+                param_type_id, param_value = ENCODERS[param_value.__class__](param_value)
+            except KeyError:  # pragma: no cover
+                raise TypeError("Unsupported value type {}".format(type(param_value)))
             # Write the param header.
-            param_size = PARAM_HEADER_SIZE + len(param_encoded_value)
+            param_size = PARAM_HEADER_SIZE + len(param_value)
             param_padding_size = -param_size % 4
             chunks.append(PARAM_HEADER_STRUCT.pack(
                 param_name.encode("latin1"),
@@ -81,7 +153,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
                 param_type_id,
             ))
             # Write the param value.
-            chunks.append(param_encoded_value)
+            chunks.append(param_value)
             chunks.append(b"\x00" * param_padding_size)
             offset += param_size + param_padding_size
         # Write the field size.
@@ -138,11 +210,34 @@ def decode_packet_cps(header_buf):
                 param_name, param_size, param_type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
                 param_size = int.from_bytes(param_size, "little") * 4
                 # Decode the param value.
-                param_value_encoded = bytes(buf[offset+PARAM_HEADER_SIZE:offset+param_size])
-                params.append((
-                    param_name.rstrip(b" \x00").decode("latin1"),
-                    decode_value(param_type_id, param_value_encoded),
-                ))
+                param_value = buf[offset+PARAM_HEADER_SIZE:offset+param_size]
+                # In benchmarks, a big elif chain is consistently faster than a dictionary lookup.
+                # We check against raw, int and string first, as these are the most commonly used value types in the
+                # PHD tunneling protocol, which has to be super-fast.
+                if param_type_id == TYPE_RAW:
+                    param_value = bytes(param_value)
+                elif param_type_id == TYPE_I32:
+                    param_value = int.from_bytes(param_value, "little", signed=True)
+                elif param_type_id == TYPE_STRING:
+                    param_value = param_value.split(b"\x00", 1)[0].decode()
+                elif param_type_id == TYPE_U32:
+                    param_value = uint.from_bytes(param_value, "little")
+                elif param_type_id == TYPE_ARRAY_U8:
+                    param_value = array("B", param_value)
+                elif param_type_id == TYPE_ARRAY_U16:
+                    param_value = array("H", param_value)
+                elif param_type_id == TYPE_ARRAY_U32:
+                    param_value = array("I", param_value)
+                elif param_type_id == TYPE_ARRAY_I8:
+                    param_value = array("b", param_value)
+                elif param_type_id == TYPE_ARRAY_I16:
+                    param_value = array("h", param_value)
+                elif param_type_id == TYPE_ARRAY_I32:
+                    param_value = array("i", param_value)
+                else:  # pragma: no cover
+                    warnings.warn(DecodeWarning("Unsupported type ID", param_type_id))
+                # Store the param.
+                params.append((param_name.rstrip(b" \x00").decode("latin1"), param_value))
                 offset += param_size
                 # Check for param overflow.
                 if offset > param_limit:  # pragma: no cover
