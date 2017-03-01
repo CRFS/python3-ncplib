@@ -1,7 +1,7 @@
 import unittest
 from array import array
 from datetime import datetime, timezone
-from ncplib.packets import decode_packet_cps, encode_packet, decode_packet
+from ncplib.packets import encode_packet, decode_packet
 from ncplib import uint, DecodeWarning
 
 

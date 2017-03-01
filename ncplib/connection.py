@@ -347,7 +347,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     def _run_handler(self, coro):
         try:
             return (yield from coro)
-        except asyncio.CancelledError:  # pragma: no cover
+        except asyncio.CancelledError:
             raise  # The handler was cancelled, so let it propagate.
         except (EOFError, OSError):  # pragma: no cover
             pass  # The connection was closed, so ignore the error.

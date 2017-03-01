@@ -20,10 +20,7 @@ def success_server_handler(client_disconnected_queue, client):
                     break
             else:
                 # Use the old recv() protocol.
-                try:
-                    field = yield from client.recv()
-                except EOFError:
-                    break
+                field = yield from client.recv()
             # Send a response.
             field.send(ACKN=True)
             field.send(**field)
