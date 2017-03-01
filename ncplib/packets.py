@@ -69,7 +69,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         chunks.append(field_header)
         offset += FIELD_HEADER_SIZE
         # Write the params.
-        for param_name, param_value in params.items():
+        for param_name, param_value in params:
             # Encode the param value.
             param_type_id, param_encoded_value = encode_value(param_value)
             # Write the param header.
@@ -127,7 +127,7 @@ def decode_packet_cps(header_buf):
             param_limit = offset + int.from_bytes(field_size, "little") * 4
             offset += FIELD_HEADER_SIZE
             # Decode params.
-            params = {}
+            params = []
             while offset < param_limit:
                 # HACK: Work around a known garbled NCP packet problem from Axis nodes.
                 if buf[offset:offset+8] == PACKET_FOOTER_NO_CHECKSUM:
@@ -139,7 +139,10 @@ def decode_packet_cps(header_buf):
                 param_size = int.from_bytes(param_size, "little") * 4
                 # Decode the param value.
                 param_value_encoded = bytes(buf[offset+PARAM_HEADER_SIZE:offset+param_size])
-                params[param_name.rstrip(b" \x00").decode("latin1")] = decode_value(param_type_id, param_value_encoded)
+                params.append((
+                    param_name.rstrip(b" \x00").decode("latin1"),
+                    decode_value(param_type_id, param_value_encoded),
+                ))
                 offset += param_size
                 # Check for param overflow.
                 if offset > param_limit:  # pragma: no cover

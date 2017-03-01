@@ -83,11 +83,11 @@ class PacketDatasTestCase(unittest.TestCase):
 
     def testDecodeRealPacketData(self):
         self.assertEqual(decode_packet(REAL_PACKET)[4], [
-            ("HELO", 0, {
-                "NCPV": "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__",
-                "SEID": "monitor",
-                "MACA": "00:24:81:b4:49:34",
-            }),
+            ("HELO", 0, [
+                ("NCPV", "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__"),
+                ("SEID", "monitor"),
+                ("MACA", "00:24:81:b4:49:34"),
+            ]),
         ])
 
     def testDecodeEmbeddedPacketFooterBug(self):
@@ -95,25 +95,25 @@ class PacketDatasTestCase(unittest.TestCase):
             self.assertEqual(
                 decode_packet(REAL_PACKET_EMBEDDED_FOOTER_BUG)[4],
                 [
-                    ('STAT', 1, {
-                        'OCON': 3,
-                        'CADD': '127.0.0.1,127.0.0.1,192.168.1.28',
-                        'CIDS': 'rfeye000709,rfeye000709,python3-ncplib',
-                        'RGPS': 'no GPS,no GPS,no GPS',
-                        'ELOC': 0,
-                    }),
-                    ('SGPS', 1, {
-                        'LATI': 51180800,
-                        'LONG': -100000,
-                        'STAT': 1,
-                        'GFIX': 1,
-                        'SATS': 9,
-                        'SPEE': 20372,
-                        'HEAD': 4256,
-                        'ALTI': 9000,
-                        'UTIM': 1441030068,
-                        'TSTR': 'Mon Aug 31 14:07:48 2015',
-                    }),
+                    ('STAT', 1, [
+                        ('OCON', 3),
+                        ('CADD', '127.0.0.1,127.0.0.1,192.168.1.28'),
+                        ('CIDS', 'rfeye000709,rfeye000709,python3-ncplib'),
+                        ('RGPS', 'no GPS,no GPS,no GPS'),
+                        ('ELOC', 0),
+                    ]),
+                    ('SGPS', 1, [
+                        ('LATI', 51180800),
+                        ('LONG', -100000),
+                        ('STAT', 1),
+                        ('GFIX', 1),
+                        ('SATS', 9),
+                        ('SPEE', 20372),
+                        ('HEAD', 4256),
+                        ('ALTI', 9000),
+                        ('UTIM', 1441030068),
+                        ('TSTR', 'Mon Aug 31 14:07:48 2015'),
+                    ]),
                 ],
             )
         self.assertEqual(str(cm.warning), "Encountered embedded packet footer bug")
@@ -123,9 +123,9 @@ class PacketDatasTestCase(unittest.TestCase):
         for value, expected_value in PACKET_VALUES:
             with self.subTest(value=value, expected_value=expected_value):
                 expected_packet = ("PACK", 10, packet_timestamp, b"INFO", [
-                    ("FIEL", 20, {"PARA": expected_value}),
+                    ("FIEL", 20, [("PARA", expected_value)]),
                 ])
                 decoded_packet = decode_packet(encode_packet("PACK", 10, packet_timestamp, b"INFO", [
-                    ("FIEL", 20, {"PARA": value}),
+                    ("FIEL", 20, [("PARA", value)]),
                 ]))
                 self.assertEqual(decoded_packet, expected_packet)

@@ -150,7 +150,7 @@ class Field(dict):
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
-        return self.connection._send_packet(self.packet_type, [(self.name, self.id, params)])
+        return self.connection._send_packet(self.packet_type, [(self.name, self.id, params.items())])
     send.__doc__ += _send_return_doc
 
 
@@ -455,7 +455,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             :doc:`value types <values>`.
         """
         return self._send_packet(packet_type, [
-            (field_name, self._gen_id(), field_params)
+            (field_name, self._gen_id(), field_params.items())
             for field_name, field_params
             in fields.items()
         ])
@@ -471,7 +471,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, [(field_name, self._gen_id(), params)])
+        return self._send_packet(packet_type, [(field_name, self._gen_id(), params.items())])
     send.__doc__ += _send_return_doc
 
     # Connection lifecycle.

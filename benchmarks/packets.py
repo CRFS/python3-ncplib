@@ -6,13 +6,13 @@ from ncplib import uint
 
 
 PACKET = ("TEST", 1, datetime.now(tz=timezone.utc), b"INFO", [
-    ("FIEL", 2, {
-        "INT": -99,
-        "UINT": uint(99),
-        "STR": "foo!",
-        "BYTE": b"bar!",
-        "ARR": array.array("i", [10]),
-    }),
+    ("FIEL", 2, [
+        ("INT", -99),
+        ("UINT", uint(99)),
+        ("STR", "foo!"),
+        ("BYTE", b"bar!"),
+        ("ARR", array.array("i", [10])),
+    ]),
 ])
 
 
