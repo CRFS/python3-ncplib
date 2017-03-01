@@ -39,7 +39,7 @@ PACKET_FOOTER_NO_CHECKSUM = b"\x00\x00\x00\x00" + PACKET_FOOTER
 # Packet encoding.
 
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
-    timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
+    packet_time, packet_nanotime = datetime_to_unix(timestamp)
     # Encode the header.
     packet_header = bytearray(PACKET_HEADER_SIZE)
     PACKET_HEADER_STRUCT.pack_into(
@@ -49,7 +49,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         0,  # Placeholder for the packet size, which we will calculate soon.
         packet_id,
         PACKET_VERSION,
-        timestamp_unix, timestamp_nano,
+        packet_time, packet_nanotime,
         info,
     )
     chunks = [packet_header]
@@ -98,20 +98,20 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
 
 def decode_packet_cps(header_buf):
     (
-        header,
+        packet_header,
         packet_type,
-        size,
+        packet_size,
         packet_id,
-        format_id,
-        time,
-        nanotime,
-        info,
+        packet_format_id,
+        packet_time,
+        packet_nanotime,
+        packet_info,
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
-    size = size * 4
-    if header != PACKET_HEADER:  # pragma: no cover
-        raise DecodeError("Invalid packet header {}".format(header))
+    packet_size = packet_size * 4
+    if packet_header != PACKET_HEADER:  # pragma: no cover
+        raise DecodeError("Invalid packet header {}".format(packet_header))
     # Decode the rest of the body data.
-    size_remaining = size - PACKET_HEADER_SIZE
+    size_remaining = packet_size - PACKET_HEADER_SIZE
 
     def decode_packet_body(buf):
         offset = 0
@@ -154,8 +154,8 @@ def decode_packet_cps(header_buf):
         return (
             packet_type.rstrip(b" \x00").decode("latin1"),
             packet_id,
-            unix_to_datetime(time, nanotime),
-            info,
+            unix_to_datetime(packet_time, packet_nanotime),
+            packet_info,
             fields,
         )
 
