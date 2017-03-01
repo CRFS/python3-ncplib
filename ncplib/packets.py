@@ -60,23 +60,7 @@ TYPE_ARRAY_I16 = 0x85
 TYPE_ARRAY_I32 = 0x86
 
 
-# Encoders.
-
-def encode_value_int(value):
-    return TYPE_I32, value.to_bytes(4, "little", signed=True)
-
-
-def encode_value_uint(value):
-    return TYPE_U32, value.to_bytes(4, "little")
-
-
-def encode_value_str(value):
-    return TYPE_STRING, value.encode("utf-8") + b"\x00"
-
-
-def encode_value_bytes(value):
-    return TYPE_RAW, value
-
+# Packet encoding.
 
 ARRAY_TYPE_CODES_TO_TYPE_ID = {
     "B": TYPE_ARRAY_U8,
@@ -87,24 +71,6 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
     "i": TYPE_ARRAY_I32,
 }
 
-
-def encode_value_array(value):
-    return ARRAY_TYPE_CODES_TO_TYPE_ID[value.typecode], value.tobytes()
-
-
-ENCODERS = {
-    int: encode_value_int,
-    bool: encode_value_int,
-    uint: encode_value_uint,
-    str: encode_value_str,
-    bytes: encode_value_bytes,
-    bytearray: encode_value_bytes,
-    memoryview: encode_value_bytes,
-    array: encode_value_array,
-}
-
-
-# Packet encoding.
 
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
     packet_time, packet_nanotime = datetime_to_unix(timestamp)
@@ -139,10 +105,33 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         # Write the params.
         for param_name, param_value in params:
             # Encode the param value.
-            # In benchmarks, a dict lookup of encode function is consistently faster than a big elif chain.
-            try:
-                param_type_id, param_value = ENCODERS[param_value.__class__](param_value)
-            except KeyError:  # pragma: no cover
+            param_value_cls = param_value.__class__
+            # In benchmarks, a big elif chain is consistently faster than a dictionary lookup.
+            # We check against raw, int and string first, as these are the most commonly used value types in the
+            # PHD tunneling protocol, which has to be super-fast.
+            if param_value_cls is bytes:
+                param_type_id = TYPE_RAW
+            elif param_value_cls is str:
+                param_type_id = TYPE_STRING
+                param_value = param_value.encode("utf-8") + b"\x00"
+            elif param_value_cls is int:
+                param_type_id = TYPE_I32
+                param_value = param_value.to_bytes(4, "little", signed=True)
+            # Check against the other value types.
+            elif param_value_cls is bytearray:
+                param_type_id = TYPE_RAW
+            elif param_value_cls is memoryview:
+                param_type_id = TYPE_RAW
+            elif param_value_cls is bool:
+                param_type_id = TYPE_I32
+                param_value = param_value.to_bytes(4, "little", signed=True)
+            elif param_value_cls is uint:
+                param_type_id = TYPE_U32
+                param_value = param_value.to_bytes(4, "little")
+            elif param_value_cls is array:
+                param_type_id = ARRAY_TYPE_CODES_TO_TYPE_ID[param_value.typecode]
+                param_value = param_value.tobytes()
+            else:  # pragma: no cover
                 raise TypeError("Unsupported value type {}".format(type(param_value)))
             # Write the param header.
             param_size = PARAM_HEADER_SIZE + len(param_value)
@@ -220,6 +209,7 @@ def decode_packet_cps(header_buf):
                     param_value = int.from_bytes(param_value, "little", signed=True)
                 elif param_type_id == TYPE_STRING:
                     param_value = param_value.split(b"\x00", 1)[0].decode()
+                # Check against the other value types.
                 elif param_type_id == TYPE_U32:
                     param_value = uint.from_bytes(param_value, "little")
                 elif param_type_id == TYPE_ARRAY_U8:
