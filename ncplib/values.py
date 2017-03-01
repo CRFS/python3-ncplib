@@ -34,6 +34,7 @@ API reference
 
 import warnings
 from array import array
+from functools import partial
 from ncplib.errors import DecodeWarning
 
 
@@ -143,46 +144,31 @@ def encode_value(value):
 
 # Decoders.
 
-def decode_value_i32(type_id, encoded_value):
-    return int.from_bytes(encoded_value, "little", signed=True)
-
-
-def decode_value_u32(type_id, encoded_value):
-    return uint.from_bytes(encoded_value, "little")
-
-
-def decode_value_string(type_id, encoded_value):
+def decode_value_string(encoded_value):
     return encoded_value.split(b"\x00", 1)[0].decode()
 
 
-def decode_value_raw(type_id, encoded_value):
+def decode_value_raw(encoded_value):
     return encoded_value
 
 
-TYPE_ID_TO_ARRAY_TYPE_CODES = dict(map(reversed, ARRAY_TYPE_CODES_TO_TYPE_ID.items()))
-
-
-def decode_value_array(type_id, encoded_value):
-    return array(TYPE_ID_TO_ARRAY_TYPE_CODES[type_id], encoded_value)
-
-
 DECODERS = {
-    TYPE_I32: decode_value_i32,
-    TYPE_U32: decode_value_u32,
+    TYPE_I32: partial(int.from_bytes, byteorder="little", signed=True),
+    TYPE_U32: partial(uint.from_bytes, byteorder="little"),
     TYPE_STRING: decode_value_string,
     TYPE_RAW: decode_value_raw,
-    TYPE_ARRAY_U8: decode_value_array,
-    TYPE_ARRAY_U16: decode_value_array,
-    TYPE_ARRAY_U32: decode_value_array,
-    TYPE_ARRAY_I8: decode_value_array,
-    TYPE_ARRAY_I16: decode_value_array,
-    TYPE_ARRAY_I32: decode_value_array,
+    TYPE_ARRAY_U8: partial(array, "B"),
+    TYPE_ARRAY_U16: partial(array, "H"),
+    TYPE_ARRAY_U32: partial(array, "I"),
+    TYPE_ARRAY_I8: partial(array, "b"),
+    TYPE_ARRAY_I16: partial(array, "h"),
+    TYPE_ARRAY_I32: partial(array, "i"),
 }
 
 
 def decode_value(type_id, encoded_value):
     try:
-        return DECODERS[type_id](type_id, encoded_value)
+        return DECODERS[type_id](encoded_value)
     except KeyError:  # pragma: no cover
         warnings.warn(DecodeWarning("Unsupported type ID", type_id))
         return encoded_value
