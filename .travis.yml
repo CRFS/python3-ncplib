@@ -3,10 +3,6 @@ language: python
 python:
 - 3.5
 sudo: false
-env:
-  global:
-    - PYTHONWARNINGS=default,ignore::PendingDeprecationWarning
-    - PYTHONASYNCIODEBUG=1
 before_install:
 - rm -rf ~/.pyenv
 - curl -L https://raw.githubusercontent.com/yyuu/pyenv-installer/master/bin/pyenv-installer | bash
