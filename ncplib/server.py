@@ -140,6 +140,23 @@ logger = logging.getLogger(__name__)
 
 class ServerConnection(Connection):
 
+    @asyncio.coroutine
+    def _handle_auth(self):
+        self.send("LINK", "HELO")
+        # Read the hostname.
+        field = yield from self.recv_field("LINK", "CCRE")
+        try:
+            self.remote_hostname = str(field["CIW"])
+        except KeyError:
+            # Handle authentication failure.
+            self.logger.warning("Invalid authentication from %s over NCP", self.remote_hostname)
+            field.send(ERRO="CIW - This field is required", ERRC=401)
+            return
+        # Complete authentication.
+        self.send("LINK", "SCAR")
+        yield from self.recv_field("LINK", "CARE")
+        self.send("LINK", "SCON")
+
     def _handle_expected_error(self, ex):
         super()._handle_expected_error(ex)
         self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
@@ -160,23 +177,6 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
 
     @asyncio.coroutine
     def _handle_client_connection(self, connection):
-        # Handle auth.
-        if self._auto_auth:
-            connection.send("LINK", "HELO")
-            # Read the hostname.
-            field = yield from connection.recv_field("LINK", "CCRE")
-            try:
-                connection.remote_hostname = str(field["CIW"])
-            except KeyError:
-                # Handle authentication failure.
-                connection.logger.warning("Invalid authentication from %s over NCP", connection.remote_hostname)
-                field.send(ERRO="CIW - This field is required", ERRC=401)
-                return
-            # Complete authentication.
-            connection.send("LINK", "SCAR")
-            yield from connection.recv_field("LINK", "CARE")
-            connection.send("LINK", "SCON")
-        # Delegate to handler.
         yield from connection._connect()
         yield from self._client_connected(connection)
 
@@ -195,6 +195,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             logger=logger,
             remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
             auto_link=self._auto_link,
+            auto_auth=self._auto_auth,
         )
         return self.create_handler(self._handle_client_connected(connection))
 

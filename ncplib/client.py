@@ -99,33 +99,25 @@ logger = logging.getLogger(__name__)
 
 class Client(Connection):
 
-    def __init__(
-        self, reader, writer, *,
-        loop, logger, remote_hostname, auto_link, auto_auth, auto_erro, auto_warn, auto_ackn, hostname
-    ):
-        super().__init__(reader, writer, loop=loop, logger=logger, remote_hostname=remote_hostname, auto_link=auto_link)
-        self._auto_auth = auto_auth
+    def __init__(self, reader, writer, *, auto_erro, auto_warn, auto_ackn, hostname, **kwargs):
+        super().__init__(reader, writer, **kwargs)
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
         self._hostname = hostname
 
     @asyncio.coroutine
-    def _connect(self):
-        # Auto-authenticate.
-        if self._auto_auth:
-            # Read the initial LINK HELO packet.
-            yield from self.recv_field("LINK", "HELO")
-            # Send the connection request.
-            self.send("LINK", "CCRE", CIW=self._hostname)
-            # Read the connection response packet.
-            yield from self.recv_field("LINK", "SCAR")
-            # Send the auth request packet.
-            self.send("LINK", "CARE", CAR=self._hostname)
-            # Read the auth response packet.
-            yield from self.recv_field("LINK", "SCON")
-        # All done!
-        yield from super()._connect()
+    def _handle_auth(self):
+        # Read the initial LINK HELO packet.
+        yield from self.recv_field("LINK", "HELO")
+        # Send the connection request.
+        self.send("LINK", "CCRE", CIW=self._hostname)
+        # Read the connection response packet.
+        yield from self.recv_field("LINK", "SCAR")
+        # Send the auth request packet.
+        self.send("LINK", "CARE", CAR=self._hostname)
+        # Read the auth response packet.
+        yield from self.recv_field("LINK", "SCON")
 
     def _field_predicate(self, field):
         # Handle errors.

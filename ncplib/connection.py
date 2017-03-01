@@ -297,7 +297,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
 
     """
 
-    def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link):
+    def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link, auto_auth):
         super().__init__(loop=loop)
         # Logging.
         self.logger = logger
@@ -311,6 +311,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         # Config.
         self.remote_hostname = remote_hostname
         self._auto_link = auto_link
+        self._auto_auth = auto_auth
 
     @property
     def transport(self):
@@ -326,7 +327,13 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
     # Handlers.
 
     @asyncio.coroutine
+    def _handle_auth(self):
+        raise NotImplementedError
+
+    @asyncio.coroutine
     def _connect(self):
+        if self._auto_auth:
+            yield from self._handle_auth()
         if self._auto_link:
             self.create_handler(self._handle_link())
 
