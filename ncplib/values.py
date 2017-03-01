@@ -123,8 +123,8 @@ def encode_value_array(value):
 
 
 ENCODERS = {
-    bool: encode_value_int,
     int: encode_value_int,
+    bool: encode_value_int,
     uint: encode_value_uint,
     str: encode_value_str,
     bytes: encode_value_bytes,
