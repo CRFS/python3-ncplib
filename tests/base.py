@@ -21,4 +21,7 @@ class AsyncTestCase(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.loop = asyncio.new_event_loop()
+        self.loop.set_debug(True)
+        asyncio.set_event_loop(self.loop)
+        self.addCleanup(asyncio.set_event_loop, None)
         self.addCleanup(self.loop.close)

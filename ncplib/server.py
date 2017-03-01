@@ -176,14 +176,10 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
         self._auto_auth = auto_auth
 
     @asyncio.coroutine
-    def _handle_client_connection(self, connection):
-        yield from connection._connect()
-        yield from self._client_connected(connection)
-
-    @asyncio.coroutine
     def _handle_client_connected(self, connection):
         try:
-            yield from connection._run_handler(self._handle_client_connection(connection))
+            yield from connection.create_handler(connection._connect)
+            yield from connection.create_handler(self._client_connected, connection)
         finally:
             connection.close()
             yield from connection.wait_closed()
@@ -197,7 +193,7 @@ class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
             auto_link=self._auto_link,
             auto_auth=self._auto_auth,
         )
-        return self.create_handler(self._handle_client_connected(connection))
+        return self.create_handler(self._handle_client_connected, connection)
 
 
 class Server(ClosableContextMixin):

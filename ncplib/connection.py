@@ -160,8 +160,11 @@ class AsyncHandlerMixin:
         self._loop = loop or asyncio.get_event_loop()
         self._handlers = set()
 
-    def create_handler(self, coro):
-        handler = self._loop.create_task(coro)
+    def _run_handler(self, func, *args, **kwargs):
+        return func(*args, **kwargs)
+
+    def create_handler(self, func, *args, **kwargs):
+        handler = self._loop.create_task(self._run_handler(func, *args, **kwargs))
         self._handlers.add(handler)
         handler.add_done_callback(self._handlers.remove)
         return handler
@@ -335,7 +338,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
         if self._auto_auth:
             yield from self._handle_auth()
         if self._auto_link:
-            self.create_handler(self._handle_link())
+            self.create_handler(self._handle_link)
 
     @asyncio.coroutine
     def _handle_link(self):
@@ -343,27 +346,24 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
             self.send_packet("LINK")
             yield from asyncio.sleep(3, loop=self._loop)
 
-    @asyncio.coroutine
-    def _run_handler(self, coro):
-        try:
-            return (yield from coro)
-        except asyncio.CancelledError:
-            raise  # The handler was cancelled, so let it propagate.
-        except (EOFError, OSError):  # pragma: no cover
-            pass  # The connection was closed, so ignore the error.
-        except (DecodeError, CommandError, asyncio.TimeoutError) as ex:
-            self._handle_expected_error(ex)
-        except Exception as ex:
-            self._handle_unexpected_error(ex)
-
     def _handle_expected_error(self, ex):
         self.logger.warning("Connection error from %s over NCP: %s", self.remote_hostname, ex)
 
     def _handle_unexpected_error(self, ex):
         self.logger.exception("Unexpected error from %s over NCP", self.remote_hostname)
 
-    def create_handler(self, coro):
-        return super().create_handler(self._run_handler(coro))
+    @asyncio.coroutine
+    def _run_handler(self, func, *args, **kwargs):
+        try:
+            yield from func(*args, **kwargs)
+        except asyncio.CancelledError:  # Connection cancelled.
+            raise
+        except (EOFError, OSError):  # Connection closed.
+            pass
+        except (DecodeError, CommandError, asyncio.TimeoutError) as ex:
+            self._handle_expected_error(ex)
+        except Exception as ex:
+            self._handle_unexpected_error(ex)
 
     # Packet reading.
 
