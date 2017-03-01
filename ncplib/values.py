@@ -135,6 +135,7 @@ ENCODERS = {
 
 
 def encode_value(value):
+    # In benchmarks, a dict lookup of encode function is consistently faster than a big elif chain.
     try:
         return ENCODERS[value.__class__](value)
     except KeyError:  # pragma: no cover
