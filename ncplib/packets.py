@@ -135,3 +135,8 @@ def decode_packet_cps(header_buf):
 
     # Return the number of bytes to read, and the function to finish decoding.
     return size_remaining, decode_packet_body
+
+
+def decode_packet(buf):
+    body_size, decode_packet_body = decode_packet_cps(buf[:32])  # 32 is the size of the packet header.
+    return decode_packet_body(buf[32:])  # 32 is the size of the packet header.

@@ -1,7 +1,7 @@
 import unittest
 from array import array
 from datetime import datetime, timezone
-from ncplib.packets import decode_packet_cps, encode_packet
+from ncplib.packets import decode_packet_cps, encode_packet, decode_packet
 from ncplib import uint, DecodeWarning
 
 
@@ -77,11 +77,6 @@ PACKET_VALUES = [
     (array("i", [10]), array("i", [10])),
     (array("i", [2 ** 31 - 1]), array("i", [2 ** 31 - 1])),
 ]
-
-
-def decode_packet(buf):
-    body_size, decode_packet_body = decode_packet_cps(buf[:32])  # 32 is the size of the packet header.
-    return decode_packet_body(buf[32:])  # 32 is the size of the packet header.
 
 
 class PacketDatasTestCase(unittest.TestCase):
