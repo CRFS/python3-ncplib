@@ -41,9 +41,9 @@ PACKET_FOOTER_NO_CHECKSUM = b"\x00\x00\x00\x00" + PACKET_FOOTER
 def encode_packet(packet_type, packet_id, timestamp, info, fields):
     timestamp_unix, timestamp_nano = datetime_to_unix(timestamp)
     # Encode the header.
-    buf = bytearray(PACKET_HEADER_SIZE)
+    packet_header = bytearray(PACKET_HEADER_SIZE)
     PACKET_HEADER_STRUCT.pack_into(
-        buf, 0,
+        packet_header, 0,
         PACKET_HEADER,  # Hardcoded packet header.
         packet_type.encode("latin1"),
         0,  # Placeholder for the packet size, which we will calculate soon.
@@ -52,17 +52,21 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         timestamp_unix, timestamp_nano,
         info,
     )
+    chunks = [packet_header]
     offset = PACKET_HEADER_SIZE
     # Write the packet fields.
     for field_name, field_id, params in fields:
         field_offset = offset
         # Write the field header.
-        buf.extend(FIELD_HEADER_STRUCT.pack(
+        field_header = bytearray(FIELD_HEADER_SIZE)
+        FIELD_HEADER_STRUCT.pack_into(
+            field_header, 0,
             field_name.encode("latin1"),
             b"\x00\x00\x00",  # Placeholder for the field size, which we will calculate soom.
             b"\x00",  # Field type ID is ignored.
             field_id,
-        ))
+        )
+        chunks.append(field_header)
         offset += FIELD_HEADER_SIZE
         # Write the params.
         for param_name, param_value in params.items():
@@ -71,23 +75,23 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
             # Write the param header.
             param_size = PARAM_HEADER_SIZE + len(param_encoded_value)
             param_padding_size = -param_size % 4
-            buf.extend(PARAM_HEADER_STRUCT.pack(
+            chunks.append(PARAM_HEADER_STRUCT.pack(
                 param_name.encode("latin1"),
                 ((param_size + param_padding_size) // 4).to_bytes(3, "little"),
                 param_type_id,
             ))
             # Write the param value.
-            buf.extend(param_encoded_value)
-            buf.extend(b"\x00" * param_padding_size)
+            chunks.append(param_encoded_value)
+            chunks.append(b"\x00" * param_padding_size)
             offset += param_size + param_padding_size
         # Write the field size.
-        buf[field_offset+4:field_offset+7] = ((offset - field_offset) // 4).to_bytes(3, "little")[:3]
+        field_header[4:7] = ((offset - field_offset) // 4).to_bytes(3, "little")[:3]
     # Encode the packet footer.
-    buf.extend(PACKET_FOOTER_NO_CHECKSUM)
+    chunks.append(PACKET_FOOTER_NO_CHECKSUM)
     # Write the packet size.
-    buf[8:12] = ((offset + PACKET_FOOTER_SIZE) // 4).to_bytes(4, "little")
+    packet_header[8:12] = ((offset + PACKET_FOOTER_SIZE) // 4).to_bytes(4, "little")
     # All done!
-    return buf
+    return b"".join(chunks)
 
 
 # PacketData decoding.
