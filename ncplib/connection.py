@@ -154,7 +154,19 @@ class Field(dict):
     send.__doc__ += _send_return_doc
 
 
-class AsyncHandlerMixin:
+class ClosableContextMixin:
+
+    @asyncio.coroutine
+    def __aenter__(self):
+        return self
+
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc, tb):
+        self.close()
+        yield from self.wait_closed()
+
+
+class AsyncHandlerMixin(ClosableContextMixin):
 
     def __init__(self, *, loop):
         self._loop = loop or asyncio.get_event_loop()
@@ -253,19 +265,7 @@ class Response(AsyncIteratorMixin):
     recv_field.__doc__ += _recv_return_doc
 
 
-class ClosableContextMixin:
-
-    @asyncio.coroutine
-    def __aenter__(self):
-        return self
-
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc, tb):
-        self.close()
-        yield from self.wait_closed()
-
-
-class Connection(AsyncHandlerMixin, AsyncIteratorMixin, ClosableContextMixin):
+class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
 
     """
     A connection between a :doc:`client` and a :doc:`server`.

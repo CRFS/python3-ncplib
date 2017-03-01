@@ -166,7 +166,7 @@ class ServerConnection(Connection):
         self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
 
 
-class ServerHandler(AsyncHandlerMixin, ClosableContextMixin):
+class ServerHandler(AsyncHandlerMixin):
 
     def __init__(self, client_connected, *, loop, auto_link, auto_auth):
         super().__init__(loop=loop)
