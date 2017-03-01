@@ -34,7 +34,6 @@ API reference
 
 import warnings
 from array import array
-from functools import partial
 from ncplib.errors import DecodeWarning
 
 
@@ -144,31 +143,27 @@ def encode_value(value):
 
 # Decoders.
 
-def decode_value_string(encoded_value):
-    return encoded_value.split(b"\x00", 1)[0].decode()
-
-
-def decode_value_raw(encoded_value):
-    return encoded_value
-
-
-DECODERS = {
-    TYPE_I32: partial(int.from_bytes, byteorder="little", signed=True),
-    TYPE_U32: partial(uint.from_bytes, byteorder="little"),
-    TYPE_STRING: decode_value_string,
-    TYPE_RAW: decode_value_raw,
-    TYPE_ARRAY_U8: partial(array, "B"),
-    TYPE_ARRAY_U16: partial(array, "H"),
-    TYPE_ARRAY_U32: partial(array, "I"),
-    TYPE_ARRAY_I8: partial(array, "b"),
-    TYPE_ARRAY_I16: partial(array, "h"),
-    TYPE_ARRAY_I32: partial(array, "i"),
-}
-
-
 def decode_value(type_id, encoded_value):
-    try:
-        return DECODERS[type_id](encoded_value)
-    except KeyError:  # pragma: no cover
+    if type_id == TYPE_I32:
+        return int.from_bytes(encoded_value, "little", signed=True)
+    elif type_id == TYPE_U32:
+        return uint.from_bytes(encoded_value, "little")
+    elif type_id == TYPE_STRING:
+        return encoded_value.split(b"\x00", 1)[0].decode()
+    elif type_id == TYPE_RAW:
+        return encoded_value
+    elif type_id == TYPE_ARRAY_U8:
+        return array("B", encoded_value)
+    elif type_id == TYPE_ARRAY_U16:
+        return array("H", encoded_value)
+    elif type_id == TYPE_ARRAY_U32:
+        return array("I", encoded_value)
+    elif type_id == TYPE_ARRAY_I8:
+        return array("b", encoded_value)
+    elif type_id == TYPE_ARRAY_I16:
+        return array("h", encoded_value)
+    elif type_id == TYPE_ARRAY_I32:
+        return array("i", encoded_value)
+    else:  # pragma: no cover
         warnings.warn(DecodeWarning("Unsupported type ID", type_id))
         return encoded_value
