@@ -8,7 +8,7 @@ Changelog
 -------------------
 
 - Added :attr:`Field.connection`.
-- Micro-optimizations.
+- Micro-optimizations, roughly doubling the performance of encode/decode.
 
 
 2.2.1 - 27/02/2017
