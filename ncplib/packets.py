@@ -13,6 +13,9 @@ FIELD_HEADER_STRUCT = Struct("<4s3s1sI")
 
 PARAM_HEADER_STRUCT = Struct("<4s3sB")
 
+
+# Sizes.
+
 PACKET_HEADER_SIZE = PACKET_HEADER_STRUCT.size
 
 FIELD_HEADER_SIZE = FIELD_HEADER_STRUCT.size
@@ -20,6 +23,17 @@ FIELD_HEADER_SIZE = FIELD_HEADER_STRUCT.size
 PARAM_HEADER_SIZE = PARAM_HEADER_STRUCT.size
 
 PACKET_FOOTER_SIZE = 8
+
+
+# Byte sequences.
+
+PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
+
+PACKET_VERSION = (1).to_bytes(4, "little", signed=False)
+
+PACKET_FOOTER = b"\xaa\xbb\xcc\xdd"
+
+PACKET_FOOTER_NO_CHECKSUM = b"\x00\x00\x00\x00" + PACKET_FOOTER
 
 
 # Packet encoding.
@@ -30,11 +44,11 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
     buf = bytearray(PACKET_HEADER_SIZE)
     PACKET_HEADER_STRUCT.pack_into(
         buf, 0,
-        b"\xdd\xcc\xbb\xaa",  # Hardcoded packet header.
+        PACKET_HEADER,  # Hardcoded packet header.
         packet_type.encode("latin1"),
         0,  # Placeholder for the packet size, which we will calculate soon.
         packet_id,
-        b'\x01\x00\x00\x00',
+        PACKET_VERSION,
         timestamp_unix, timestamp_nano,
         info,
     )
@@ -69,7 +83,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         # Write the field size.
         buf[field_offset+4:field_offset+7] = ((offset - field_offset) // 4).to_bytes(3, "little")[:3]
     # Encode the packet footer.
-    buf.extend(b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd")  # Hardcoded packet footer with no checksum.
+    buf.extend(PACKET_FOOTER_NO_CHECKSUM)
     # Write the packet size.
     buf[8:12] = ((offset + PACKET_FOOTER_SIZE) // 4).to_bytes(4, "little")
     # All done!
@@ -90,7 +104,7 @@ def decode_packet_cps(header_buf):
         info,
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
     size = size * 4
-    if header != b"\xdd\xcc\xbb\xaa":  # pragma: no cover
+    if header != PACKET_HEADER:  # pragma: no cover
         raise DecodeError("Invalid packet header {}".format(header))
     # Decode the rest of the body data.
     size_remaining = size - PACKET_HEADER_SIZE
@@ -98,7 +112,7 @@ def decode_packet_cps(header_buf):
     def decode_packet_body(buf):
         offset = 0
         # Check footer.
-        if buf[-4:] != b"\xaa\xbb\xcc\xdd":  # pragma: no cover
+        if buf[-4:] != PACKET_FOOTER:  # pragma: no cover
             raise DecodeError("Invalid packet footer {}".format(buf[-4:]))
         # Decode fields.
         field_limit = size_remaining - PACKET_FOOTER_SIZE
@@ -112,7 +126,7 @@ def decode_packet_cps(header_buf):
             params = {}
             while offset < param_limit:
                 # HACK: Work around a known garbled NCP packet problem from Axis nodes.
-                if buf[offset:offset+8] == b"\x00\x00\x00\x00\xaa\xbb\xcc\xdd":
+                if buf[offset:offset+8] == PACKET_FOOTER_NO_CHECKSUM:
                     warnings.warn(DecodeWarning("Encountered embedded packet footer bug"))
                     offset += 8
                     continue
