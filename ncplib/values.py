@@ -144,14 +144,17 @@ def encode_value(value):
 # Decoders.
 
 def decode_value(type_id, encoded_value):
-    if type_id == TYPE_I32:
+    # In benchmarks, a big elif chain is consistently faster than a dictionary lookup.
+    # We check against raw, int and string first, as these are the most commonly used value types in the PHD tunneling
+    # protocol, which has to be super-fast.
+    if type_id == TYPE_RAW:
+        return encoded_value
+    elif type_id == TYPE_I32:
         return int.from_bytes(encoded_value, "little", signed=True)
-    elif type_id == TYPE_U32:
-        return uint.from_bytes(encoded_value, "little")
     elif type_id == TYPE_STRING:
         return encoded_value.split(b"\x00", 1)[0].decode()
-    elif type_id == TYPE_RAW:
-        return encoded_value
+    elif type_id == TYPE_U32:
+        return uint.from_bytes(encoded_value, "little")
     elif type_id == TYPE_ARRAY_U8:
         return array("B", encoded_value)
     elif type_id == TYPE_ARRAY_U16:
