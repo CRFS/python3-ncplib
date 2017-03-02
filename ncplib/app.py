@@ -79,16 +79,21 @@ class Application:
         """
         pass
 
+    def handle_unknown_field(self, field):
+        """
+        Called when a field is encountered that doesn't match any other field handler.
+        """
+        future = asyncio.Future(loop=self.connection._loop)
+        future.set_result(None)
+        return future
+
     @asyncio.coroutine
     def _handle_field(self, field):
         # Look up the handler.
-        try:
-            handler = getattr(self, "handle_field_{packet_type}_{field_name}".format(
-                packet_type=field.packet_type,
-                field_name=field.name,
-            ))
-        except AttributeError:  # pragma: no cover
-            return  # Unknown field, ignore.
+        handler = getattr(self, "handle_field_{packet_type}_{field_name}".format(
+            packet_type=field.packet_type,
+            field_name=field.name,
+        ), self.handle_unknown_field)
         # Run the handler.
         try:
             yield from handler(field)

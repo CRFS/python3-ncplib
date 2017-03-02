@@ -9,7 +9,7 @@ from tests.base import AsyncTestCase
 class EchoApplication(Application):
 
     @asyncio.coroutine
-    def handle_field_LINK_ECHO(self, field):
+    def handle_unknown_field(self, field):
         assert self.connection.remote_hostname == "ncplib-test"
         field.send(ACKN=True)
         field.send(**field)
@@ -29,7 +29,7 @@ def error_server_handler(client):
 
 
 @asyncio.coroutine
-def disconnect_server_handler(client_disconnected_queue, client):
+def disconnect_server_handler(client_disconnected_event, client):
     client_iter = client.__aiter__()
     try:
         while True:
@@ -46,7 +46,7 @@ def disconnect_server_handler(client_disconnected_queue, client):
             field.send(ACKN=True)
             field.send(**field)
     finally:
-        client_disconnected_queue.put_nowait(None)
+        client_disconnected_event.set()
 
 
 class ClientServerTestCase(AsyncTestCase):
@@ -229,7 +229,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testClientGracefulDisconnect(self):
-        client_disconnected_queue = asyncio.Queue(loop=self.loop)
-        client = yield from self.createServer(partial(disconnect_server_handler, client_disconnected_queue))
+        client_disconnected_event = asyncio.Event(loop=self.loop)
+        client = yield from self.createServer(partial(disconnect_server_handler, client_disconnected_event))
         yield from client.__aexit__(None, None, None)
-        yield from client_disconnected_queue.get()
+        yield from client_disconnected_event.wait()
