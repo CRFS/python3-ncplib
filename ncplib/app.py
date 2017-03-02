@@ -127,14 +127,15 @@ class Application:
 
     # Handlers.
 
-    @asyncio.coroutine
     def handle_connection(self):
         """
         Called when the connection is establed.
 
         Use this to set up any background daemons using :meth:`start_daemon`.
         """
-        pass
+        future = asyncio.Future(loop=self.connection._loop)
+        future.set_result(None)
+        return future
 
     def handle_unknown_field(self, field):
         """
