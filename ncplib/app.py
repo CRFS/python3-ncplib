@@ -32,7 +32,10 @@ API reference
 import asyncio
 
 
-class BadRequest:
+__all__ = ("BadRequest", "Application",)
+
+
+class BadRequest(Exception):
 
     """
     An error that can be thrown in a field handler to signal a problem in handling the request.
@@ -60,7 +63,7 @@ class Application:
         """
         Starts a background task.
         """
-        daemon = self._loop.create_task(self._run_daemon(coro))
+        daemon = self.connection._loop.create_task(coro)
         self._daemons.add(daemon)
         daemon.add_done_callback(self._daemons.remove)
         return daemon
@@ -102,18 +105,19 @@ class Application:
             )
             field.send(ERRO="Server error", ERRC=500)
 
-    @asyncio.coroutine
-    def __call__(self):
+    def __iter__(self):
         try:
             # Run connect hook.
             yield from self.handle_connect()
             # Accept fields.
             while not self.connection.is_closing():
                 field = yield from self.connection.recv()
-                self.start_daemon(self._handle_field, field)
+                self.start_daemon(self._handle_field(field))
         finally:
             # Shut down daemons.
             for daemon in self._daemons:
                 daemon.cancel()
             if self._daemons:
                 yield from asyncio.wait(self._daemons, loop=self._loop)
+
+    __await__ = __iter__
