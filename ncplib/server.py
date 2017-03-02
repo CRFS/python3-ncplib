@@ -126,7 +126,6 @@ API reference
 import asyncio
 import logging
 from ncplib.connection import Connection
-from ncplib.errors import DecodeError
 
 
 __all__ = (
@@ -179,38 +178,28 @@ class Server:
             auto_link=self._auto_link,
         )
         try:
-            try:
-                # Handle auto-auth.
-                if self._auto_auth:
-                    connection.send("LINK", "HELO")
-                    # Read the hostname.
-                    field = yield from connection.recv_field("LINK", "CCRE")
-                    try:
-                        connection.remote_hostname = str(field["CIW"])
-                    except KeyError:
-                        # Handle authentication failure.
-                        logger.warning("Invalid authentication from %s over NCP", connection.remote_hostname)
-                        field.send(ERRO="CIW - This field is required", ERRC=401)
-                        return
-                    # Complete authentication.
-                    connection.send("LINK", "SCAR")
-                    yield from connection.recv_field("LINK", "CARE")
-                    connection.send("LINK", "SCON")
-                # Handle connection.
-                connection._start_tasks()
-                yield from self._client_connected(connection)
-            # Send error notifications to the client.
-            except (asyncio.CancelledError, EOFError, OSError):
-                raise
-            except DecodeError as ex:
-                connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-                raise
-            except:
-                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
-                raise
+            # Handle auto-auth.
+            if self._auto_auth:
+                connection.send("LINK", "HELO")
+                # Read the hostname.
+                field = yield from connection.recv_field("LINK", "CCRE")
+                try:
+                    connection.remote_hostname = str(field["CIW"])
+                except KeyError:
+                    # Handle authentication failure.
+                    logger.warning("Invalid authentication from %s over NCP", connection.remote_hostname)
+                    field.send(ERRO="CIW - This field is required", ERRC=401)
+                    return
+                # Complete authentication.
+                connection.send("LINK", "SCAR")
+                yield from connection.recv_field("LINK", "CARE")
+                connection.send("LINK", "SCON")
+            # Handle connection.
+            connection._start_tasks()
+            yield from self._client_connected(connection)
         # Close the connection.
         except Exception as ex:
-            connection._log_connection_error(ex)
+            connection._handle_connection_error(ex, send_errors=True)
         finally:
             connection.close()
 

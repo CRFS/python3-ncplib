@@ -463,18 +463,22 @@ class Connection(AsyncIteratorMixin):
     async def __aenter__(self):
         return self
 
-    def _log_connection_error(self, ex):
+    def _handle_connection_error(self, ex, *, send_errors):
         if isinstance(ex, asyncio.CancelledError):
-            raise
+            raise ex
+        elif isinstance(ex, (EOFError, OSError)):
+            pass
         elif isinstance(ex, CommandError):
             self.logger.warning("Command error from %s over NCP: %s", self.remote_hostname, ex)
         elif isinstance(ex, DecodeError):
             self.logger.warning("Decode error from %s over NCP: %s", self.remote_hostname, ex)
+            if send_errors:
+                self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
         else:
             self.logger.exception("Unexpected error from %s over NCP", self.remote_hostname, exc_info=ex)
+            if send_errors:
+                self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
 
     @asyncio.coroutine
     def __aexit__(self, exc_type, exc, tb):
-        if exc is not None:
-            self._log_connection_error(exc)
         self.close()
