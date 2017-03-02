@@ -118,9 +118,9 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
                 param_type_id = TYPE_I32
                 param_value = param_value.to_bytes(4, "little", signed=True)
             # Check against the other value types.
-            elif param_value_cls is bytearray:
+            elif param_value_cls is bytearray:  # pragma: no cover.
                 param_type_id = TYPE_RAW
-            elif param_value_cls is memoryview:
+            elif param_value_cls is memoryview:  # pragma: no cover.
                 param_type_id = TYPE_RAW
             elif param_value_cls is bool:
                 param_type_id = TYPE_I32
