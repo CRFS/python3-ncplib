@@ -164,6 +164,7 @@ class Application:
             if self.connection._send_errors and not self.connection.is_closing():
                 field.send(ERRO="Server error", ERRC=500)
 
+    @asyncio.coroutine
     def __iter__(self):
         try:
             # Run connect hook.
