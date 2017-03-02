@@ -4,12 +4,13 @@ Changelog
 .. currentmodule:: ncplib
 
 
-2.3.0 - Development
--------------------
+2.3.0 - 02/03/2017
+------------------
 
 - Added :attr:`Field.connection`.
 - Added :doc:`app`.
 - Added :class`NCPError`, :class:`ConnectionError` and :class`ConnectionClosed` exceptions.
+- Added :func:`run_client`.
 - :func:`connect`, :meth:`Connection.recv`, :meth:`Connection.recv_field`, :meth:`Response.recv` and
   :meth:`Response.recv_field` no longer raise :class:`EOFError` or :class:`OSError`, but a subclass of
   :class:`NCPError`.
