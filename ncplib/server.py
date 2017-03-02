@@ -139,26 +139,6 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-class ServerConnection(Connection):
-
-    @asyncio.coroutine
-    def _handle_auth(self):
-        self.send("LINK", "HELO")
-        # Read the hostname.
-        field = yield from self.recv_field("LINK", "CCRE")
-        try:
-            self.remote_hostname = str(field["CIW"])
-        except KeyError:
-            # Handle authentication failure.
-            self.logger.warning("Invalid authentication from %s over NCP", self.remote_hostname)
-            field.send(ERRO="CIW - This field is required", ERRC=401)
-            return
-        # Complete authentication.
-        self.send("LINK", "SCAR")
-        yield from self.recv_field("LINK", "CARE")
-        self.send("LINK", "SCON")
-
-
 class Server:
 
     """
@@ -191,17 +171,33 @@ class Server:
 
     @asyncio.coroutine
     def _run_client_connected(self, reader, writer):
-        connection = ServerConnection(
+        connection = Connection(
             reader, writer,
             loop=self._loop,
             logger=logger,
             remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
             auto_link=self._auto_link,
-            auto_auth=self._auto_auth,
         )
         try:
             try:
-                yield from connection._connect()
+                # Handle auto-auth.
+                if self._auto_auth:
+                    connection.send("LINK", "HELO")
+                    # Read the hostname.
+                    field = yield from connection.recv_field("LINK", "CCRE")
+                    try:
+                        connection.remote_hostname = str(field["CIW"])
+                    except KeyError:
+                        # Handle authentication failure.
+                        logger.warning("Invalid authentication from %s over NCP", connection.remote_hostname)
+                        field.send(ERRO="CIW - This field is required", ERRC=401)
+                        return
+                    # Complete authentication.
+                    connection.send("LINK", "SCAR")
+                    yield from connection.recv_field("LINK", "CARE")
+                    connection.send("LINK", "SCON")
+                # Handle connection.
+                connection._start_tasks()
                 yield from self._client_connected(connection)
             # Send error notifications to the client.
             except (asyncio.CancelledError, EOFError, OSError):

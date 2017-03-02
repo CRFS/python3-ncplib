@@ -264,7 +264,7 @@ class Connection(AsyncIteratorMixin):
 
     """
 
-    def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link, auto_auth):
+    def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link):
         self._loop = loop
         # Logging.
         self.logger = logger
@@ -279,7 +279,6 @@ class Connection(AsyncIteratorMixin):
         self.remote_hostname = remote_hostname
         self._auto_link = auto_link
         self._auto_link_task = None
-        self._auto_auth = auto_auth
 
     @property
     def transport(self):
@@ -292,24 +291,17 @@ class Connection(AsyncIteratorMixin):
         self._id_gen += 1
         return self._id_gen
 
-    # Handlers.
+    # Background tasks.
 
     @asyncio.coroutine
-    def _handle_auth(self):
-        raise NotImplementedError
-
-    @asyncio.coroutine
-    def _handle_link(self):
+    def _run_auto_link(self):
         while not self.is_closing():
             self.send_packet("LINK")
             yield from asyncio.sleep(3, loop=self._loop)
 
-    @asyncio.coroutine
-    def _connect(self):
-        if self._auto_auth:
-            yield from self._handle_auth()
+    def _start_tasks(self):
         if self._auto_link:
-            self._auto_link_task = self._loop.create_task(self._handle_link())
+            self._auto_link_task = self._loop.create_task(self._run_auto_link())
 
     # Packet reading.
 

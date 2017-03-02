@@ -99,25 +99,11 @@ logger = logging.getLogger(__name__)
 
 class Client(Connection):
 
-    def __init__(self, reader, writer, *, auto_erro, auto_warn, auto_ackn, hostname, **kwargs):
+    def __init__(self, reader, writer, *, auto_erro, auto_warn, auto_ackn, **kwargs):
         super().__init__(reader, writer, **kwargs)
         self._auto_erro = auto_erro
         self._auto_warn = auto_warn
         self._auto_ackn = auto_ackn
-        self._hostname = hostname
-
-    @asyncio.coroutine
-    def _handle_auth(self):
-        # Read the initial LINK HELO packet.
-        yield from self.recv_field("LINK", "HELO")
-        # Send the connection request.
-        self.send("LINK", "CCRE", CIW=self._hostname)
-        # Read the connection response packet.
-        yield from self.recv_field("LINK", "SCAR")
-        # Send the auth request packet.
-        self.send("LINK", "CARE", CAR=self._hostname)
-        # Read the auth response packet.
-        yield from self.recv_field("LINK", "SCON")
 
     def _field_predicate(self, field):
         # Handle errors.
@@ -184,15 +170,26 @@ def connect(
         logger=logger,
         remote_hostname=remote_hostname,
         auto_link=auto_link,
-        auto_auth=auto_auth,
         auto_erro=auto_erro,
         auto_warn=auto_warn,
         auto_ackn=auto_ackn,
-        hostname=hostname,
     )
+    # Handle auto auth.
     try:
-        yield from client._connect()
+        if auto_auth:
+            # Read the initial LINK HELO packet.
+            yield from client.recv_field("LINK", "HELO")
+            # Send the connection request.
+            client.send("LINK", "CCRE", CIW=hostname)
+            # Read the connection response packet.
+            yield from client.recv_field("LINK", "SCAR")
+            # Send the auth request packet.
+            client.send("LINK", "CARE", CAR=hostname)
+            # Read the auth response packet.
+            yield from client.recv_field("LINK", "SCON")
     except:
         client.close()
         raise
+    # All done!
+    client._start_tasks()
     return client
