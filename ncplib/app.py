@@ -1,23 +1,70 @@
 """
-NCP application helpers
-=======================
+NCP application framework
+=========================
 
 .. currentmodule:: ncplib
 
-An application consists of a number of daemons and field handlers.
+:mod:`ncplib` provides a simple application framework for building NCP applications in a declarative manner.
 
-Define field handlers by subclassing :class:`Application` and defining methods with the signature
-``handle_field_PACK_FIEL(self, field)``, where ``PACK`` is the :attr:`Field.packet_type` and ``FIEL`` is the
-``Field.packet_name``. Field handlers can report errors by raising a :class:`BadRequest`.
 
-Start daemons using :meth:`Application.start_daemon`.
+Field handlers
+--------------
+
+Field handlers are coroutines that handle a specific incoming :class:`Field`.
+
+For example, here is an application that defines a simple echo protocol.
+
+.. code::
+
+    import ncplib
+
+    class EchoApplication(ncplib.Application):
+
+        async def handle_field_LINK_ECHO(self, field):
+            value = field.get("VAL")
+            if not value:
+                raise ncplib.BadRequest("VAL is required")
+            field.send(VAL=value)
+
+If a field handler raises :class:`BadRequest`, then the client will receive an erro reply.
 
 .. important::
 
-    Daemons and field handlers should not call :meth:`Connection.recv`, :meth:`Connection.recv_field`,
+    Field handlers should not call :meth:`Connection.recv`, :meth:`Connection.recv_field`,
     :meth:`Response.recv` or :meth:`Response.recv_field`. They should not use the async iteration protocol on
-    :class:`Connection` or :class:`Response`. They should only send fields using :meth:`Connection.send` or
-    :meth:`Field.send`.
+    :class:`Connection` or :class:`Response`.
+
+
+
+Daemons
+-------
+
+Daemons are coroutines that run in the background of the application.
+
+For example, here is an application that defines a daemon for sending a ping packet every 10 seconds.
+
+.. code::
+
+    import asyncio
+    import ncplib
+
+    class PingApplication(ncplib.Application):
+
+        async def run_ping(self):
+            while not self.connection.is_closing():
+                self.connection.send("LINK", "PING")
+                await asyncio.sleep(10)
+
+        async def handle_connect(self):
+            await super().handle_connect()
+            self.start_daemon(self.run_ping())
+
+
+.. important::
+
+    Daemons should not call :meth:`Connection.recv`, :meth:`Connection.recv_field`,
+    :meth:`Response.recv` or :meth:`Response.recv_field`. They should not use the async iteration protocol on
+    :class:`Connection` or :class:`Response`.
 
 
 API reference
@@ -51,7 +98,7 @@ class BadRequest(Exception):
 class Application:
 
     """
-    A helper for building NCP applications.
+    A framework for building NCP applications.
 
     .. important::
 
@@ -85,7 +132,7 @@ class Application:
         """
         Called when the connection is establed.
 
-        Use this to set up any background daemons using :meth:`create_deamon`.
+        Use this to set up any background daemons using :meth:`start_daemon`.
         """
         pass
 
