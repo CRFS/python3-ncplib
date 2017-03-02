@@ -88,7 +88,7 @@ import logging
 import platform
 import warnings
 from ncplib.connection import Connection
-from ncplib.errors import NCPError, CommandError, CommandWarning
+from ncplib.errors import NCPError, CommandError, CommandWarning, ConnectionError
 
 
 __all__ = (
@@ -246,42 +246,47 @@ def run_client(
 
     This function is a *coroutine*.
 
-    This coroutine will run until the connection closes. NCP errors from the client are not raised, and this
+    This coroutine will run until the connection closes. Errors from the client are logger, but not raised, and this
     function will always return ``None``.
 
     :param int connect_timeout: The time to wait while establishing a client connection.
     """
     loop = loop or asyncio.get_event_loop()
     remote_hostname = _get_remote_hostname(host, port, remote_hostname)
-    # Connect to the server.
     try:
-        connection = yield from asyncio.wait_for(
-            _connect(
-                host, port,
-                loop=loop,
-                auto_link=auto_link,
-                auto_auth=auto_auth,
-                auto_erro=auto_erro,
-                auto_warn=auto_warn,
-                auto_ackn=auto_ackn,
-                remote_hostname=remote_hostname,
-                hostname=hostname,
-            ),
-            connect_timeout,
-        )
-    except (asyncio.TimeoutError, NCPError) as ex:
-        logger.warning(
-            "Could not connect to %s over NCP: %s", remote_hostname,
-            "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
-        )
-        return
-    # Run the app.
-    try:
-        yield from client_connected(connection)
-    except NCPError as ex:  # Warnings on client error.
-        logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
-    finally:
-        connection.close()
+        # Connect to the server.
+        try:
+            connection = yield from asyncio.wait_for(
+                _connect(
+                    host, port,
+                    loop=loop,
+                    auto_link=auto_link,
+                    auto_auth=auto_auth,
+                    auto_erro=auto_erro,
+                    auto_warn=auto_warn,
+                    auto_ackn=auto_ackn,
+                    remote_hostname=remote_hostname,
+                    hostname=hostname,
+                ),
+                connect_timeout,
+            )
+        except (asyncio.TimeoutError, NCPError) as ex:
+            logger.warning(
+                "Could not connect to %s over NCP: %s", remote_hostname,
+                "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
+            )
+            return
+        # Run the app.
+        try:
+            yield from client_connected(connection)
+        except NCPError as ex:  # Warnings on client error.
+            logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
+        finally:
+            connection.close()
+    except asyncio.CancelledError:  # pragma: no cover
+        raise
+    except Exception as ex:  # pragma: no cover
+        logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
 
 
 run_client.__doc__ += _connect_args
