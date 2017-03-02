@@ -143,7 +143,7 @@ def _connect(
     except OSError as ex:  # pragma: no cover
         raise ConnectionError(ex)
 
-    client = Connection(
+    connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         loop=loop,
         logger=logger,
@@ -155,21 +155,21 @@ def _connect(
     try:
         if auto_auth:
             # Read the initial LINK HELO packet.
-            yield from client.recv_field("LINK", "HELO")
+            yield from connection.recv_field("LINK", "HELO")
             # Send the connection request.
-            client.send("LINK", "CCRE", CIW=hostname)
+            connection.send("LINK", "CCRE", CIW=hostname)
             # Read the connection response packet.
-            yield from client.recv_field("LINK", "SCAR")
+            yield from connection.recv_field("LINK", "SCAR")
             # Send the auth request packet.
-            client.send("LINK", "CARE", CAR=hostname)
+            connection.send("LINK", "CARE", CAR=hostname)
             # Read the auth response packet.
-            yield from client.recv_field("LINK", "SCON")
+            yield from connection.recv_field("LINK", "SCON")
     except:
-        client.close()
+        connection.close()
         raise
     # All done!
-    client._start_tasks()
-    return client
+    connection._start_tasks()
+    return connection
 
 
 _connect_args = """:param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.

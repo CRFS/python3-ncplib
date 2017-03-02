@@ -159,14 +159,14 @@ class Application:
                 "Error in field %s %s from %s over NCP: %s",
                 field.packet_type, field.name, self.connection.remote_hostname, ex,
             )
-            if self.connection._send_errors:
+            if self.connection._send_errors and not self.connection.is_closing():
                 field.send(ERRO=ex.detail, ERRC=400)
         except Exception:
             self.connection.logger.exception(
                 "Server error in field %s %s from %s over NCP",
                 field.packet_type, field.name, self.connection.remote_hostname,
             )
-            if self.connection._send_errors:
+            if self.connection._send_errors and not self.connection.is_closing():
                 field.send(ERRO="Server error", ERRC=500)
 
     def __iter__(self):

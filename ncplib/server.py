@@ -208,10 +208,12 @@ class Server:
             raise
         except NCPError as ex:  # Warnings on client decode error.
             logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
-            connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+            if not connection.is_closing():
+                connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
         except Exception as ex:
             logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
-            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+            if not connection.is_closing():
+                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
             connection.close()
 
