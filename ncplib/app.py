@@ -51,6 +51,10 @@ class Application:
 
     """
     A helper for building NCP applications.
+
+    .. attribute:: connection
+
+        The :class:`Connection` used by this Application.
     """
 
     def __init__(self, connection):

@@ -10,6 +10,7 @@ class EchoApplication(Application):
 
     @asyncio.coroutine
     def handle_unknown_field(self, field):
+        yield from super().handle_unknown_field(field)
         assert self.connection.remote_hostname == "ncplib-test"
         field.send(ACKN=True)
         field.send(**field)
