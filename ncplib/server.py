@@ -302,6 +302,16 @@ _start_server_args = """:param callable client_connected: A coroutine function t
 
 
 @asyncio.coroutine
+def _start_server(client_connected, host, port, *, loop, auto_link, auto_auth):
+    loop = loop or asyncio.get_event_loop()
+    server = Server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
+    yield from server._connect()
+    for socket in server.sockets:
+        logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
+    return server
+
+
+@asyncio.coroutine
 def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_link=True, auto_auth=True):
     """
     Creates and returns a new :class:`Server` on the given host and port.
@@ -310,12 +320,7 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
         Prefer :func:`run_app` unless you need to start multiple servers in parallel.
 
     """
-    loop = loop or asyncio.get_event_loop()
-    server = Server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
-    yield from server._connect()
-    for socket in server.sockets:
-        logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
-    return server
+    return _start_server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
 
 
 start_server.__doc__ += _start_server_args + """:return: The created :class:`Server`.
@@ -334,7 +339,7 @@ def run_app(
 
     """
     loop = loop or asyncio.get_event_loop()
-    server = loop.run_until_complete(start_server(
+    server = loop.run_until_complete(_start_server(
         client_connected, host, port,
         loop=loop, auto_link=auto_link, auto_auth=auto_auth,
     ))
