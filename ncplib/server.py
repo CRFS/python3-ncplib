@@ -125,7 +125,7 @@ API reference
 
 import asyncio
 import logging
-from ncplib.connection import AsyncHandlerMixin, ClosableContextMixin, Connection
+from ncplib.connection import AsyncHandlerMixin, Connection
 
 
 __all__ = (
@@ -166,37 +166,7 @@ class ServerConnection(Connection):
         self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
 
 
-class ServerHandler(AsyncHandlerMixin):
-
-    def __init__(self, client_connected, *, loop, auto_link, auto_auth):
-        super().__init__(loop=loop)
-        self._client_connected = client_connected
-        # Config.
-        self._auto_link = auto_link
-        self._auto_auth = auto_auth
-
-    @asyncio.coroutine
-    def _handle_client_connected(self, connection):
-        try:
-            yield from connection.create_handler(connection._connect)
-            yield from connection.create_handler(self._client_connected, connection)
-        finally:
-            connection.close()
-            yield from connection.wait_closed()
-
-    def __call__(self, reader, writer):
-        connection = ServerConnection(
-            reader, writer,
-            loop=self._loop,
-            logger=logger,
-            remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
-            auto_link=self._auto_link,
-            auto_auth=self._auto_auth,
-        )
-        return self.create_handler(self._handle_client_connected, connection)
-
-
-class Server(ClosableContextMixin):
+class Server(AsyncHandlerMixin):
 
     """
     A :doc:`server`.
@@ -215,9 +185,41 @@ class Server(ClosableContextMixin):
         Do not instantiate this class directly. Use :func:`start_server` to create a :class:`Server`.
     """
 
-    def __init__(self, handler, server):
-        self._handler = handler
-        self._server = server
+    def __init__(self, client_connected, host, port, *, loop, auto_link, auto_auth):
+        super().__init__(loop=loop)
+        self._client_connected = client_connected
+        self._host = host
+        self._port = port
+        # Config.
+        self._auto_link = auto_link
+        self._auto_auth = auto_auth
+
+    @asyncio.coroutine
+    def _handle_connection(self, connection):
+        try:
+            yield from connection.create_handler(connection._connect)
+            yield from connection.create_handler(self._client_connected, connection)
+        finally:
+            connection.close()
+            yield from connection.wait_closed()
+
+    def _handle_client_connected(self, reader, writer):
+        connection = ServerConnection(
+            reader, writer,
+            loop=self._loop,
+            logger=logger,
+            remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
+            auto_link=self._auto_link,
+            auto_auth=self._auto_auth,
+        )
+        return self.create_handler(self._handle_connection, connection)
+
+    @asyncio.coroutine
+    def _connect(self):
+        self._server = yield from asyncio.start_server(
+            self._handle_client_connected, self._host, self._port,
+            loop=self._loop,
+        )
 
     @property
     def sockets(self):
@@ -234,7 +236,7 @@ class Server(ClosableContextMixin):
             If you use the server as an *async context manager*, there's no need to call :meth:`Server.close`
             manually.
         """
-        self._handler.close()
+        super().close()
         self._server.close()
 
     @asyncio.coroutine
@@ -253,7 +255,7 @@ class Server(ClosableContextMixin):
             If you use the server as an *async context manager*, there's no need to call
             :meth:`Server.wait_closed` manually.
         """
-        yield from self._handler.wait_closed()
+        yield from super().wait_closed()
         yield from self._server.wait_closed()
 
 
@@ -281,12 +283,11 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
         Prefer :func:`run_app` unless you need to start multiple servers in parallel.
 
     """
-    loop = loop or asyncio.get_event_loop()
-    handler = ServerHandler(client_connected, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
-    server = yield from asyncio.start_server(handler, host, port, loop=loop)
+    server = Server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
+    yield from server._connect()
     for socket in server.sockets:
         logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
-    return Server(handler, server)
+    return server
 
 
 start_server.__doc__ += _start_server_args + """:return: The created :class:`Server`.
