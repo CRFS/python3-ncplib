@@ -240,6 +240,7 @@ def run_client(
     This coroutine will run until the connection closes. Connection errors from the client are not raised, and this
     function always returns ``None``.
 
+    :param int connect_timeout: The time to wait while establishing a client connection.
     """
     loop = loop or asyncio.get_event_loop()
     # Connect to the server.
@@ -267,7 +268,7 @@ def run_client(
     # Run the app.
     try:
         yield from client_connected(connection)
-    except asyncio.CancelledError:  # Propagate cancels.
+    except asyncio.CancelledError:  # pragma: no cover.
         raise
     except (EOFError, OSError):  # Ignore disconnects.
         pass

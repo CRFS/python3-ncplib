@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from functools import partial
 import sys
-from ncplib import Application, BadRequest, connect, start_server, CommandError, CommandWarning
+from ncplib import Application, BadRequest, connect, run_client, start_server, CommandError, CommandWarning
 from tests.base import AsyncTestCase
 
 
@@ -23,21 +23,16 @@ class EchoApplication(Application):
     def handle_field_LINK_BOOM(self, field):
         raise Exception("Boom!")
 
-    @asyncio.coroutine
-    def run_spam(self):
-        while True:
-            self.connection.send("SPAM", "SPAM")
-            yield from asyncio.sleep(0.1, loop=self.connection._loop)
-
-    @asyncio.coroutine
-    def handle_connection(self):
-        yield from super().handle_connection()
-        self.start_daemon(self.run_spam())
-
 
 @asyncio.coroutine
 def error_server_handler(client):
     raise Exception("BOOM")
+
+
+@asyncio.coroutine
+def decode_error_server_handler(client):
+    client._writer.write(b"Boom!" * 1024)
+    client._writer.write_eof()
 
 
 @asyncio.coroutine
@@ -61,17 +56,36 @@ def disconnect_server_handler(client_disconnected_event, client):
         client_disconnected_event.set()
 
 
+class ClientApplication(Application):
+
+    def __init__(self, connection):
+        super().__init__(connection)
+        self._spam_count = 0
+
+    @asyncio.coroutine
+    def handle_field_SPAM_SPAM(self, field):
+        self._spam_count += 1
+        if self._spam_count == 3:
+            self.connection.close()
+
+    @asyncio.coroutine
+    def run_spam(self):
+        while True:
+            self.connection.send("SPAM", "SPAM")
+            yield from asyncio.sleep(0.1, loop=self.connection._loop)
+
+    @asyncio.coroutine
+    def handle_connection(self):
+        yield from super().handle_connection()
+        self.start_daemon(self.run_spam())
+
+
 class ClientServerTestCase(AsyncTestCase):
 
     # Helpers.
 
     @asyncio.coroutine
-    def createServer(
-        self, client_connected=EchoApplication, *,
-        server_auto_auth=True,
-        client_auto_link=True,
-        client_auto_auth=True
-    ):
+    def createServer(self, client_connected=EchoApplication, *, server_auto_auth=True):
         server = yield from start_server(
             client_connected,
             "127.0.0.1", 0,
@@ -80,7 +94,11 @@ class ClientServerTestCase(AsyncTestCase):
         )
         yield from server.__aenter__()
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
-        port = server.sockets[0].getsockname()[1]
+        return server.sockets[0].getsockname()[1]
+
+    @asyncio.coroutine
+    def createClient(self, *args, client_auto_link=True, client_auto_auth=True, **kwargs):
+        port = yield from self.createServer(*args, **kwargs)
         client = yield from connect(
             "127.0.0.1", port,
             loop=self.loop,
@@ -111,18 +129,18 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testClientTransport(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         self.assertIsInstance(client.transport, asyncio.WriteTransport)
 
     @asyncio.coroutine
     def testSend(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         response = client.send("LINK", "ECHO", FOO="BAR")
         yield from self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
     @asyncio.coroutine
     def testSendFiltersMessages(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         client.send("JUNK", "JUNK", JUNK="JUNK")
         client.send("LINK", "ECHO", BAZ="QUX")
         response = client.send("LINK", "ECHO", FOO="BAR")
@@ -130,13 +148,13 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testSendPacket(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         response = client.send_packet("LINK", ECHO={"FOO": "BAR"})
         yield from self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
     @asyncio.coroutine
     def testRecvFieldConnectionFiltersMessages(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         client.send("JUNK", "JUNK", JUNK="JUNK")
         client.send("LINK", "ECHO", FOO="BAR")
         field = yield from client.recv_field("LINK", "ECHO")
@@ -144,7 +162,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testRecvFieldResponseFiltersMessages(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         client.send("LINK", "ECHO", BAZ="QUX")
         response = client.send("LINK", "ECHO", FOO="BAR")
         field = yield from response.recv_field("ECHO")
@@ -152,7 +170,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testBadRequest(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         response = client.send("LINK", "BAD")
         with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(CommandError) as cx:
@@ -164,7 +182,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testServerError(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         response = client.send("LINK", "BOOM")
         with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(CommandError) as cx:
@@ -176,7 +194,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testWarning(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         response = client.send("LINK", "ECHO", WARN="Boom!", WARC=10)
         with self.assertWarns(CommandWarning) as cx:
             yield from response.recv()
@@ -187,7 +205,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testAuthenticationError(self):
-        client = yield from self.createServer(client_auto_auth=False)
+        client = yield from self.createClient(client_auto_auth=False)
         yield from client.recv_field("LINK", "HELO")
         client.send("LINK", "CCRE")
         with self.assertLogs("ncplib.server", "WARN"):
@@ -200,7 +218,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testEncodeError(self):
-        client = yield from self.createServer(client_auto_link=False)
+        client = yield from self.createClient(client_auto_link=False)
         client._writer.write(b"Boom!" * 1024)
         client._writer.write_eof()
         with self.assertLogs("ncplib.server", "WARN"):
@@ -215,7 +233,7 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testTopLevelServerError(self):
         with self.assertLogs("ncplib.server", "ERROR"):
-            client = yield from self.createServer(error_server_handler)
+            client = yield from self.createClient(error_server_handler)
             with self.assertRaises(CommandError) as cx:
                 yield from client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
@@ -227,7 +245,7 @@ class ClientServerTestCase(AsyncTestCase):
     def testServerConnectionError(self):
         with self.assertLogs("ncplib.server", "ERROR"):
             with self.assertRaises(CommandError) as cx:
-                yield from self.createServer(error_server_handler, server_auto_auth=False)
+                yield from self.createClient(error_server_handler, server_auto_auth=False)
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "ERRO")
         self.assertEqual(cx.exception.detail, "Server error")
@@ -235,7 +253,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testConnectionWaitClosedDeprecated(self):
-        client = yield from self.createServer()
+        client = yield from self.createClient()
         client.close()
         with self.assertWarns(DeprecationWarning):
             yield from client.wait_closed()
@@ -243,6 +261,23 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testClientGracefulDisconnect(self):
         client_disconnected_event = asyncio.Event(loop=self.loop)
-        client = yield from self.createServer(partial(disconnect_server_handler, client_disconnected_event))
+        client = yield from self.createClient(partial(disconnect_server_handler, client_disconnected_event))
         yield from client.__aexit__(None, None, None)
         yield from client_disconnected_event.wait()
+
+    @asyncio.coroutine
+    def testClientApplication(self):
+        port = yield from self.createServer()
+        yield from run_client(ClientApplication, "127.0.0.1", port, hostname="ncplib-test")
+
+    @asyncio.coroutine
+    def testClientApplicationTimeout(self):
+        port = yield from self.createServer()
+        with self.assertLogs("ncplib.client", "WARNING"):
+            yield from run_client(ClientApplication, "127.0.0.1", port, connect_timeout=0)
+
+    @asyncio.coroutine
+    def testClientApplicationDecodeError(self):
+        port = yield from self.createServer(decode_error_server_handler)
+        with self.assertLogs("ncplib.client", "WARNING"):
+            yield from run_client(ClientApplication, "127.0.0.1", port)
