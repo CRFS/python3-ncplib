@@ -122,6 +122,10 @@ def _client_predicate(field, *, auto_erro, auto_warn, auto_ackn):
     return not auto_ackn or "ACKN" not in field
 
 
+def _get_remote_hostname(host, port, remote_hostname):
+    return "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
+
+
 @asyncio.coroutine
 def _connect(
     host, port, *,
@@ -135,7 +139,6 @@ def _connect(
     hostname
 ):
     loop = loop or asyncio.get_event_loop()
-    remote_hostname = "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     # Create the network connection.
     try:
@@ -213,7 +216,7 @@ def connect(
         auto_erro=auto_erro,
         auto_warn=auto_warn,
         auto_ackn=auto_ackn,
-        remote_hostname=remote_hostname,
+        remote_hostname=_get_remote_hostname(host, port, remote_hostname),
         hostname=hostname,
     )
 
@@ -249,6 +252,7 @@ def run_client(
     :param int connect_timeout: The time to wait while establishing a client connection.
     """
     loop = loop or asyncio.get_event_loop()
+    remote_hostname = _get_remote_hostname(host, port, remote_hostname)
     # Connect to the server.
     try:
         connection = yield from asyncio.wait_for(
@@ -267,7 +271,7 @@ def run_client(
         )
     except (asyncio.TimeoutError, NCPError) as ex:
         logger.warning(
-            "Could not connect to %s:%s over NCP: %s", host, port,
+            "Could not connect to %s over NCP: %s", remote_hostname,
             "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
         )
         return
