@@ -1,6 +1,20 @@
+"""
+NCP application helpers
+=======================
+
+.. currentmodule:: ncplib
+
+
+API reference
+-------------
+
+.. autoclass:: BadRequest
+    :members:
+
+.. autoclass:: Application
+    :members:
+"""
 import asyncio
-from contextlib import contextmanager
-from ncplib.errors import CommandError, DecodeError
 
 
 class BadRequest:
@@ -15,16 +29,16 @@ class BadRequest:
         self.code = code
 
 
-class Protocol:
+class Application:
 
     """
     A helper for building NCP applications.
 
-    A protocol consists of a number of daemons and field handlers.
+    An application consists of a number of daemons and field handlers.
 
-    Define field handlers by subclassing Protocol and defining methods with the signature
+    Define field handlers by subclassing Application and defining methods with the signature
     ``handle_field_PACK_FIEL(self, field)``, where ``PACK`` is the :attr:`Field.packet_type` and ``FIEL`` is the
-    ``Field.packet_name``.
+    ``Field.packet_name``. Field handlers can report errors by raising a :class:`BadRequest`.
 
     Start daemons using :meth:`start_daemon`.
 
