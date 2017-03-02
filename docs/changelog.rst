@@ -14,6 +14,7 @@ Changelog
   :meth:`Response.recv_field` no longer raise :class:`EOFError` or :class:`OSError`, but a subclass of
   :class:`NCPError`.
 - Micro-optimizations, roughly doubling the performance of encode/decode.
+- Connection open and close log messages promoted from ``DEBUG`` to ``INFO`` level.
 
 
 2.2.1 - 27/02/2017

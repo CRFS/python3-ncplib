@@ -267,7 +267,7 @@ class Connection(AsyncIteratorMixin):
         self._loop = loop
         # Logging.
         self.logger = logger
-        self.logger.debug("Connected to %s over NCP", remote_hostname)
+        self.logger.info("Connected to %s over NCP", remote_hostname)
         # Packet reading.
         self._reader = reader
         self._predicate = predicate
@@ -447,7 +447,7 @@ class Connection(AsyncIteratorMixin):
             self._auto_link_task.cancel()
         # Close the connection.
         self._writer.close()
-        self.logger.debug("Disconnected from %s over NCP", self.remote_hostname)
+        self.logger.info("Disconnected from %s over NCP", self.remote_hostname)
 
     @asyncio.coroutine
     def wait_closed(self):

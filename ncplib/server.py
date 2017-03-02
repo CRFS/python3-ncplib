@@ -230,7 +230,7 @@ class Server:
             loop=self._loop,
         )
         for socket in self.sockets:
-            logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
+            logger.info("Listening on %s:%s over NCP", *socket.getsockname()[:2])
 
     @property
     def sockets(self):

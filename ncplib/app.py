@@ -72,27 +72,12 @@ API reference
 
 .. autoclass:: BadRequest
     :members:
-
-.. autoclass:: Application
-    :members:
 """
 import asyncio
-from ncplib.errors import ConnectionClosed, CommandError
+from ncplib.errors import ConnectionClosed, CommandError, BadRequest
 
 
-__all__ = ("BadRequest", "Application",)
-
-
-class BadRequest(Exception):
-
-    """
-    An error that can be thrown in a field handler to signal a problem in handling the request.
-    """
-
-    def __init__(self, detail, code=400):
-        super().__init__("{detail!r} (code {code})".format(detail=detail, code=code))
-        self.detail = detail
-        self.code = code
+__all__ = ("Application",)
 
 
 class Application:
@@ -174,7 +159,7 @@ class Application:
             )
             if self.connection._send_errors and not self.connection.is_closing():
                 field.send(ERRO=ex.detail, ERRC=400)
-        except:
+        except Exception as ex:
             self.connection.logger.exception(
                 "Server error in field %s %s from %s over NCP",
                 field.packet_type, field.name, self.connection.remote_hostname,
