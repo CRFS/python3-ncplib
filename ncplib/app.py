@@ -174,7 +174,7 @@ class Application:
             # Run connect hook.
             yield from self.handle_connection()
             # Accept fields.
-            while not self.connection.is_closing():
+            while True:
                 try:
                     field = yield from self.connection.recv()
                 except CommandError as ex:
