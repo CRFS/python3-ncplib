@@ -78,54 +78,48 @@ API reference
 -------------
 
 .. autofunction:: connect
+
+.. autofunction:: run_client
 """
 
 import asyncio
+from functools import partial
 import logging
 import platform
 import warnings
 from ncplib.connection import Connection
-from ncplib.errors import CommandError, CommandWarning
+from ncplib.errors import DecodeError, CommandError, CommandWarning
 
 
 __all__ = (
     "connect",
-    "Client",
+    "run_client",
 )
 
 
 logger = logging.getLogger(__name__)
 
 
-class Client(Connection):
-
-    def __init__(self, reader, writer, *, auto_erro, auto_warn, auto_ackn, **kwargs):
-        super().__init__(reader, writer, **kwargs)
-        self._auto_erro = auto_erro
-        self._auto_warn = auto_warn
-        self._auto_ackn = auto_ackn
-
-    def _field_predicate(self, field):
-        # Handle errors.
-        if self._auto_erro:
-            error_detail = field.get("ERRO")
-            error_code = field.get("ERRC")
-            if error_detail is not None or error_code is not None:
-                raise CommandError(field, error_detail, error_code)
-            # Ignore the rest of packet-level errors.
-            if field.name == "ERRO":  # pragma: no cover
-                return False
-        # Handle warnings.
-        if self._auto_warn:
-            warning_detail = field.get("WARN")
-            warning_code = field.get("WARC")
-            if warning_detail is not None or warning_code is not None:
-                warnings.warn(CommandWarning(field, warning_detail, warning_code))
-            # Ignore the rest of packet-level warnings.
-            if field.name == "WARN":  # pragma: no cover
-                return False
-        # Handle acks.
-        return not self._auto_ackn or "ACKN" not in field
+def _client_predicate(field, *, auto_erro, auto_warn, auto_ackn):
+    if auto_erro:
+        error_detail = field.get("ERRO")
+        error_code = field.get("ERRC")
+        if error_detail is not None or error_code is not None:
+            raise CommandError(field, error_detail, error_code)
+        # Ignore the rest of packet-level errors.
+        if field.name == "ERRO":  # pragma: no cover
+            return False
+    # Handle warnings.
+    if auto_warn:
+        warning_detail = field.get("WARN")
+        warning_code = field.get("WARC")
+        if warning_detail is not None or warning_code is not None:
+            warnings.warn(CommandWarning(field, warning_detail, warning_code))
+        # Ignore the rest of packet-level warnings.
+        if field.name == "WARN":  # pragma: no cover
+            return False
+    # Handle acks.
+    return not auto_ackn or "ACKN" not in field
 
 
 @asyncio.coroutine
@@ -161,18 +155,17 @@ def connect(
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
+    loop = loop or asyncio.get_event_loop()
     remote_hostname = "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
-    client = Client(
-        reader, writer,
+    client = Connection(
+        reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         loop=loop,
         logger=logger,
         remote_hostname=remote_hostname,
         auto_link=auto_link,
-        auto_erro=auto_erro,
-        auto_warn=auto_warn,
-        auto_ackn=auto_ackn,
+        send_errors=False,
     )
     # Handle auto auth.
     try:
@@ -193,3 +186,21 @@ def connect(
     # All done!
     client._start_tasks()
     return client
+
+
+@asyncio.coroutine
+def run_client(client_connected, host, port=9999, *, loop=None, auto_link=True, auto_auth=True, connect_timeout=15):
+    loop = loop or asyncio.get_event_loop()
+    # Connect to the server.
+    try:
+        connection = yield from asyncio.wait_for(
+            connect(host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth),
+            connect_timeout,
+        )
+    except (asyncio.TimeoutError, EOFError, OSError, DecodeError, CommandError) as ex:
+        logger.warning(
+            "Could not connect to %s:%s over NCP: %s", host, port,
+            "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
+        )
+        return
+    # Run the app.

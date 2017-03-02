@@ -30,6 +30,7 @@ API reference
     :members:
 """
 import asyncio
+from ncplib.errors import CommandError
 
 
 __all__ = ("BadRequest", "Application",)
@@ -52,22 +53,19 @@ class Application:
     """
     A helper for building NCP applications.
 
+    .. important::
+
+        Do not instantiate an Application directly. Pass it as ``client_connected`` to :func:`start_server`,
+        :func:`run_app` or :func:`run_client`.
+
     .. attribute:: connection
 
         The :class:`Connection` used by this Application.
     """
 
-    def __init__(self, connection, *, auto_erro=True):
-        """
-        Creates a new Application.
-
-        :param connection Connection: The connection use by this Application.
-        :param auto_erro boolean: Automatically send ERRO replies if a field handler raises an error.
-        """
+    def __init__(self, connection):
         self.connection = connection
         self._daemons = set()
-        # Config
-        self._auto_erro = auto_erro
 
     # Daemons.
 
@@ -114,14 +112,14 @@ class Application:
                 "Error in field %s %s from %s over NCP: %s",
                 field.packet_type, field.name, self.connection.remote_hostname, ex,
             )
-            if self._auto_erro:
+            if self.connection._send_errors:
                 field.send(ERRO=ex.detail, ERRC=400)
         except Exception:
             self.connection.logger.exception(
                 "Server error in field %s %s from %s over NCP",
                 field.packet_type, field.name, self.connection.remote_hostname,
             )
-            if self._auto_erro:
+            if self.connection._send_errors:
                 field.send(ERRO="Server error", ERRC=500)
 
     def __iter__(self):
@@ -130,8 +128,16 @@ class Application:
             yield from self.handle_connection()
             # Accept fields.
             while not self.connection.is_closing():
-                field = yield from self.connection.recv()
-                self.start_daemon(self._handle_field(field))
+                try:
+                    field = yield from self.connection.recv()
+                except CommandError as ex:
+                    # Do not stop receiving fields on a command error. Just log it and continue.
+                    self.connection.logger.warning(
+                        "Command error from %s over NCP: %s",
+                        self.connection.remote_hostname, ex,
+                    )
+                else:
+                    self.start_daemon(self._handle_field(field))
         finally:
             # Shut down daemons.
             for daemon in self._daemons:

@@ -126,6 +126,7 @@ API reference
 import asyncio
 import logging
 from ncplib.connection import Connection
+from ncplib.errors import DecodeError
 
 
 __all__ = (
@@ -136,6 +137,10 @@ __all__ = (
 
 
 logger = logging.getLogger(__name__)
+
+
+def _server_predicate(field):
+    return True
 
 
 class Server:
@@ -171,11 +176,12 @@ class Server:
     @asyncio.coroutine
     def _run_client_connected(self, reader, writer):
         connection = Connection(
-            reader, writer,
+            reader, writer, _server_predicate,
             loop=self._loop,
             logger=logger,
             remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
             auto_link=self._auto_link,
+            send_errors=True,
         )
         try:
             # Handle auto-auth.
@@ -198,8 +204,16 @@ class Server:
             connection._start_tasks()
             yield from self._client_connected(connection)
         # Close the connection.
+        except asyncio.CancelledError:  # Propagate cancels.
+            raise
+        except (EOFError, OSError):  # Ignore disconnects.
+            pass
+        except DecodeError as ex:  # Warnings on client decode error.
+            logger.warning("Decode error from %s over NCP: %s", connection.remote_hostname, ex)
+            connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
         except Exception as ex:
-            connection._handle_connection_error(ex, send_errors=True)
+            logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
+            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
             connection.close()
 
@@ -296,6 +310,7 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
         Prefer :func:`run_app` unless you need to start multiple servers in parallel.
 
     """
+    loop = loop or asyncio.get_event_loop()
     server = Server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
     yield from server._connect()
     for socket in server.sockets:

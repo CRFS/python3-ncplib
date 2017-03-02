@@ -61,7 +61,6 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
 import warnings
-from ncplib.errors import CommandError, DecodeError
 from ncplib.packets import encode_packet, decode_packet_cps
 
 
@@ -264,13 +263,14 @@ class Connection(AsyncIteratorMixin):
 
     """
 
-    def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link):
+    def __init__(self, reader, writer, predicate, *, loop, logger, remote_hostname, auto_link, send_errors):
         self._loop = loop
         # Logging.
         self.logger = logger
         self.logger.debug("Connected to %s over NCP", remote_hostname)
         # Packet reading.
         self._reader = reader
+        self._predicate = predicate
         self._field_buffer = []
         # Packet writing.
         self._writer = writer
@@ -279,6 +279,7 @@ class Connection(AsyncIteratorMixin):
         self.remote_hostname = remote_hostname
         self._auto_link = auto_link
         self._auto_link_task = None
+        self._send_errors = send_errors
 
     @property
     def transport(self):
@@ -303,11 +304,6 @@ class Connection(AsyncIteratorMixin):
         if self._auto_link:
             self._auto_link_task = self._loop.create_task(self._run_auto_link())
 
-    # Packet reading.
-
-    def _field_predicate(self, field_data):
-        return True
-
     # Receiving fields.
 
     @asyncio.coroutine
@@ -326,7 +322,7 @@ class Connection(AsyncIteratorMixin):
                     "Received field %s %s from %s over NCP",
                     field.packet_type, field.name, self.remote_hostname
                 )
-                if self._field_predicate(field):
+                if self._predicate(field):
                     return field
             # Read some more fields.
             header_buf = yield from self._reader.readexactly(32)  # 32 is the size of the packet header.
@@ -446,22 +442,6 @@ class Connection(AsyncIteratorMixin):
     @asyncio.coroutine
     def __aenter__(self):
         return self
-
-    def _handle_connection_error(self, ex, *, send_errors):
-        if isinstance(ex, asyncio.CancelledError):
-            raise ex
-        elif isinstance(ex, (EOFError, OSError)):
-            pass
-        elif isinstance(ex, CommandError):
-            self.logger.warning("Command error from %s over NCP: %s", self.remote_hostname, ex)
-        elif isinstance(ex, DecodeError):
-            self.logger.warning("Decode error from %s over NCP: %s", self.remote_hostname, ex)
-            if send_errors:
-                self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-        else:
-            self.logger.exception("Unexpected error from %s over NCP", self.remote_hostname, exc_info=ex)
-            if send_errors:
-                self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
 
     @asyncio.coroutine
     def __aexit__(self, exc_type, exc, tb):
