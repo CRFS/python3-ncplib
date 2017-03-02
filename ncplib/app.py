@@ -77,7 +77,7 @@ API reference
     :members:
 """
 import asyncio
-from ncplib.errors import CommandError
+from ncplib.errors import ConnectionClosed, CommandError
 
 
 __all__ = ("BadRequest", "Application",)
@@ -177,6 +177,8 @@ class Application:
             while True:
                 try:
                     field = yield from self.connection.recv()
+                except ConnectionClosed:
+                    break  # Connection closed gracefully.
                 except CommandError as ex:
                     # Do not stop receiving fields on a command error. Just log it and continue.
                     self.connection.logger.warning(

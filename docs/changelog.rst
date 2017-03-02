@@ -9,6 +9,10 @@ Changelog
 
 - Added :attr:`Field.connection`.
 - Added :doc:`app`.
+- Added :class`NCPError`, :class:`ConnectionError` and :class`ConnectionClosed` exceptions.
+- :func:`connect`, :meth:`Connection.recv`, :meth:`Connection.recv_field`, :meth:`Response.recv` and
+  :meth:`Response.recv_field` no longer raise :class:`EOFError` or :class:`OSError`, but a subclass of
+  :class:`NCPError`.
 - Micro-optimizations, roughly doubling the performance of encode/decode.
 
 

@@ -61,7 +61,8 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
 import warnings
-from ncplib.packets import encode_packet, decode_packet_cps
+from ncplib.errors import ConnectionError, ConnectionClosed, DecodeError
+from ncplib.packets import encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
 __all__ = (
@@ -84,12 +85,11 @@ _send_return_doc = """:return: A :class:`Response` providing access to any :clas
             :doc:`value types <values>`.
         """
 
-_recv_return_doc = """:return: The next :class:`Field` received.
+_recv_return_doc = """
+        :raises ncplib.NCPError: if a field could not be retrieved from the connection.
+        :return: The next :class:`Field` received.
         :rtype: Field
-        :raises ncplib.CommandError: if the incoming field contains an ``ERRO`` parameter, and this is a :doc:`client`
-            connection with ``auto_erro`` enabled.
-        :raises ncplib.DecodeError: if the incoming field was part of an invalid :term:`NCP packet`.
-        :raises asyncio.IncompleteReadError: if the connection closed unexpectedly.
+
         """
 
 
@@ -165,7 +165,7 @@ class AsyncIteratorMixin:
     def __anext__(self):
         try:
             return (yield from self.recv())
-        except EOFError:
+        except ConnectionClosed:
             raise StopAsyncIteration
 
 
@@ -324,11 +324,25 @@ class Connection(AsyncIteratorMixin):
                 )
                 if self._predicate(field):
                     return field
-            # Read some more fields.
-            header_buf = yield from self._reader.readexactly(32)  # 32 is the size of the packet header.
+            # Read and decode the packet header.
+            try:
+                header_buf = yield from self._reader.readexactly(PACKET_HEADER_SIZE)
+            except asyncio.IncompleteReadError as ex:  # pragma: no cover
+                if ex.partial:
+                    raise DecodeError("Truncated packet header")
+                raise ConnectionClosed("Connection closed")
+            except OSError as ex:  # pragma: no cover
+                raise ConnectionError(ex)
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-            body_buf = yield from self._reader.readexactly(size_remaining)
+            # Read and decode the packet body.
+            try:
+                body_buf = yield from self._reader.readexactly(size_remaining)
+            except asyncio.IncompleteReadError as ex:  # pragma: no cover
+                raise DecodeError("Truncated packet body")
+            except OSError as ex:  # pragma: no cover
+                raise ConnectionError(ex)
             packet_type, packet_id, packet_timestamp, packet_info, fields = decode_packet_body(body_buf)
+            # Store the fields in the field buffer.
             self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
             self._field_buffer = [
                 Field(self, packet_type, packet_timestamp, field_name, field_id, params)

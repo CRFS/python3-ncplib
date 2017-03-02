@@ -10,13 +10,22 @@ Errors and warnings
 API reference
 -------------
 
+.. autoexception:: NCPError
+    :members:
+
+.. autoexception:: ConnectionError
+    :members:
+
+.. autoexception:: ConnectionClosed
+    :members:
+
 .. autoexception:: CommandError
     :members:
 
-.. autoexception:: CommandWarning
+.. autoexception:: DecodeError
     :members:
 
-.. autoexception:: DecodeError
+.. autoexception:: CommandWarning
     :members:
 
 .. autoexception:: DecodeWarning
@@ -25,8 +34,12 @@ API reference
 
 
 __all__ = (
+    "NCPError",
+    "ConnectionError",
+    "ConnectionClosed",
     "CommandError",
     "CommandWarning",
+    "NCPWarning",
     "DecodeError",
     "DecodeWarning",
 )
@@ -62,7 +75,26 @@ class CommandMixin:
 
 # Errors.
 
-class CommandError(CommandMixin, Exception):
+class NCPError(Exception):
+
+    """Base class for all exceptions thrown by :mod:`ncplib`."""
+
+
+class ConnectionError(NCPError):
+
+    """
+    Raised when an NCP :class:`Connection` cannot connect, or disconnects unexpectedly.
+    """
+
+
+class ConnectionClosed(NCPError):
+
+    """
+    Raised when an NCP :class:`Connection` is closed gracefully.
+    """
+
+
+class CommandError(CommandMixin, NCPError):
 
     """
     Raised by the :doc:`client` when the :doc:`server` sends a :term:`NCP field` containing an ``ERRO`` parameter.
@@ -73,7 +105,7 @@ class CommandError(CommandMixin, Exception):
     __doc__ += CommandMixin.__doc__
 
 
-class DecodeError(Exception):
+class DecodeError(NCPError):
 
     """
     Raised when a non-recoverable error was encountered in a :term:`NCP packet`.
@@ -82,7 +114,12 @@ class DecodeError(Exception):
 
 # Warnings.
 
-class CommandWarning(CommandMixin, Warning):
+class NCPWarning(Warning):
+
+    """Base class for all warnings raised by :mod:`ncplib`."""
+
+
+class CommandWarning(CommandMixin, NCPWarning):
 
     """
     Issued by the :doc:`client` when the :doc:`server` sends a :term:`NCP field` containing a ``WARN`` parameter.
@@ -93,7 +130,7 @@ class CommandWarning(CommandMixin, Warning):
     __doc__ += CommandMixin.__doc__
 
 
-class DecodeWarning(Warning):
+class DecodeWarning(NCPWarning):
 
     """
     Issued when a recoverable error was encountered in a :term:`NCP packet`.

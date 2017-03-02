@@ -126,7 +126,7 @@ API reference
 import asyncio
 import logging
 from ncplib.connection import Connection
-from ncplib.errors import DecodeError
+from ncplib.errors import NCPError
 
 
 __all__ = (
@@ -206,10 +206,8 @@ class Server:
         # Close the connection.
         except asyncio.CancelledError:  # Propagate cancels.
             raise
-        except (EOFError, OSError):  # Ignore disconnects.
-            pass
-        except DecodeError as ex:  # Warnings on client decode error.
-            logger.warning("Decode error from %s over NCP: %s", connection.remote_hostname, ex)
+        except NCPError as ex:  # Warnings on client decode error.
+            logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
             connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
         except Exception as ex:
             logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)

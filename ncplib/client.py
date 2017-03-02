@@ -88,7 +88,7 @@ import logging
 import platform
 import warnings
 from ncplib.connection import Connection
-from ncplib.errors import DecodeError, CommandError, CommandWarning
+from ncplib.errors import NCPError, CommandError, CommandWarning
 
 
 __all__ = (
@@ -137,7 +137,12 @@ def _connect(
     loop = loop or asyncio.get_event_loop()
     remote_hostname = "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
-    reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
+    # Create the network connection.
+    try:
+        reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
+    except OSError as ex:  # pragma: no cover
+        raise ConnectionError(ex)
+
     client = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         loop=loop,
@@ -213,7 +218,8 @@ def connect(
     )
 
 
-connect.__doc__ += _connect_args + """:return: The client :class:`Connection`.
+connect.__doc__ += _connect_args + """:raises ncplib.NCPError: if the NCP connection failed.
+    :return: The client :class:`Connection`.
     :rtype: Connection
     """
 
@@ -237,8 +243,8 @@ def run_client(
 
     This function is a *coroutine*.
 
-    This coroutine will run until the connection closes. Connection errors from the client are not raised, and this
-    function always returns ``None``.
+    This coroutine will run until the connection closes. NCP errors from the client are not raised, and this
+    function will always return ``None``.
 
     :param int connect_timeout: The time to wait while establishing a client connection.
     """
@@ -259,7 +265,7 @@ def run_client(
             ),
             connect_timeout,
         )
-    except (asyncio.TimeoutError, EOFError, OSError, DecodeError, CommandError) as ex:
+    except (asyncio.TimeoutError, NCPError) as ex:
         logger.warning(
             "Could not connect to %s:%s over NCP: %s", host, port,
             "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
@@ -268,12 +274,8 @@ def run_client(
     # Run the app.
     try:
         yield from client_connected(connection)
-    except asyncio.CancelledError:  # pragma: no cover.
-        raise
-    except (EOFError, OSError):  # Ignore disconnects.
-        pass
-    except DecodeError as ex:  # Warnings on client decode error.
-        logger.warning("Decode error from %s over NCP: %s", connection.remote_hostname, ex)
+    except NCPError as ex:  # Warnings on client error.
+        logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
     finally:
         connection.close()
 
