@@ -255,18 +255,18 @@ def run_client(
     remote_hostname = _get_remote_hostname(host, port, remote_hostname)
     try:
         # Connect to the server.
+        connect_task = loop.create_task(_connect(
+            host, port,
+            loop=loop,
+            auto_link=auto_link,
+            auto_auth=auto_auth,
+            auto_erro=auto_erro,
+            auto_warn=auto_warn,
+            auto_ackn=auto_ackn,
+            remote_hostname=remote_hostname,
+            hostname=hostname,
+        ))
         try:
-            connect_task = loop.create_task(_connect(
-                host, port,
-                loop=loop,
-                auto_link=auto_link,
-                auto_auth=auto_auth,
-                auto_erro=auto_erro,
-                auto_warn=auto_warn,
-                auto_ackn=auto_ackn,
-                remote_hostname=remote_hostname,
-                hostname=hostname,
-            ))
             connection = yield from asyncio.wait_for(connect_task, connect_timeout)
         except (asyncio.TimeoutError, NCPError) as ex:
             connect_task.cancel()  # HACK: Python 3.4.2 does not cancel timed out tasks.
