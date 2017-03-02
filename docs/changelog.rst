@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.3.2 - Development
+-------------------
+
+- Forcing cancellation of timed out connection in :func:`run_client` in Python 3.4.2.
+
+
 2.3.1 - 02/03/2017
 ------------------
 

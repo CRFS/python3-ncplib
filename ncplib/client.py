@@ -256,21 +256,20 @@ def run_client(
     try:
         # Connect to the server.
         try:
-            connection = yield from asyncio.wait_for(
-                _connect(
-                    host, port,
-                    loop=loop,
-                    auto_link=auto_link,
-                    auto_auth=auto_auth,
-                    auto_erro=auto_erro,
-                    auto_warn=auto_warn,
-                    auto_ackn=auto_ackn,
-                    remote_hostname=remote_hostname,
-                    hostname=hostname,
-                ),
-                connect_timeout,
-            )
+            connect_task = loop.create_task(_connect(
+                host, port,
+                loop=loop,
+                auto_link=auto_link,
+                auto_auth=auto_auth,
+                auto_erro=auto_erro,
+                auto_warn=auto_warn,
+                auto_ackn=auto_ackn,
+                remote_hostname=remote_hostname,
+                hostname=hostname,
+            ))
+            connection = yield from asyncio.wait_for(connect_task, connect_timeout)
         except (asyncio.TimeoutError, NCPError) as ex:
+            connect_task.cancel()  # HACK: Python 3.4.2 does not cancel timed out tasks.
             logger.warning(
                 "Could not connect to %s over NCP: %s", remote_hostname,
                 "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
