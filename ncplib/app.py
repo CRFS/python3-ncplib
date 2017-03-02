@@ -57,9 +57,17 @@ class Application:
         The :class:`Connection` used by this Application.
     """
 
-    def __init__(self, connection):
+    def __init__(self, connection, *, auto_erro=True):
+        """
+        Creates a new Application.
+
+        :param connection Connection: The connection use by this Application.
+        :param auto_erro boolean: Automatically send ERRO replies if a field handler raises an error.
+        """
         self.connection = connection
         self._daemons = set()
+        # Config
+        self._auto_erro = auto_erro
 
     # Daemons.
 
@@ -106,13 +114,15 @@ class Application:
                 "Error in field %s %s from %s over NCP: %s",
                 field.packet_type, field.name, self.connection.remote_hostname, ex,
             )
-            field.send(ERRO=ex.detail, ERRC=400)
+            if self._auto_erro:
+                field.send(ERRO=ex.detail, ERRC=400)
         except Exception:
             self.connection.logger.exception(
                 "Server error in field %s %s from %s over NCP",
                 field.packet_type, field.name, self.connection.remote_hostname,
             )
-            field.send(ERRO="Server error", ERRC=500)
+            if self._auto_erro:
+                field.send(ERRO="Server error", ERRC=500)
 
     def __iter__(self):
         try:
