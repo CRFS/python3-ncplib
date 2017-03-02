@@ -269,12 +269,15 @@ def run_client(
         try:
             connection = yield from asyncio.wait_for(connect_task, connect_timeout)
         except (asyncio.TimeoutError, NCPError) as ex:
-            connect_task.cancel()  # HACK: Python 3.4.2 does not cancel timed out tasks.
             logger.warning(
                 "Could not connect to %s over NCP: %s", remote_hostname,
                 "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
             )
             return
+        finally:
+            # HACK: Python 3.4.2 does not cancel timed-out tasks.
+            if not connect_task.done():
+                connect_task.cancel()
         # Run the app.
         try:
             yield from client_connected(connection)
