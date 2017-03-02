@@ -205,6 +205,6 @@ class Application:
             if self._daemons:
                 yield from asyncio.wait(self._daemons, loop=self.connection._loop)
             # All done.
-            self.handle_disconnect()
+            yield from self.handle_disconnect()
 
     __await__ = __iter__
