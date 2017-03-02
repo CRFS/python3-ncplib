@@ -73,8 +73,8 @@ class ClientApplication(ncplib.Application):
         self.connection.close()
 
     @asyncio.coroutine
-    def handle_connection(self):
-        yield from super().handle_connection()
+    def handle_connect(self):
+        yield from super().handle_connect()
         self.start_daemon(self.run_spam())
 
 

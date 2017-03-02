@@ -127,7 +127,7 @@ class Application:
 
     # Handlers.
 
-    def handle_connection(self):
+    def handle_connect(self):
         """
         Called when the connection is establed.
 
@@ -140,6 +140,16 @@ class Application:
     def handle_unknown_field(self, field):
         """
         Called when a field is encountered that doesn't match any other field handler.
+        """
+        future = asyncio.Future(loop=self.connection._loop)
+        future.set_result(None)
+        return future
+
+    def handle_disconnect(self):
+        """
+        Called when the connection is shut down.
+
+        Use this to perform any cleanup. The connection may already be closed.
         """
         future = asyncio.Future(loop=self.connection._loop)
         future.set_result(None)
@@ -173,7 +183,7 @@ class Application:
     def __iter__(self):
         try:
             # Run connect hook.
-            yield from self.handle_connection()
+            yield from self.handle_connect()
             # Accept fields.
             while True:
                 try:
@@ -194,5 +204,7 @@ class Application:
                 daemon.cancel()
             if self._daemons:
                 yield from asyncio.wait(self._daemons, loop=self.connection._loop)
+            # All done.
+            self.handle_disconnect()
 
     __await__ = __iter__
