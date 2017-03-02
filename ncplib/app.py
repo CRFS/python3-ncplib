@@ -165,6 +165,8 @@ class Application:
         # Run the handler.
         try:
             yield from handler(field)
+        except asyncio.CancelledError:  # pragma: no cover
+            raise
         except BadRequest as ex:
             self.connection.logger.warning(
                 "Error in field %s %s from %s over NCP: %s",
@@ -172,7 +174,7 @@ class Application:
             )
             if self.connection._send_errors and not self.connection.is_closing():
                 field.send(ERRO=ex.detail, ERRC=400)
-        except Exception:
+        except:
             self.connection.logger.exception(
                 "Server error in field %s %s from %s over NCP",
                 field.packet_type, field.name, self.connection.remote_hostname,
