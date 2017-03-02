@@ -22,6 +22,17 @@ class EchoApplication(Application):
     def handle_field_LINK_BOOM(self, field):
         raise Exception("Boom!")
 
+    @asyncio.coroutine
+    def run_spam(self):
+        while True:
+            self.connection.send("SPAM", "SPAM")
+            yield from asyncio.sleep(0.1, loop=self.connection._loop)
+
+    @asyncio.coroutine
+    def handle_connection(self):
+        yield from super().handle_connection()
+        self.start_daemon(self.run_spam())
+
 
 @asyncio.coroutine
 def error_server_handler(client):
@@ -141,10 +152,10 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testBadRequest(self):
         client = yield from self.createServer()
-        client.send("LINK", "BAD")
+        response = client.send("LINK", "BAD")
         with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(CommandError) as cx:
-                yield from client.recv()
+                yield from response.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "BAD")
         self.assertEqual(cx.exception.detail, "Boom!")
@@ -153,10 +164,10 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testServerError(self):
         client = yield from self.createServer()
-        client.send("LINK", "BOOM")
+        response = client.send("LINK", "BOOM")
         with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(CommandError) as cx:
-                yield from client.recv()
+                yield from response.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "BOOM")
         self.assertEqual(cx.exception.detail, "Server error")
@@ -165,9 +176,9 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testWarning(self):
         client = yield from self.createServer()
-        client.send("LINK", "ECHO", WARN="Boom!", WARC=10)
+        response = client.send("LINK", "ECHO", WARN="Boom!", WARC=10)
         with self.assertWarns(CommandWarning) as cx:
-            yield from client.recv()
+            yield from response.recv()
         self.assertEqual(cx.warning.field.packet_type, "LINK")
         self.assertEqual(cx.warning.field.name, "ECHO")
         self.assertEqual(cx.warning.detail, "Boom!")
@@ -193,7 +204,8 @@ class ClientServerTestCase(AsyncTestCase):
         client._writer.write_eof()
         with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(CommandError) as cx:
-                yield from client.recv()
+                while True:
+                    yield from client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "ERRO")
         self.assertEqual(cx.exception.detail, "Bad request")

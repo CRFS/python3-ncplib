@@ -71,7 +71,7 @@ class Application:
     # Handlers.
 
     @asyncio.coroutine
-    def handle_connect(self):
+    def handle_connection(self):
         """
         Called when the connection is establed.
 
@@ -113,7 +113,7 @@ class Application:
     def __iter__(self):
         try:
             # Run connect hook.
-            yield from self.handle_connect()
+            yield from self.handle_connection()
             # Accept fields.
             while not self.connection.is_closing():
                 field = yield from self.connection.recv()
@@ -123,6 +123,6 @@ class Application:
             for daemon in self._daemons:
                 daemon.cancel()
             if self._daemons:
-                yield from asyncio.wait(self._daemons, loop=self._loop)
+                yield from asyncio.wait(self._daemons, loop=self.connection._loop)
 
     __await__ = __iter__
