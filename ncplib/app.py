@@ -112,33 +112,30 @@ class Application:
 
     # Handlers.
 
+    @asyncio.coroutine
     def handle_connect(self):
         """
         Called when the connection is establed.
 
         Use this to set up any background daemons using :meth:`start_daemon`.
         """
-        future = asyncio.Future(loop=self.connection._loop)
-        future.set_result(None)
-        return future
+        pass
 
+    @asyncio.coroutine
     def handle_unknown_field(self, field):
         """
         Called when a field is encountered that doesn't match any other field handler.
         """
-        future = asyncio.Future(loop=self.connection._loop)
-        future.set_result(None)
-        return future
+        pass
 
+    @asyncio.coroutine
     def handle_disconnect(self):
         """
         Called when the connection is shut down.
 
         Use this to perform any cleanup. The connection may already be closed.
         """
-        future = asyncio.Future(loop=self.connection._loop)
-        future.set_result(None)
-        return future
+        pass
 
     @asyncio.coroutine
     def _handle_field(self, field):
