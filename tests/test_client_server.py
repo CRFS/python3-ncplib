@@ -257,6 +257,10 @@ class ClientServerTestCase(AsyncTestCase):
     def testClientGracefulDisconnect(self):
         client_disconnected_event = asyncio.Event(loop=self.loop)
         client = yield from self.createClient(partial(disconnect_server_handler, client_disconnected_event))
+        # Ping a packet back and forth.
+        response = client.send("LINK", "ECHO", FOO="bar")
+        self.assertEqual((yield from response.recv())["FOO"], "bar")
+        # Clost the client ahead of the server.
         yield from client.__aexit__(None, None, None)
         yield from client_disconnected_event.wait()
 

@@ -8,6 +8,7 @@ Changelog
 -------------------
 
 - Added :attr:`Field.connection`.
+- Added :doc:`app`.
 - Micro-optimizations, roughly doubling the performance of encode/decode.
 
 

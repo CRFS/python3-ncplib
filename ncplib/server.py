@@ -311,7 +311,6 @@ def _start_server(client_connected, host, port, *, loop, auto_link, auto_auth):
     return server
 
 
-@asyncio.coroutine
 def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_link=True, auto_auth=True):
     """
     Creates and returns a new :class:`Server` on the given host and port.
