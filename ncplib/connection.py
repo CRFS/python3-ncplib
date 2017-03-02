@@ -443,20 +443,6 @@ class Connection(AsyncIteratorMixin):
 
     @asyncio.coroutine
     def wait_closed(self):
-        """
-        Waits for the connection to fully close.
-
-        This method is a *coroutine*.
-
-        .. important::
-
-            Only call this method after first calling :meth:`close`.
-
-        .. hint::
-
-            If you use the connection as an *async context manager*, there's no need to call
-            :meth:`Connection.wait_closed` manually.
-        """
         warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v3.0", DeprecationWarning)
 
     @asyncio.coroutine

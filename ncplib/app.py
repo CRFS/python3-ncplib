@@ -103,13 +103,13 @@ class Application:
             field.send(ERRO="Server error", ERRC=500)
 
     @asyncio.coroutine
-    def __call__(self, connection):
+    def __call__(self):
         try:
             # Run connect hook.
-            yield from self.handle_connect(connection)
+            yield from self.handle_connect()
             # Accept fields.
-            while not connection.is_closing():
-                field = yield from connection.recv()
+            while not self.connection.is_closing():
+                field = yield from self.connection.recv()
                 self.start_daemon(self._handle_field, field)
         finally:
             # Shut down daemons.
