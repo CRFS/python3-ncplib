@@ -2,11 +2,11 @@ import asyncio
 from datetime import datetime
 from functools import partial
 import sys
-from ncplib import Application, BadRequest, connect, run_client, start_server, CommandError, CommandWarning
+import ncplib
 from tests.base import AsyncTestCase
 
 
-class EchoApplication(Application):
+class EchoApplication(ncplib.Application):
 
     @asyncio.coroutine
     def handle_unknown_field(self, field):
@@ -17,7 +17,7 @@ class EchoApplication(Application):
 
     @asyncio.coroutine
     def handle_field_LINK_BAD(self, field):
-        raise BadRequest("Boom!")
+        raise ncplib.BadRequest("Boom!")
 
     @asyncio.coroutine
     def handle_field_LINK_BOOM(self, field):
@@ -48,7 +48,10 @@ def disconnect_server_handler(client_disconnected_event, client):
                     break
             else:
                 # Use the old recv() protocol.
-                field = yield from client.recv()
+                try:
+                    field = yield from client.recv()
+                except ncplib.ConnectionClosed:
+                    break
             # Send a response.
             field.send(ACKN=True)
             field.send(**field)
@@ -56,7 +59,7 @@ def disconnect_server_handler(client_disconnected_event, client):
         client_disconnected_event.set()
 
 
-class ClientApplication(Application):
+class ClientApplication(ncplib.Application):
 
     def __init__(self, connection, **spam_data):
         super().__init__(connection)
@@ -81,7 +84,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def createServer(self, client_connected=EchoApplication, *, server_auto_auth=True):
-        server = yield from start_server(
+        server = yield from ncplib.start_server(
             client_connected,
             "127.0.0.1", 0,
             loop=self.loop,
@@ -94,7 +97,7 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def createClient(self, *args, client_auto_link=True, client_auto_auth=True, **kwargs):
         port = yield from self.createServer(*args, **kwargs)
-        client = yield from connect(
+        client = yield from ncplib.connect(
             "127.0.0.1", port,
             loop=self.loop,
             auto_link=client_auto_link,
@@ -168,7 +171,7 @@ class ClientServerTestCase(AsyncTestCase):
         client = yield from self.createClient()
         response = client.send("LINK", "BAD")
         with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertRaises(CommandError) as cx:
+            with self.assertRaises(ncplib.CommandError) as cx:
                 yield from response.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "BAD")
@@ -180,7 +183,7 @@ class ClientServerTestCase(AsyncTestCase):
         client = yield from self.createClient()
         response = client.send("LINK", "BOOM")
         with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertRaises(CommandError) as cx:
+            with self.assertRaises(ncplib.CommandError) as cx:
                 yield from response.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "BOOM")
@@ -191,7 +194,7 @@ class ClientServerTestCase(AsyncTestCase):
     def testWarning(self):
         client = yield from self.createClient()
         response = client.send("LINK", "ECHO", WARN="Boom!", WARC=10)
-        with self.assertWarns(CommandWarning) as cx:
+        with self.assertWarns(ncplib.CommandWarning) as cx:
             yield from response.recv()
         self.assertEqual(cx.warning.field.packet_type, "LINK")
         self.assertEqual(cx.warning.field.name, "ECHO")
@@ -204,7 +207,7 @@ class ClientServerTestCase(AsyncTestCase):
         yield from client.recv_field("LINK", "HELO")
         client.send("LINK", "CCRE")
         with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertRaises(CommandError) as cx:
+            with self.assertRaises(ncplib.CommandError) as cx:
                 yield from client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "CCRE")
@@ -217,7 +220,7 @@ class ClientServerTestCase(AsyncTestCase):
         client._writer.write(b"Boom!" * 1024)
         client._writer.write_eof()
         with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertRaises(CommandError) as cx:
+            with self.assertRaises(ncplib.CommandError) as cx:
                 while True:
                     yield from client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
@@ -229,7 +232,7 @@ class ClientServerTestCase(AsyncTestCase):
     def testTopLevelServerError(self):
         with self.assertLogs("ncplib.server", "ERROR"):
             client = yield from self.createClient(error_server_handler)
-            with self.assertRaises(CommandError) as cx:
+            with self.assertRaises(ncplib.CommandError) as cx:
                 yield from client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "ERRO")
@@ -239,7 +242,7 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testServerConnectionError(self):
         with self.assertLogs("ncplib.server", "ERROR"):
-            with self.assertRaises(CommandError) as cx:
+            with self.assertRaises(ncplib.CommandError) as cx:
                 yield from self.createClient(error_server_handler, server_auto_auth=False)
         self.assertEqual(cx.exception.field.packet_type, "LINK")
         self.assertEqual(cx.exception.field.name, "ERRO")
@@ -267,25 +270,28 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testClientApplication(self):
         port = yield from self.createServer()
-        yield from run_client(ClientApplication, "127.0.0.1", port, hostname="ncplib-test")
+        yield from ncplib.run_client(ClientApplication, "127.0.0.1", port, hostname="ncplib-test")
 
     @asyncio.coroutine
     def testClientApplicationTimeout(self):
         port = yield from self.createServer()
         with self.assertLogs("ncplib.client", "WARNING"):
-            yield from run_client(ClientApplication, "127.0.0.1", port, hostname="ncplib-test", connect_timeout=0)
+            yield from ncplib.run_client(
+                ClientApplication, "127.0.0.1", port,
+                hostname="ncplib-test", connect_timeout=0,
+            )
 
     @asyncio.coroutine
     def testClientApplicationDecodeError(self):
         port = yield from self.createServer(decode_error_server_handler)
         with self.assertLogs("ncplib.client", "WARNING"):
-            yield from run_client(ClientApplication, "127.0.0.1", port)
+            yield from ncplib.run_client(ClientApplication, "127.0.0.1", port)
 
     @asyncio.coroutine
     def testClientApplicationCommandError(self):
         port = yield from self.createServer()
         with self.assertLogs("ncplib.client", "WARNING"):
-            yield from run_client(
+            yield from ncplib.run_client(
                 partial(ClientApplication, ERRC=401, ERRO="Boom!"), "127.0.0.1", port,
                 hostname="ncplib-test",
             )
