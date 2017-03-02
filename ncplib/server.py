@@ -229,6 +229,8 @@ class Server:
             self._handle_client_connected, self._host, self._port,
             loop=self._loop,
         )
+        for socket in self.sockets:
+            logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
 
     @property
     def sockets(self):
@@ -306,8 +308,6 @@ def _start_server(client_connected, host, port, *, loop, auto_link, auto_auth):
     loop = loop or asyncio.get_event_loop()
     server = Server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
     yield from server._connect()
-    for socket in server.sockets:
-        logger.debug("Listening on %s:%s over NCP", *socket.getsockname()[:2])
     return server
 
 
