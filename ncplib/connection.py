@@ -498,15 +498,8 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
         """
         super().close()
         # Close the connection.
-        if not self.is_closing():
-            try:
-                self._writer.write_eof()
-            except (EOFError, OSError):  # pragma: no cover
-                # If the socket is already closed due to a connection error, we dont' really care.
-                pass
-            finally:
-                self._writer.close()
-            self.logger.debug("Disconnected from %s over NCP", self.remote_hostname)
+        self._writer.close()
+        self.logger.debug("Disconnected from %s over NCP", self.remote_hostname)
 
     def wait_closed(self):
         """
