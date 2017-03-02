@@ -58,21 +58,16 @@ def disconnect_server_handler(client_disconnected_event, client):
 
 class ClientApplication(Application):
 
-    def __init__(self, connection):
+    def __init__(self, connection, **spam_data):
         super().__init__(connection)
-        self._spam_count = 0
-
-    @asyncio.coroutine
-    def handle_field_SPAM_SPAM(self, field):
-        self._spam_count += 1
-        if self._spam_count == 3:
-            self.connection.close()
+        self._spam_data = spam_data
 
     @asyncio.coroutine
     def run_spam(self):
-        while True:
-            self.connection.send("SPAM", "SPAM")
+        for _ in range(3):
+            self.connection.send("SPAM", "SPAM", **self._spam_data)
             yield from asyncio.sleep(0.1, loop=self.connection._loop)
+        self.connection.close()
 
     @asyncio.coroutine
     def handle_connection(self):
@@ -274,10 +269,19 @@ class ClientServerTestCase(AsyncTestCase):
     def testClientApplicationTimeout(self):
         port = yield from self.createServer()
         with self.assertLogs("ncplib.client", "WARNING"):
-            yield from run_client(ClientApplication, "127.0.0.1", port, connect_timeout=0)
+            yield from run_client(ClientApplication, "127.0.0.1", port, hostname="ncplib-test", connect_timeout=0)
 
     @asyncio.coroutine
     def testClientApplicationDecodeError(self):
         port = yield from self.createServer(decode_error_server_handler)
         with self.assertLogs("ncplib.client", "WARNING"):
             yield from run_client(ClientApplication, "127.0.0.1", port)
+
+    @asyncio.coroutine
+    def testClientApplicationCommandError(self):
+        port = yield from self.createServer()
+        with self.assertLogs("ncplib.client", "WARNING"):
+            yield from run_client(
+                partial(ClientApplication, ERRC=401, ERRO="Boom!"), "127.0.0.1", port,
+                hostname="ncplib-test",
+            )
