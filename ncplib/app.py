@@ -4,6 +4,21 @@ NCP application helpers
 
 .. currentmodule:: ncplib
 
+An application consists of a number of daemons and field handlers.
+
+Define field handlers by subclassing :class:`Application` and defining methods with the signature
+``handle_field_PACK_FIEL(self, field)``, where ``PACK`` is the :attr:`Field.packet_type` and ``FIEL`` is the
+``Field.packet_name``. Field handlers can report errors by raising a :class:`BadRequest`.
+
+Start daemons using :meth:`Application.start_daemon`.
+
+.. important::
+
+    Daemons and field handlers should not call :meth:`Connection.recv`, :meth:`Connection.recv_field`,
+    :meth:`Response.recv` or :meth:`Response.recv_field`. They should not use the async iteration protocol on
+    :class:`Connection` or :class:`Response`. They should only send fields using :meth:`Connection.send` or
+    :meth:`Field.send`.
+
 
 API reference
 -------------
@@ -33,21 +48,6 @@ class Application:
 
     """
     A helper for building NCP applications.
-
-    An application consists of a number of daemons and field handlers.
-
-    Define field handlers by subclassing Application and defining methods with the signature
-    ``handle_field_PACK_FIEL(self, field)``, where ``PACK`` is the :attr:`Field.packet_type` and ``FIEL`` is the
-    ``Field.packet_name``. Field handlers can report errors by raising a :class:`BadRequest`.
-
-    Start daemons using :meth:`start_daemon`.
-
-    .. important::
-
-        Daemons and field handlers should not call :meth:`Connection.recv`, :meth:`Connection.recv_field`,
-        :meth:`Response.recv` or :meth:`Response.recv_field`. They should not use the async iteration protocol on
-        :class:`Connection` or :class:`Response`. They should only send fields using :meth:`Connection.send` or
-        :meth:`Field.send`.
     """
 
     def __init__(self, connection):

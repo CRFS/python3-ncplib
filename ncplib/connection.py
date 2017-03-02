@@ -427,8 +427,6 @@ class Connection(AsyncIteratorMixin):
         """
         Closes the connection.
 
-        After calling this method, use :meth:`wait_closed` to wait for the connection to fully close.
-
         .. hint::
 
             If you use the connection as an *async context manager*, there's no need to call :meth:`Connection.close`
@@ -446,7 +444,7 @@ class Connection(AsyncIteratorMixin):
         warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v3.0", DeprecationWarning)
 
     @asyncio.coroutine
-    async def __aenter__(self):
+    def __aenter__(self):
         return self
 
     def _handle_connection_error(self, ex, *, send_errors):
