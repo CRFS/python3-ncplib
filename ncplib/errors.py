@@ -49,7 +49,7 @@ class CommandMixin:
     """
 
     def __init__(self, field, detail, code):
-        super().__init__("{packet_type} {field_name} '{detail}' (code {code})".format(
+        super().__init__("{packet_type} {field_name} {detail!r} (code {code})".format(
             packet_type=field.packet_type,
             field_name=field.name,
             detail=detail,

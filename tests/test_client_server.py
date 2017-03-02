@@ -196,6 +196,13 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.code, 500)
 
     @asyncio.coroutine
+    def testConnectionWaitClosedDeprecated(self):
+        client = yield from self.createServer()
+        client.close()
+        with self.assertWarns(DeprecationWarning):
+            yield from client.wait_closed()
+
+    @asyncio.coroutine
     def testClientGracefulDisconnect(self):
         client_disconnected_queue = asyncio.Queue(loop=self.loop)
         client = yield from self.createServer(client_disconnected_queue=client_disconnected_queue)

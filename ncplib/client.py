@@ -194,6 +194,5 @@ def connect(
         yield from client._connect()
     except:
         client.close()
-        yield from client.wait_closed()
         raise
     return client

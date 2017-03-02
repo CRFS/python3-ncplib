@@ -125,7 +125,8 @@ API reference
 
 import asyncio
 import logging
-from ncplib.connection import AsyncHandlerMixin, Connection
+from ncplib.connection import Connection
+from ncplib.errors import DecodeError
 
 
 __all__ = (
@@ -157,16 +158,8 @@ class ServerConnection(Connection):
         yield from self.recv_field("LINK", "CARE")
         self.send("LINK", "SCON")
 
-    def _handle_expected_error(self, ex):
-        super()._handle_expected_error(ex)
-        self.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
 
-    def _handle_unexpected_error(self, ex):
-        super()._handle_unexpected_error(ex)
-        self.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
-
-
-class Server(AsyncHandlerMixin):
+class Server:
 
     """
     A :doc:`server`.
@@ -186,24 +179,18 @@ class Server(AsyncHandlerMixin):
     """
 
     def __init__(self, client_connected, host, port, *, loop, auto_link, auto_auth):
-        super().__init__(loop=loop)
         self._client_connected = client_connected
         self._host = host
         self._port = port
         # Config.
+        self._loop = loop
         self._auto_link = auto_link
         self._auto_auth = auto_auth
+        # Handlers.
+        self._handlers = set()
 
     @asyncio.coroutine
-    def _handle_connection(self, connection):
-        try:
-            yield from connection.create_handler(connection._connect)
-            yield from connection.create_handler(self._client_connected, connection)
-        finally:
-            connection.close()
-            yield from connection.wait_closed()
-
-    def _handle_client_connected(self, reader, writer):
+    def _run_client_connected(self, reader, writer):
         connection = ServerConnection(
             reader, writer,
             loop=self._loop,
@@ -212,7 +199,30 @@ class Server(AsyncHandlerMixin):
             auto_link=self._auto_link,
             auto_auth=self._auto_auth,
         )
-        return self.create_handler(self._handle_connection, connection)
+        try:
+            try:
+                yield from connection._connect()
+                yield from self._client_connected(connection)
+            # Send error notifications to the client.
+            except (asyncio.CancelledError, EOFError, OSError):
+                raise
+            except DecodeError as ex:
+                connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+                raise
+            except:
+                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+                raise
+        # Close the connection.
+        except Exception as ex:
+            connection._log_connection_error(ex)
+        finally:
+            connection.close()
+
+    def _handle_client_connected(self, reader, writer):
+        handler = self._loop.create_task(self._run_client_connected(reader, writer))
+        handler.add_done_callback(self._handlers.remove)
+        self._handlers.add(handler)
+        return handler
 
     @asyncio.coroutine
     def _connect(self):
@@ -223,6 +233,9 @@ class Server(AsyncHandlerMixin):
 
     @property
     def sockets(self):
+        """
+        A list of the connected listening sockets.
+        """
         return self._server.sockets
 
     def close(self):
@@ -236,8 +249,11 @@ class Server(AsyncHandlerMixin):
             If you use the server as an *async context manager*, there's no need to call :meth:`Server.close`
             manually.
         """
-        super().close()
+        # Close the server.
         self._server.close()
+        # Stop handlers.
+        for handler in self._handlers:
+            handler.cancel()
 
     @asyncio.coroutine
     def wait_closed(self):
@@ -255,8 +271,20 @@ class Server(AsyncHandlerMixin):
             If you use the server as an *async context manager*, there's no need to call
             :meth:`Server.wait_closed` manually.
         """
-        yield from super().wait_closed()
+        # Wait for handlers to complete.
+        if self._handlers:
+            yield from asyncio.wait(self._handlers, loop=self._loop)
+        # Wait for the server to shut down.
         yield from self._server.wait_closed()
+
+    @asyncio.coroutine
+    def __aenter__(self):
+        return self
+
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc, tb):
+        self.close()
+        yield from self.wait_closed()
 
 
 DEFAULT_HOST = "0.0.0.0"

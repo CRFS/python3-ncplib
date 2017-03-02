@@ -60,7 +60,8 @@ API reference
 import asyncio
 from datetime import datetime, timezone
 from uuid import getnode as get_mac
-from ncplib.errors import DecodeError, CommandError
+import warnings
+from ncplib.errors import CommandError, DecodeError
 from ncplib.packets import encode_packet, decode_packet_cps
 
 
@@ -154,43 +155,6 @@ class Field(dict):
     send.__doc__ += _send_return_doc
 
 
-class ClosableContextMixin:
-
-    @asyncio.coroutine
-    def __aenter__(self):
-        return self
-
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc, tb):
-        self.close()
-        yield from self.wait_closed()
-
-
-class AsyncHandlerMixin(ClosableContextMixin):
-
-    def __init__(self, *, loop):
-        self._loop = loop or asyncio.get_event_loop()
-        self._handlers = set()
-
-    def _run_handler(self, func, *args, **kwargs):
-        return func(*args, **kwargs)
-
-    def create_handler(self, func, *args, **kwargs):
-        handler = self._loop.create_task(self._run_handler(func, *args, **kwargs))
-        self._handlers.add(handler)
-        handler.add_done_callback(self._handlers.remove)
-        return handler
-
-    def close(self):
-        for handler in self._handlers:
-            handler.cancel()
-
-    @asyncio.coroutine
-    def wait_closed(self):
-        if self._handlers:
-            yield from asyncio.wait(self._handlers, loop=self._loop)
-
-
 class AsyncIteratorMixin:
 
     __slots__ = ()
@@ -265,7 +229,7 @@ class Response(AsyncIteratorMixin):
     recv_field.__doc__ += _recv_return_doc
 
 
-class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
+class Connection(AsyncIteratorMixin):
 
     """
     A connection between a :doc:`client` and a :doc:`server`.
@@ -301,7 +265,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
     """
 
     def __init__(self, reader, writer, *, loop, logger, remote_hostname, auto_link, auto_auth):
-        super().__init__(loop=loop)
+        self._loop = loop
         # Logging.
         self.logger = logger
         self.logger.debug("Connected to %s over NCP", remote_hostname)
@@ -314,6 +278,7 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
         # Config.
         self.remote_hostname = remote_hostname
         self._auto_link = auto_link
+        self._auto_link_task = None
         self._auto_auth = auto_auth
 
     @property
@@ -334,36 +299,17 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
         raise NotImplementedError
 
     @asyncio.coroutine
+    def _handle_link(self):
+        while not self.is_closing():
+            self.send_packet("LINK")
+            yield from asyncio.sleep(3, loop=self._loop)
+
+    @asyncio.coroutine
     def _connect(self):
         if self._auto_auth:
             yield from self._handle_auth()
         if self._auto_link:
-            self.create_handler(self._handle_link)
-
-    @asyncio.coroutine
-    def _handle_link(self):
-        while not self.transport._closing:
-            self.send_packet("LINK")
-            yield from asyncio.sleep(3, loop=self._loop)
-
-    def _handle_expected_error(self, ex):
-        self.logger.warning("Connection error from %s over NCP: %s", self.remote_hostname, ex)
-
-    def _handle_unexpected_error(self, ex):
-        self.logger.exception("Unexpected error from %s over NCP", self.remote_hostname)
-
-    @asyncio.coroutine
-    def _run_handler(self, func, *args, **kwargs):
-        try:
-            yield from func(*args, **kwargs)
-        except asyncio.CancelledError:  # Connection cancelled.
-            raise
-        except (EOFError, OSError):  # Connection closed.
-            pass
-        except (DecodeError, CommandError, asyncio.TimeoutError) as ex:
-            self._handle_expected_error(ex)
-        except Exception as ex:
-            self._handle_unexpected_error(ex)
+            self._auto_link_task = self._loop.create_task(self._handle_link())
 
     # Packet reading.
 
@@ -496,11 +442,14 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call :meth:`Connection.close`
             manually.
         """
-        super().close()
+        # Stop handlers.
+        if self._auto_link and self._auto_link_task is not None:
+            self._auto_link_task.cancel()
         # Close the connection.
         self._writer.close()
         self.logger.debug("Disconnected from %s over NCP", self.remote_hostname)
 
+    @asyncio.coroutine
     def wait_closed(self):
         """
         Waits for the connection to fully close.
@@ -516,4 +465,24 @@ class Connection(AsyncHandlerMixin, AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call
             :meth:`Connection.wait_closed` manually.
         """
-        return super().wait_closed()
+        warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v3.0", DeprecationWarning)
+
+    @asyncio.coroutine
+    async def __aenter__(self):
+        return self
+
+    def _log_connection_error(self, ex):
+        if isinstance(ex, asyncio.CancelledError):
+            raise
+        elif isinstance(ex, CommandError):
+            self.logger.warning("Command error from %s over NCP: %s", self.remote_hostname, ex)
+        elif isinstance(ex, DecodeError):
+            self.logger.warning("Decode error from %s over NCP: %s", self.remote_hostname, ex)
+        else:
+            self.logger.exception("Unexpected error from %s over NCP", self.remote_hostname, exc_info=ex)
+
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc, tb):
+        if exc is not None:
+            self._log_connection_error(exc)
+        self.close()
