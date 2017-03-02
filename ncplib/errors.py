@@ -68,6 +68,7 @@ class CommandError(CommandMixin, Exception):
     Raised by the :doc:`client` when the :doc:`server` sends a :term:`NCP field` containing an ``ERRO`` parameter.
 
     Can be disabled by setting ``auto_erro`` to :obj:`False` in :func:`ncplib.connect`.
+
     """
     __doc__ += CommandMixin.__doc__
 
@@ -87,6 +88,7 @@ class CommandWarning(CommandMixin, Warning):
     Issued by the :doc:`client` when the :doc:`server` sends a :term:`NCP field` containing a ``WARN`` parameter.
 
     Can be disabled by setting ``auto_warn`` to :obj:`False` in :func:`ncplib.connect`.
+
     """
     __doc__ += CommandMixin.__doc__
 
