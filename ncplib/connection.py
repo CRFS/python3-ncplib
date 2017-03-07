@@ -193,11 +193,12 @@ class Response(AsyncIteratorMixin):
         The *async for loop* will only terminate when the underlying connection closes.
     """
 
-    __slots__ = ("_connection", "_predicate")
+    __slots__ = ("_connection", "_packet_type", "_expected_fields")
 
-    def __init__(self, connection, predicate):
+    def __init__(self, connection, packet_type, expected_fields):
         self._connection = connection
-        self._predicate = predicate
+        self._packet_type = packet_type
+        self._expected_fields = expected_fields
 
     @asyncio.coroutine
     def recv(self):
@@ -209,7 +210,7 @@ class Response(AsyncIteratorMixin):
         """
         while True:
             field = yield from self._connection.recv()
-            if self._predicate(field):
+            if field.packet_type == self._packet_type and (field.name, field.id) in self._expected_fields:
                 return field
     recv.__doc__ += _recv_return_doc
 
@@ -373,18 +374,12 @@ class Connection(AsyncIteratorMixin):
         encoded_packet = encode_packet(packet_type, _gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
+        expected_fields = set()
         for field_name, field_id, params in fields:
             self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field_name, self.remote_hostname)
+            expected_fields.add((field_name, field_id))
         # Create an iterator of response fields.
-        expected_fields = frozenset(
-            (field_name, field_id)
-            for (field_name, field_id, _)
-            in fields
-        )
-        return Response(self, lambda field: (
-            field.packet_type == packet_type and
-            (field.name, field.id) in expected_fields
-        ))
+        return Response(self, packet_type, expected_fields)
 
     # Sending fields.
 
