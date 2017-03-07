@@ -59,6 +59,7 @@ API reference
 
 import asyncio
 from datetime import datetime, timezone
+from itertools import cycle
 from uuid import getnode as get_mac
 import warnings
 from ncplib.errors import ConnectionError, ConnectionClosed, DecodeError
@@ -74,6 +75,10 @@ __all__ = (
 
 # The last four bytes of the MAC address is used as an ID field.
 CLIENT_ID = get_mac().to_bytes(6, "little")[-4:]
+
+
+# ID generation.
+_gen_id = cycle(range(2 ** 32)).__next__
 
 
 _send_return_doc = """:return: A :class:`Response` providing access to any :class:`Field` instances received in reply to
@@ -274,7 +279,6 @@ class Connection(AsyncIteratorMixin):
         self._field_buffer = []
         # Packet writing.
         self._writer = writer
-        self._id_gen = 0
         # Config.
         self.remote_hostname = remote_hostname
         self._auto_link = auto_link
@@ -287,10 +291,6 @@ class Connection(AsyncIteratorMixin):
         The :class:`asyncio.WriteTransport` used by this connection.
         """
         return self._writer.transport
-
-    def _gen_id(self):
-        self._id_gen += 1
-        return self._id_gen
 
     # Background tasks.
 
@@ -370,7 +370,7 @@ class Connection(AsyncIteratorMixin):
     # Packet writing.
 
     def _send_packet(self, packet_type, fields):
-        encoded_packet = encode_packet(packet_type, self._gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
+        encoded_packet = encode_packet(packet_type, _gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
         for field_name, field_id, params in fields:
@@ -403,7 +403,7 @@ class Connection(AsyncIteratorMixin):
             :doc:`value types <values>`.
         """
         return self._send_packet(packet_type, [
-            (field_name, self._gen_id(), field_params.items())
+            (field_name, _gen_id(), field_params.items())
             for field_name, field_params
             in fields.items()
         ])
@@ -419,7 +419,7 @@ class Connection(AsyncIteratorMixin):
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, [(field_name, self._gen_id(), params.items())])
+        return self._send_packet(packet_type, [(field_name, _gen_id(), params.items())])
     send.__doc__ += _send_return_doc
 
     # Connection lifecycle.
