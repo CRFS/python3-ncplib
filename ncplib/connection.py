@@ -62,7 +62,7 @@ from datetime import datetime, timezone
 from itertools import cycle
 from uuid import getnode as get_mac
 import warnings
-from ncplib.errors import ConnectionError, ConnectionClosed, DecodeError
+from ncplib.errors import ConnectionError, ConnectionClosed
 from ncplib.packets import encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
@@ -325,21 +325,13 @@ class Connection(AsyncIteratorMixin):
                 )
                 if self._predicate(field):
                     return field
-            # Read and decode the packet header.
+            # Read and decode the packet.
             try:
                 header_buf = yield from self._reader.readexactly(PACKET_HEADER_SIZE)
-            except asyncio.IncompleteReadError as ex:  # pragma: no cover
-                if ex.partial:
-                    raise DecodeError("Truncated packet header")
-                raise ConnectionClosed("Connection closed")
-            except OSError as ex:  # pragma: no cover
-                raise ConnectionError(ex)
-            size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-            # Read and decode the packet body.
-            try:
+                size_remaining, decode_packet_body = decode_packet_cps(header_buf)
                 body_buf = yield from self._reader.readexactly(size_remaining)
-            except asyncio.IncompleteReadError as ex:  # pragma: no cover
-                raise DecodeError("Truncated packet body")
+            except asyncio.IncompleteReadError:
+                raise ConnectionClosed("Connection closed")
             except OSError as ex:  # pragma: no cover
                 raise ConnectionError(ex)
             packet_type, packet_id, packet_timestamp, packet_info, fields = decode_packet_body(body_buf)
