@@ -4,6 +4,9 @@ import timeit
 import ncplib
 
 
+DATA = b"fooobaar" * 1024
+
+
 class EchoApplication(ncplib.Application):
 
     @asyncio.coroutine
@@ -12,8 +15,8 @@ class EchoApplication(ncplib.Application):
 
 
 def benchmark(loop, client):
-    response = client.send("LINK", "ECHO", DATA=b"fooobaar")
-    assert loop.run_until_complete(response.recv())["DATA"] == b"fooobaar"
+    response = client.send("LINK", "ECHO", DATA=DATA)
+    assert loop.run_until_complete(response.recv())["DATA"] == DATA
 
 
 def main():
