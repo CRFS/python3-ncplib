@@ -209,8 +209,12 @@ class Response(AsyncIteratorMixin):
 
         """
         while True:
-            field = yield from self._connection.recv()
-            if field.packet_type == self._packet_type and (field.name, field.id) in self._expected_fields:
+            field = yield from self._connection._recv()
+            if (
+                field.packet_type == self._packet_type and
+                (field.name, field.id) in self._expected_fields and
+                self._connection._predicate(field)
+            ):
                 return field
     recv.__doc__ += _recv_return_doc
 
@@ -228,8 +232,13 @@ class Response(AsyncIteratorMixin):
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
         while True:
-            field = yield from self.recv()
-            if field.name == field_name:
+            field = yield from self._connection._recv()
+            if (
+                field.packet_type == self._packet_type and
+                (field.name, field.id) in self._expected_fields and
+                field.name == field_name and
+                self._connection._predicate(field)
+            ):
                 return field
     recv_field.__doc__ += _recv_return_doc
 
@@ -308,13 +317,7 @@ class Connection(AsyncIteratorMixin):
     # Receiving fields.
 
     @asyncio.coroutine
-    def recv(self):
-        """
-        Waits for the next :class:`Field` received by the connection.
-
-        This method is a *coroutine*.
-
-        """
+    def _recv(self):
         while True:
             # Return buffered fields.
             if self._field_buffer:
@@ -323,8 +326,7 @@ class Connection(AsyncIteratorMixin):
                     "Received field %s %s from %s over NCP",
                     field.packet_type, field.name, self.remote_hostname
                 )
-                if self._predicate(field):
-                    return field
+                return field
             # Read and decode the packet.
             try:
                 header_buf = yield from self._reader.readexactly(PACKET_HEADER_SIZE)
@@ -342,6 +344,19 @@ class Connection(AsyncIteratorMixin):
                 for field_name, field_id, params in fields
             ]
             self._field_buffer.reverse()
+
+    @asyncio.coroutine
+    def recv(self):
+        """
+        Waits for the next :class:`Field` received by the connection.
+
+        This method is a *coroutine*.
+
+        """
+        while True:
+            field = yield from self._recv()
+            if self._predicate(field):
+                return field
     recv.__doc__ += _recv_return_doc
 
     @asyncio.coroutine
@@ -355,8 +370,8 @@ class Connection(AsyncIteratorMixin):
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
         while True:
-            field = yield from self.recv()
-            if field.packet_type == packet_type and field.name == field_name:
+            field = yield from self._recv()
+            if field.packet_type == packet_type and field.name == field_name and self._predicate(field):
                 return field
     recv_field.__doc__ += _recv_return_doc
 

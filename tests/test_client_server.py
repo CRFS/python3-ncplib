@@ -139,7 +139,7 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testSendFiltersMessages(self):
         client = yield from self.createClient()
-        client.send("JUNK", "JUNK", JUNK="JUNK")
+        client.send("JUNK", "JUNK", ERRO=1, ERRC="Boom!")
         client.send("LINK", "ECHO", BAZ="QUX")
         response = client.send("LINK", "ECHO", FOO="BAR")
         yield from self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
@@ -153,7 +153,7 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testRecvFieldConnectionFiltersMessages(self):
         client = yield from self.createClient()
-        client.send("JUNK", "JUNK", JUNK="JUNK")
+        client.send("JUNK", "JUNK", ERRO=1, ERRC="Boom!")
         client.send("LINK", "ECHO", FOO="BAR")
         field = yield from client.recv_field("LINK", "ECHO")
         self.assertEqual(field, {"FOO": "BAR"})
@@ -161,7 +161,7 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testRecvFieldResponseFiltersMessages(self):
         client = yield from self.createClient()
-        client.send("LINK", "ECHO", BAZ="QUX")
+        client.send("LINK", "ECHO", ERRO=1, ERRC="Boom!")
         response = client.send("LINK", "ECHO", FOO="BAR")
         field = yield from response.recv_field("ECHO")
         self.assertEqual(field, {"FOO": "BAR"})
@@ -242,12 +242,8 @@ class ClientServerTestCase(AsyncTestCase):
     @asyncio.coroutine
     def testServerConnectionError(self):
         with self.assertLogs("ncplib.server", "ERROR"):
-            with self.assertRaises(ncplib.CommandError) as cx:
+            with self.assertRaises(ncplib.ConnectionClosed):
                 yield from self.createClient(error_server_handler, server_auto_auth=False)
-        self.assertEqual(cx.exception.field.packet_type, "LINK")
-        self.assertEqual(cx.exception.field.name, "ERRO")
-        self.assertEqual(cx.exception.detail, "Server error")
-        self.assertEqual(cx.exception.code, 500)
 
     @asyncio.coroutine
     def testConnectionWaitClosedDeprecated(self):
