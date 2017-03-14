@@ -87,6 +87,7 @@ from functools import partial
 import logging
 import platform
 import warnings
+from ncplib.compat import wait_for
 from ncplib.connection import Connection
 from ncplib.errors import NCPError, CommandError, CommandWarning, ConnectionError
 
@@ -255,40 +256,35 @@ def run_client(
     remote_hostname = _get_remote_hostname(host, port, remote_hostname)
     try:
         # Connect to the server.
-        connect_task = loop.create_task(_connect(
-            host, port,
-            loop=loop,
-            auto_link=auto_link,
-            auto_auth=auto_auth,
-            auto_erro=auto_erro,
-            auto_warn=auto_warn,
-            auto_ackn=auto_ackn,
-            remote_hostname=remote_hostname,
-            hostname=hostname,
-        ))
         try:
-            connection = yield from asyncio.wait_for(connect_task, connect_timeout)
+            connection = yield from wait_for(_connect(
+                host, port,
+                loop=loop,
+                auto_link=auto_link,
+                auto_auth=auto_auth,
+                auto_erro=auto_erro,
+                auto_warn=auto_warn,
+                auto_ackn=auto_ackn,
+                remote_hostname=remote_hostname,
+                hostname=hostname,
+            ), connect_timeout, loop=loop)
         except (asyncio.TimeoutError, NCPError) as ex:
             logger.warning(
                 "Could not connect to %s over NCP: %s", remote_hostname,
                 "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
             )
             return
-        finally:
-            # HACK: Python 3.4.2 does not cancel timed-out tasks.
-            if not connect_task.done():
-                connect_task.cancel()
         # Run the app.
         try:
             yield from client_connected(connection)
         except NCPError as ex:  # Warnings on client error.
-            logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
+            logger.warning("Connection error from %s over NCP: %s", remote_hostname, ex)
         finally:
             connection.close()
     except asyncio.CancelledError:  # pragma: no cover
         raise
     except Exception as ex:  # pragma: no cover
-        logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
+        logger.exception("Unexpected error from %s over NCP", remote_hostname, exc_info=ex)
 
 
 run_client.__doc__ += _connect_args
