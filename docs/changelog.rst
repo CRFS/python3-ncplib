@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+2.3.3 - 27/03/2017
+------------------
+
+- Only applying wait_for compatibility shim to Python 3.4.2 and below.
+
+
 2.3.2 - 15/03/2017
 ------------------
 
