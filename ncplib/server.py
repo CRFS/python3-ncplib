@@ -221,7 +221,6 @@ class Server:
         handler = self._loop.create_task(self._run_client_connected(reader, writer))
         handler.add_done_callback(self._handlers.remove)
         self._handlers.add(handler)
-        return handler
 
     @asyncio.coroutine
     def _connect(self):
