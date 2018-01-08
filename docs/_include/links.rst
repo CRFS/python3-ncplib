@@ -7,4 +7,3 @@
 .. _issue tracking: https://github.com/CRFS/python3-ncplib/issues
 .. _pip: https://pip.pypa.io
 .. _source code: https://github.com/CRFS/python3-ncplib
-.. _tox: http://tox.readthedocs.io/

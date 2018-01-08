@@ -11,7 +11,7 @@ setup(
     author="Dave Hall",
     author_email="dhall@crfs.com",
     url="https://github.com/CRFS/python3-ncplib",
-    packages=find_packages(exclude=["tests", "benchmarks", "examples"]),
+    packages=find_packages(exclude=["tests", "examples"]),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Web Environment",

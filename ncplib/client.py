@@ -168,7 +168,7 @@ def _connect(
             connection.send("LINK", "CARE", CAR=hostname)
             # Read the auth response packet.
             yield from connection.recv_field("LINK", "SCON")
-    except:
+    except Exception:
         connection.close()
         raise
     # All done!

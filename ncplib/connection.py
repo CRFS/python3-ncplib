@@ -171,7 +171,7 @@ class AsyncIteratorMixin:
         try:
             return (yield from self.recv())
         except ConnectionClosed:
-            raise StopAsyncIteration
+            raise StopAsyncIteration  # noqa
 
 
 class Response(AsyncIteratorMixin):
