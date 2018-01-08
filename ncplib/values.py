@@ -55,8 +55,3 @@ class uint(int):
     """
 
     __slots__ = ()
-
-    def __new__(cls, value):
-        if not 0 <= value <= 4294967295:
-            raise ValueError("Out of range for unsigned 32 bit integer: {!r}".format(value))
-        return super().__new__(cls, value)
