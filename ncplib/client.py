@@ -87,7 +87,6 @@ from functools import partial
 import logging
 import platform
 import warnings
-from ncplib.compat import wait_for
 from ncplib.connection import Connection
 from ncplib.errors import NCPError, CommandError, CommandWarning, ConnectionError
 
@@ -257,7 +256,7 @@ def run_client(
     try:
         # Connect to the server.
         try:
-            connection = yield from wait_for(_connect(
+            connection = yield from asyncio.wait_for(_connect(
                 host, port,
                 loop=loop,
                 auto_link=auto_link,
