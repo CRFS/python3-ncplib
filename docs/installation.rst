@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
-:mod:`ncplib` supports Python 3.4.2 and above. It has no other dependencies.
+:mod:`ncplib` supports Python 3.5 and above. It has no other dependencies.
 
 
 Installing

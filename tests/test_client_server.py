@@ -44,7 +44,7 @@ def disconnect_server_handler(client_disconnected_event, client):
             if sys.version_info >= (3, 5):
                 try:
                     field = yield from client_iter.__anext__()
-                except StopAsyncIteration:  # noqa
+                except StopAsyncIteration:
                     break
             else:
                 # Use the old recv() protocol.

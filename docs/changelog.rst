@@ -4,6 +4,12 @@ Changelog
 .. currentmodule:: ncplib
 
 
+3.0.0 - Master
+--------------
+
+- **Breaking:** Dropped support for Python 3.4.
+
+
 2.3.3 - 27/03/2017
 ------------------
 

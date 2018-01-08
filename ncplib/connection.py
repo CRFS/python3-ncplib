@@ -171,7 +171,7 @@ class AsyncIteratorMixin:
         try:
             return (yield from self.recv())
         except ConnectionClosed:
-            raise StopAsyncIteration  # noqa
+            raise StopAsyncIteration
 
 
 class Response(AsyncIteratorMixin):
@@ -417,8 +417,7 @@ class Connection(AsyncIteratorMixin):
 
         A closing connection should not be written to.
         """
-        # HACK: The is_closing() API was only added in Python 3.5.1. This works in Python 3.4 as well.
-        return self.transport._closing
+        return self.transport.is_closing()
 
     def close(self):
         """
