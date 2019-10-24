@@ -31,6 +31,11 @@ API reference
 .. autoexception:: DecodeWarning
     :members:
 """
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover
+    from ncplib.connection import Field
 
 
 __all__ = (
@@ -47,8 +52,12 @@ __all__ = (
 
 class CommandMixin:
 
-    def __init__(self, field, detail, code):
-        super().__init__(f"{field.packet_type} {field.name} {detail!r} (code {code})")
+    field: Field
+    detail: str
+    code: int
+
+    def __init__(self, field: Field, detail: str, code: int) -> None:
+        super().__init__(f"{field.packet_type} {field.name} {detail!r} (code {code})")  # type: ignore
         self.field = field
         self.detail = detail
         self.code = code
