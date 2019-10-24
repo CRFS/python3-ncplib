@@ -126,8 +126,7 @@ def _get_remote_hostname(host, port, remote_hostname):
     return "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
 
 
-@asyncio.coroutine
-def _connect(
+async def _connect(
     host, port, *,
     auto_link,
     auto_auth,
@@ -137,11 +136,10 @@ def _connect(
     remote_hostname,
     hostname
 ):
-    loop = asyncio.get_running_loop()
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     # Create the network connection.
     try:
-        reader, writer = yield from asyncio.open_connection(host, port)
+        reader, writer = await asyncio.open_connection(host, port)
     except OSError as ex:  # pragma: no cover
         raise ConnectionError(ex)
     connection = Connection(
@@ -155,18 +153,18 @@ def _connect(
     try:
         if auto_auth:
             # Read the initial LINK HELO packet.
-            yield from connection.recv_field("LINK", "HELO")
+            await connection.recv_field("LINK", "HELO")
             # Send the connection request.
             connection.send("LINK", "CCRE", CIW=hostname)
             # Read the connection response packet.
-            yield from connection.recv_field("LINK", "SCAR")
+            await connection.recv_field("LINK", "SCAR")
             # Send the auth request packet.
             connection.send("LINK", "CARE", CAR=hostname)
             # Read the auth response packet.
-            yield from connection.recv_field("LINK", "SCON")
+            await connection.recv_field("LINK", "SCON")
     except Exception:
         connection.close()
-        yield from connection.wait_closed()
+        await connection.wait_closed()
         raise
     # All done!
     connection._start_tasks()
@@ -223,8 +221,7 @@ connect.__doc__ += _connect_args + """:raises ncplib.NCPError: if the NCP connec
     """
 
 
-@asyncio.coroutine
-def run_client(
+async def run_client(
     client_connected,
     host, port=9999, *,
     auto_link=True,
@@ -250,7 +247,7 @@ def run_client(
     try:
         # Connect to the server.
         try:
-            connection = yield from asyncio.wait_for(_connect(
+            connection = await asyncio.wait_for(_connect(
                 host, port,
                 auto_link=auto_link,
                 auto_auth=auto_auth,
@@ -268,12 +265,12 @@ def run_client(
             return
         # Run the app.
         try:
-            yield from client_connected(connection)
+            await client_connected(connection)
         except NCPError as ex:  # Warnings on client error.
             logger.warning("Connection error from %s over NCP: %s", remote_hostname, ex)
         finally:
             connection.close()
-            yield from connection.wait_closed()
+            await connection.wait_closed()
     except asyncio.CancelledError:  # pragma: no cover
         raise
     except Exception as ex:  # pragma: no cover

@@ -172,8 +172,7 @@ class Server:
         # Handlers.
         self._handlers = set()
 
-    @asyncio.coroutine
-    def _run_client_connected(self, reader, writer):
+    async def _run_client_connected(self, reader, writer):
         connection = Connection(
             reader, writer, _server_predicate,
             logger=logger,
@@ -186,7 +185,7 @@ class Server:
             if self._auto_auth:
                 connection.send("LINK", "HELO")
                 # Read the hostname.
-                field = yield from connection.recv_field("LINK", "CCRE")
+                field = await connection.recv_field("LINK", "CCRE")
                 try:
                     connection.remote_hostname = str(field["CIW"])
                 except KeyError:
@@ -196,11 +195,11 @@ class Server:
                     return
                 # Complete authentication.
                 connection.send("LINK", "SCAR")
-                yield from connection.recv_field("LINK", "CARE")
+                await connection.recv_field("LINK", "CARE")
                 connection.send("LINK", "SCON")
             # Handle connection.
             connection._start_tasks()
-            yield from self._client_connected(connection)
+            await self._client_connected(connection)
         # Close the connection.
         except asyncio.CancelledError:  # Propagate cancels.
             raise
@@ -214,16 +213,15 @@ class Server:
                 connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
             connection.close()
-            yield from connection.wait_closed()
+            await connection.wait_closed()
 
     def _handle_client_connected(self, reader, writer):
         handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
         handler.add_done_callback(self._handlers.remove)
         self._handlers.add(handler)
 
-    @asyncio.coroutine
-    def _connect(self):
-        self._server = yield from asyncio.start_server(self._handle_client_connected, self._host, self._port)
+    async def _connect(self):
+        self._server = await asyncio.start_server(self._handle_client_connected, self._host, self._port)
         for socket in self.sockets:
             logger.info("Listening on %s:%s over NCP", *socket.getsockname()[:2])
 
@@ -251,8 +249,7 @@ class Server:
         for handler in self._handlers:
             handler.cancel()
 
-    @asyncio.coroutine
-    def wait_closed(self):
+    async def wait_closed(self):
         """
         Waits for the server to fully shut down.
 
@@ -269,18 +266,16 @@ class Server:
         """
         # Wait for handlers to complete.
         if self._handlers:
-            yield from asyncio.wait(self._handlers)
+            await asyncio.wait(self._handlers)
         # Wait for the server to shut down.
-        yield from self._server.wait_closed()
+        await self._server.wait_closed()
 
-    @asyncio.coroutine
-    def __aenter__(self):
+    async def __aenter__(self):
         return self
 
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb):
         self.close()
-        yield from self.wait_closed()
+        await self.wait_closed()
 
 
 DEFAULT_HOST = "0.0.0.0"
@@ -298,10 +293,9 @@ _start_server_args = """:param callable client_connected: A coroutine function t
     """
 
 
-@asyncio.coroutine
-def _start_server(client_connected, host, port, *, auto_link, auto_auth):
+async def _start_server(client_connected, host, port, *, auto_link, auto_auth):
     server = Server(client_connected, host, port, auto_link=auto_link, auto_auth=auto_auth)
-    yield from server._connect()
+    await server._connect()
     return server
 
 

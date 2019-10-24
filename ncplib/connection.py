@@ -165,10 +165,9 @@ class AsyncIteratorMixin:
     def __aiter__(self):
         return self
 
-    @asyncio.coroutine
-    def __anext__(self):
+    async def __anext__(self):
         try:
-            return (yield from self.recv())
+            return (await self.recv())
         except ConnectionClosed:
             raise StopAsyncIteration
 
@@ -199,8 +198,7 @@ class Response(AsyncIteratorMixin):
         self._packet_type = packet_type
         self._expected_fields = expected_fields
 
-    @asyncio.coroutine
-    def recv(self):
+    async def recv(self):
         """
         Waits for the next :class:`Field` received in reply to the sent :term:`NCP packet`.
 
@@ -208,13 +206,12 @@ class Response(AsyncIteratorMixin):
 
         """
         while True:
-            field = yield from self._connection.recv()
+            field = await self._connection.recv()
             if field.packet_type == self._packet_type and (field.name, field.id) in self._expected_fields:
                 return field
     recv.__doc__ += _recv_return_doc
 
-    @asyncio.coroutine
-    def recv_field(self, field_name):
+    async def recv_field(self, field_name):
         """
         Waits for the next matching :class:`Field` received in reply to the sent :term:`NCP packet`.
 
@@ -227,7 +224,7 @@ class Response(AsyncIteratorMixin):
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
         while True:
-            field = yield from self.recv()
+            field = await self.recv()
             if field.name == field_name:
                 return field
     recv_field.__doc__ += _recv_return_doc
@@ -293,11 +290,10 @@ class Connection(AsyncIteratorMixin):
 
     # Background tasks.
 
-    @asyncio.coroutine
-    def _run_auto_link(self):
+    async def _run_auto_link(self):
         while not self.is_closing():
             self.send_packet("LINK")
-            yield from asyncio.sleep(3)
+            await asyncio.sleep(3)
 
     def _start_tasks(self):
         if self._auto_link:
@@ -305,8 +301,7 @@ class Connection(AsyncIteratorMixin):
 
     # Receiving fields.
 
-    @asyncio.coroutine
-    def recv(self):
+    async def recv(self):
         """
         Waits for the next :class:`Field` received by the connection.
 
@@ -325,9 +320,9 @@ class Connection(AsyncIteratorMixin):
                     return field
             # Read and decode the packet.
             try:
-                header_buf = yield from self._reader.readexactly(PACKET_HEADER_SIZE)
+                header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
                 size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-                body_buf = yield from self._reader.readexactly(size_remaining)
+                body_buf = await self._reader.readexactly(size_remaining)
             except asyncio.IncompleteReadError:
                 raise ConnectionClosed("Connection closed")
             except OSError as ex:  # pragma: no cover
@@ -342,8 +337,7 @@ class Connection(AsyncIteratorMixin):
             self._field_buffer.reverse()
     recv.__doc__ += _recv_return_doc
 
-    @asyncio.coroutine
-    def recv_field(self, packet_type, field_name):
+    async def recv_field(self, packet_type, field_name):
         """
         Waits for the next matching :class:`Field` received by the connection.
 
@@ -353,7 +347,7 @@ class Connection(AsyncIteratorMixin):
         :param str field_name: The field name, must be a valid :term:`identifier`.
         """
         while True:
-            field = yield from self.recv()
+            field = await self.recv()
             if field.packet_type == packet_type and field.name == field_name:
                 return field
     recv_field.__doc__ += _recv_return_doc
@@ -433,8 +427,7 @@ class Connection(AsyncIteratorMixin):
         self._writer.close()
         self.logger.info("Disconnected from %s over NCP", self.remote_hostname)
 
-    @asyncio.coroutine
-    def wait_closed(self):
+    async def wait_closed(self):
         """
         Waits for the connection to finish closing.
 
@@ -443,13 +436,11 @@ class Connection(AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call
             :meth:`Connection.wait_closed` manually.
         """
-        yield from self._writer.wait_closed()
+        await self._writer.wait_closed()
 
-    @asyncio.coroutine
-    def __aenter__(self):
+    async def __aenter__(self):
         return self
 
-    @asyncio.coroutine
-    def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb):
         self.close()
-        yield from self.wait_closed()
+        await self.wait_closed()

@@ -112,8 +112,7 @@ class Application:
 
     # Handlers.
 
-    @asyncio.coroutine
-    def handle_connect(self):
+    async def handle_connect(self):
         """
         Called when the connection is establed.
 
@@ -121,15 +120,13 @@ class Application:
         """
         pass
 
-    @asyncio.coroutine
-    def handle_unknown_field(self, field):
+    async def handle_unknown_field(self, field):
         """
         Called when a field is encountered that doesn't match any other field handler.
         """
         pass
 
-    @asyncio.coroutine
-    def handle_disconnect(self):
+    async def handle_disconnect(self):
         """
         Called when the connection is shut down.
 
@@ -137,8 +134,7 @@ class Application:
         """
         pass
 
-    @asyncio.coroutine
-    def _handle_field(self, field):
+    async def _handle_field(self, field):
         # Look up the handler.
         handler = getattr(self, "handle_field_{packet_type}_{field_name}".format(
             packet_type=field.packet_type,
@@ -146,7 +142,7 @@ class Application:
         ), self.handle_unknown_field)
         # Run the handler.
         try:
-            yield from handler(field)
+            await handler(field)
         except asyncio.CancelledError:  # pragma: no cover
             raise
         except BadRequest as ex:
@@ -193,3 +189,6 @@ class Application:
             yield from self.handle_disconnect()
 
     __await__ = __iter__
+
+    def __await__(self):
+        yield from self.__iter__()
