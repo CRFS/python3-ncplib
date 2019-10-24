@@ -11,3 +11,4 @@ Thumbs.db
 /build
 /.cache
 /docs/_build
+/.mypy_cache
