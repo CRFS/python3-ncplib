@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 Value types
 ===========
@@ -32,6 +31,7 @@ API reference
 .. autoclass:: uint
     :members:
 """
+from __future__ import annotations
 
 __all__ = (
     "uint",
