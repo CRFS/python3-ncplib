@@ -34,7 +34,6 @@ Usage
     client
     server
     connection
-    app
     errors
     values
 

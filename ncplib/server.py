@@ -281,12 +281,11 @@ async def start_server(client_connected, host="0.0.0.0", port=9999, *, auto_link
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
-    :param callable client_connected: A coroutine function taking a single :class:`Connection`
+    :param client_connected: A coroutine function taking a single :class:`Connection`
             argument representing the client connection. When the connection handler exits, the :class:`Connection`
             will automatically close. If the client closes the connection, the connection handler will exit.
     :param str host: The host to bind the server to.
     :param int port: The port to bind the server to.
-    :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
     :return: The created :class:`Server`.

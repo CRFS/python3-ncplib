@@ -136,16 +136,15 @@ async def connect(
 
     :param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.
     :param int port: The port number of the :doc:`server`.
-    :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
         :term:`NCP parameter`.
-    :param string remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
+    :param str remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
         be the host:port of the NCP server.
-    :param string hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
+    :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
         enabled. Defaults to the system hostname.
     :raises ncplib.NCPError: if the NCP connection failed.
     :return: The client :class:`Connection`.
