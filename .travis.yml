@@ -11,9 +11,10 @@ env:
 matrix:
   fast_finish: true
 install:
-  - pip install flake8 coverage sphinx sphinx_rtd_theme -e .
+  - pip install flake8 coverage mypy sphinx sphinx_rtd_theme -e .
 script:
   - flake8
+  - mypy -p ncplib
   - coverage run -m unittest discover tests
   - (cd docs && sphinx-build -n -W . _build)
 after_success:
