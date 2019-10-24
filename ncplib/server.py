@@ -216,6 +216,7 @@ class Server:
                 connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
             connection.close()
+            yield from connection.wait_closed()
 
     def _handle_client_connected(self, reader, writer):
         handler = self._loop.create_task(self._run_client_connected(reader, writer))

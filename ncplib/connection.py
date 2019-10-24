@@ -437,7 +437,15 @@ class Connection(AsyncIteratorMixin):
 
     @asyncio.coroutine
     def wait_closed(self):
-        warnings.warn("Connection.wait_closed() is a no-op, and will be removed in v3.0", DeprecationWarning)
+        """
+        Waits for the connection to finish closing.
+
+        .. hint::
+
+            If you use the connection as an *async context manager*, there's no need to call
+            :meth:`Connection.wait_closed` manually.
+        """
+        yield from self._writer.wait_closed()
 
     @asyncio.coroutine
     def __aenter__(self):
@@ -446,3 +454,4 @@ class Connection(AsyncIteratorMixin):
     @asyncio.coroutine
     def __aexit__(self, exc_type, exc, tb):
         self.close()
+        yield from self.wait_closed()

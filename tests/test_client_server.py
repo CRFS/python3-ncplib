@@ -71,6 +71,7 @@ class ClientApplication(ncplib.Application):
             self.connection.send("SPAM", "SPAM", **self._spam_data)
             yield from asyncio.sleep(0.1, loop=self.connection._loop)
         self.connection.close()
+        yield from self.connection.wait_closed()
 
     @asyncio.coroutine
     def handle_connect(self):
@@ -248,13 +249,6 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.field.name, "ERRO")
         self.assertEqual(cx.exception.detail, "Server error")
         self.assertEqual(cx.exception.code, 500)
-
-    @asyncio.coroutine
-    def testConnectionWaitClosedDeprecated(self):
-        client = yield from self.createClient()
-        client.close()
-        with self.assertWarns(DeprecationWarning):
-            yield from client.wait_closed()
 
     @asyncio.coroutine
     def testClientGracefulDisconnect(self):

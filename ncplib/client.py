@@ -169,6 +169,7 @@ def _connect(
             yield from connection.recv_field("LINK", "SCON")
     except Exception:
         connection.close()
+        yield from connection.wait_closed()
         raise
     # All done!
     connection._start_tasks()
@@ -280,6 +281,7 @@ def run_client(
             logger.warning("Connection error from %s over NCP: %s", remote_hostname, ex)
         finally:
             connection.close()
+            yield from connection.wait_closed()
     except asyncio.CancelledError:  # pragma: no cover
         raise
     except Exception as ex:  # pragma: no cover
