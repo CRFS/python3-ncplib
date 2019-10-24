@@ -7,7 +7,9 @@ Changelog
 3.0.0 - Master
 --------------
 
-- **Breaking:** Dropped support for Python 3.4.
+This release requires a minimum Python version of 3.7.
+
+-   **Breaking:** Python 3.7 is now the minimum supported Python version.
 
 
 2.3.3 - 27/03/2017
