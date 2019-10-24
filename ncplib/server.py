@@ -94,15 +94,17 @@ A simple ``client_connected`` callback might like this:
 Start the server
 ^^^^^^^^^^^^^^^^
 
-Start a new NCP server using :func:`run_app`.
+Start a new NCP server.
 
 .. code:: python
 
-    from ncplib import run_app
-
-    run_app(client_connected)
-
-:func:`run_app` will block until it receives a ``KeyboardInterrupt``, then shut down the server cleanly and return.
+    loop = asyncio.get_event_loop()
+    server = loop.run_until_complete(_start_server(client_connected))
+    try:
+        loop.run_forever()
+    finally:
+        server.close()
+        loop.run_until_complete(server.wait_closed())
 
 
 Advanced usage
@@ -113,8 +115,6 @@ Advanced usage
 
 API reference
 -------------
-
-.. autofunction:: run_app
 
 .. autofunction:: start_server
 
@@ -130,7 +130,6 @@ from ncplib.errors import NCPError
 
 
 __all__ = (
-    "run_app",
     "start_server",
     "Server",
 )
@@ -278,11 +277,11 @@ class Server:
         await self.wait_closed()
 
 
-DEFAULT_HOST = "0.0.0.0"
+async def start_server(client_connected, host="0.0.0.0", port=9999, *, auto_link=True, auto_auth=True):
+    """
+    Creates and returns a new :class:`Server` on the given host and port.
 
-DEFAULT_PORT = 9999
-
-_start_server_args = """:param callable client_connected: A coroutine function taking a single :class:`Connection`
+    :param callable client_connected: A coroutine function taking a single :class:`Connection`
             argument representing the client connection. When the connection handler exits, the :class:`Connection`
             will automatically close. If the client closes the connection, the connection handler will exit.
     :param str host: The host to bind the server to.
@@ -290,53 +289,9 @@ _start_server_args = """:param callable client_connected: A coroutine function t
     :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
+    :return: The created :class:`Server`.
+    :rtype: Server
     """
-
-
-async def _start_server(client_connected, host, port, *, auto_link, auto_auth):
     server = Server(client_connected, host, port, auto_link=auto_link, auto_auth=auto_auth)
     await server._connect()
     return server
-
-
-def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, auto_link=True, auto_auth=True):
-    """
-    Creates and returns a new :class:`Server` on the given host and port.
-
-    .. hint::
-        Prefer :func:`run_app` unless you need to start multiple servers in parallel.
-
-    """
-    return _start_server(client_connected, host, port, auto_link=auto_link, auto_auth=auto_auth)
-
-
-start_server.__doc__ += _start_server_args + """:return: The created :class:`Server`.
-    :rtype: Server
-    """
-
-
-def run_app(
-    client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *,
-    auto_link=True, auto_auth=True
-):  # pragma: no cover
-    """
-    Runs a new :doc:`server` on the given host and port.
-
-    This function will block until it receives a ``KeyboardInterrupt``, then shut down the server cleanly and return.
-
-    """
-    loop = asyncio.get_event_loop()
-    server = loop.run_until_complete(_start_server(
-        client_connected, host, port,
-        auto_link=auto_link, auto_auth=auto_auth,
-    ))
-    try:
-        loop.run_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server.close()
-        loop.run_until_complete(server.wait_closed())
-
-
-run_app.__doc__ += _start_server_args

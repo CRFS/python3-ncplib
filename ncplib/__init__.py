@@ -56,8 +56,6 @@ More information
 
 __version__ = (2, 3, 3)
 
-
-from ncplib.app import *  # noqa
 from ncplib.client import *  # noqa
 from ncplib.connection import *  # noqa
 from ncplib.errors import *  # noqa

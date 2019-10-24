@@ -78,8 +78,6 @@ API reference
 -------------
 
 .. autofunction:: connect
-
-.. autofunction:: run_client
 """
 
 import asyncio
@@ -88,12 +86,11 @@ import logging
 import platform
 import warnings
 from ncplib.connection import Connection
-from ncplib.errors import NCPError, CommandError, CommandWarning, ConnectionError
+from ncplib.errors import CommandError, CommandWarning, ConnectionError
 
 
 __all__ = (
     "connect",
-    "run_client",
 )
 
 
@@ -122,20 +119,38 @@ def _client_predicate(field, *, auto_erro, auto_warn, auto_ackn):
     return not auto_ackn or "ACKN" not in field
 
 
-def _get_remote_hostname(host, port, remote_hostname):
-    return "{host}:{port}".format(host=host, port=port) if remote_hostname is None else remote_hostname
-
-
-async def _connect(
-    host, port, *,
-    auto_link,
-    auto_auth,
-    auto_erro,
-    auto_warn,
-    auto_ackn,
-    remote_hostname,
-    hostname
+async def connect(
+    host, port=9999, *,
+    auto_link=True,
+    auto_auth=True,
+    auto_erro=True,
+    auto_warn=True,
+    auto_ackn=True,
+    remote_hostname=None,
+    hostname=None
 ):
+    """
+    Connects to a :doc:`server`.
+
+    This function is a *coroutine*.
+
+    :param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.
+    :param int port: The port number of the :doc:`server`.
+    :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
+    :param bool auto_link: Automatically send periodic LINK packets over the connection.
+    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
+    :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
+    :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
+    :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
+        :term:`NCP parameter`.
+    :param string remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
+        be the host:port of the NCP server.
+    :param string hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
+        enabled. Defaults to the system hostname.
+    :raises ncplib.NCPError: if the NCP connection failed.
+    :return: The client :class:`Connection`.
+    :rtype: Connection
+    """
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     # Create the network connection.
     try:
@@ -169,112 +184,3 @@ async def _connect(
     # All done!
     connection._start_tasks()
     return connection
-
-
-_connect_args = """:param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.
-    :param int port: The port number of the :doc:`server`.
-    :param asyncio.BaseEventLoop loop: The event loop. Defaults to the default asyncio event loop.
-    :param bool auto_link: Automatically send periodic LINK packets over the connection.
-    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
-    :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
-    :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
-    :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
-        :term:`NCP parameter`.
-    :param string remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
-        be the host:port of the NCP server.
-    :param string hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
-        enabled. Defaults to the system hostname.
-    """
-
-
-def connect(
-    host, port=9999, *,
-    auto_link=True,
-    auto_auth=True,
-    auto_erro=True,
-    auto_warn=True,
-    auto_ackn=True,
-    remote_hostname=None,
-    hostname=None
-):
-    """
-    Connects to a :doc:`server`.
-
-    This function is a *coroutine*.
-
-    """
-    return _connect(
-        host, port,
-        auto_link=auto_link,
-        auto_auth=auto_auth,
-        auto_erro=auto_erro,
-        auto_warn=auto_warn,
-        auto_ackn=auto_ackn,
-        remote_hostname=_get_remote_hostname(host, port, remote_hostname),
-        hostname=hostname,
-    )
-
-
-connect.__doc__ += _connect_args + """:raises ncplib.NCPError: if the NCP connection failed.
-    :return: The client :class:`Connection`.
-    :rtype: Connection
-    """
-
-
-async def run_client(
-    client_connected,
-    host, port=9999, *,
-    auto_link=True,
-    auto_auth=True,
-    auto_erro=True,
-    auto_warn=True,
-    auto_ackn=True,
-    remote_hostname=None,
-    hostname=None,
-    connect_timeout=15
-):
-    """
-    Connects to a :doc:`server` and runs a callback coroutine on the connection.
-
-    This function is a *coroutine*.
-
-    This coroutine will run until the connection closes. Errors from the client are logger, but not raised, and this
-    function will always return ``None``.
-
-    :param int connect_timeout: The time to wait while establishing a client connection.
-    """
-    remote_hostname = _get_remote_hostname(host, port, remote_hostname)
-    try:
-        # Connect to the server.
-        try:
-            connection = await asyncio.wait_for(_connect(
-                host, port,
-                auto_link=auto_link,
-                auto_auth=auto_auth,
-                auto_erro=auto_erro,
-                auto_warn=auto_warn,
-                auto_ackn=auto_ackn,
-                remote_hostname=remote_hostname,
-                hostname=hostname,
-            ), connect_timeout)
-        except (asyncio.TimeoutError, NCPError) as ex:
-            logger.warning(
-                "Could not connect to %s over NCP: %s", remote_hostname,
-                "Timeout" if isinstance(ex, asyncio.TimeoutError) else ex,
-            )
-            return
-        # Run the app.
-        try:
-            await client_connected(connection)
-        except NCPError as ex:  # Warnings on client error.
-            logger.warning("Connection error from %s over NCP: %s", remote_hostname, ex)
-        finally:
-            connection.close()
-            await connection.wait_closed()
-    except asyncio.CancelledError:  # pragma: no cover
-        raise
-    except Exception as ex:  # pragma: no cover
-        logger.exception("Unexpected error from %s over NCP", remote_hostname, exc_info=ex)
-
-
-run_client.__doc__ += _connect_args

@@ -6,19 +6,11 @@ import ncplib
 from tests.base import AsyncTestCase
 
 
-class EchoApplication(ncplib.Application):
-
-    async def handle_unknown_field(self, field):
-        await super().handle_unknown_field(field)
-        assert self.connection.remote_hostname == "ncplib-test"
+async def echo_server_handler(client):
+    assert client.remote_hostname == "ncplib-test"
+    async for field in client:
         field.send(ACKN=True)
         field.send(**field)
-
-    async def handle_field_LINK_BAD(self, field):
-        raise ncplib.BadRequest("Boom!")
-
-    async def handle_field_LINK_BOOM(self, field):
-        raise Exception("Boom!")
 
 
 async def error_server_handler(client):
@@ -53,29 +45,29 @@ async def disconnect_server_handler(client_disconnected_event, client):
         client_disconnected_event.set()
 
 
-class ClientApplication(ncplib.Application):
+# class ClientApplication(ncplib.Application):
 
-    def __init__(self, connection, **spam_data):
-        super().__init__(connection)
-        self._spam_data = spam_data
+#     def __init__(self, connection, **spam_data):
+#         super().__init__(connection)
+#         self._spam_data = spam_data
 
-    async def run_spam(self):
-        for _ in range(3):
-            self.connection.send("SPAM", "SPAM", **self._spam_data)
-            await asyncio.sleep(0.1)
-        self.connection.close()
-        await self.connection.wait_closed()
+#     async def run_spam(self):
+#         for _ in range(3):
+#             self.connection.send("SPAM", "SPAM", **self._spam_data)
+#             await asyncio.sleep(0.1)
+#         self.connection.close()
+#         await self.connection.wait_closed()
 
-    async def handle_connect(self):
-        await super().handle_connect()
-        self.start_daemon(self.run_spam())
+#     async def handle_connect(self):
+#         await super().handle_connect()
+#         self.start_daemon(self.run_spam())
 
 
 class ClientServerTestCase(AsyncTestCase):
 
     # Helpers.
 
-    async def createServer(self, client_connected=EchoApplication, *, server_auto_auth=True):
+    async def createServer(self, client_connected=echo_server_handler, *, server_auto_auth=True):
         server = await ncplib.start_server(
             client_connected,
             "127.0.0.1", 0,
@@ -148,28 +140,6 @@ class ClientServerTestCase(AsyncTestCase):
         field = await response.recv_field("ECHO")
         self.assertEqual(field, {"FOO": "BAR"})
 
-    async def testBadRequest(self):
-        client = await self.createClient()
-        response = client.send("LINK", "BAD")
-        with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertRaises(ncplib.CommandError) as cx:
-                await response.recv()
-        self.assertEqual(cx.exception.field.packet_type, "LINK")
-        self.assertEqual(cx.exception.field.name, "BAD")
-        self.assertEqual(cx.exception.detail, "Boom!")
-        self.assertEqual(cx.exception.code, 400)
-
-    async def testServerError(self):
-        client = await self.createClient()
-        response = client.send("LINK", "BOOM")
-        with self.assertLogs("ncplib.server", "WARN"):
-            with self.assertRaises(ncplib.CommandError) as cx:
-                await response.recv()
-        self.assertEqual(cx.exception.field.packet_type, "LINK")
-        self.assertEqual(cx.exception.field.name, "BOOM")
-        self.assertEqual(cx.exception.detail, "Server error")
-        self.assertEqual(cx.exception.code, 500)
-
     async def testWarning(self):
         client = await self.createClient()
         response = client.send("LINK", "ECHO", WARN="Boom!", WARC=10)
@@ -233,28 +203,3 @@ class ClientServerTestCase(AsyncTestCase):
         # Clost the client ahead of the server.
         await client.__aexit__(None, None, None)
         await client_disconnected_event.wait()
-
-    async def testClientApplication(self):
-        port = await self.createServer()
-        await ncplib.run_client(ClientApplication, "127.0.0.1", port, hostname="ncplib-test")
-
-    async def testClientApplicationTimeout(self):
-        port = await self.createServer()
-        with self.assertLogs("ncplib.client", "WARNING"):
-            await ncplib.run_client(
-                ClientApplication, "127.0.0.1", port,
-                hostname="ncplib-test", connect_timeout=0,
-            )
-
-    async def testClientApplicationDecodeError(self):
-        port = await self.createServer(decode_error_server_handler)
-        with self.assertLogs("ncplib.client", "WARNING"):
-            await ncplib.run_client(ClientApplication, "127.0.0.1", port)
-
-    async def testClientApplicationCommandError(self):
-        port = await self.createServer()
-        with self.assertLogs("ncplib.client", "WARNING"):
-            await ncplib.run_client(
-                partial(ClientApplication, ERRC=401, ERRO="Boom!"), "127.0.0.1", port,
-                hostname="ncplib-test",
-            )

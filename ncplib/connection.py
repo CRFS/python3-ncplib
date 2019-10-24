@@ -45,7 +45,7 @@ API reference
 .. important::
 
     Do not instantiate these classes directly. Use :func:`connect` to create a :doc:`client` connection.
-    Use :func:`start_server` or :func:`run_app` to create a :doc:`server`.
+    Use :func:`start_server` to create a :doc:`server`.
 
 .. autoclass:: Connection
     :members:

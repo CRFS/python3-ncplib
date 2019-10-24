@@ -25,9 +25,6 @@ API reference
 .. autoexception:: DecodeError
     :members:
 
-.. autoclass:: Application
-    :members:
-
 .. autoexception:: CommandWarning
     :members:
 
@@ -42,7 +39,6 @@ __all__ = (
     "ConnectionClosed",
     "CommandError",
     "DecodeError",
-    "BadRequest",
     "NCPWarning",
     "CommandWarning",
     "DecodeWarning",
@@ -114,18 +110,6 @@ class DecodeError(NCPError):
     """
     Raised when a non-recoverable error was encountered in a :term:`NCP packet`.
     """
-
-
-class BadRequest(NCPError):
-
-    """
-    An error that can be thrown in a field handler to signal a problem in handling the request.
-    """
-
-    def __init__(self, detail, code=400):
-        super().__init__("{detail!r} (code {code})".format(detail=detail, code=code))
-        self.detail = detail
-        self.code = code
 
 
 # Warnings.
