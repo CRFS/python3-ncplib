@@ -200,8 +200,8 @@ class Server:
             connection._start_tasks()
             await self._client_connected(connection)
         # Close the connection.
-        except asyncio.CancelledError:  # Propagate cancels.
-            raise
+        except asyncio.CancelledError:  # pragma: no cover
+            raise  # Propagate cancels.
         except NCPError as ex:  # Warnings on client decode error.
             logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
             if not connection.is_closing():

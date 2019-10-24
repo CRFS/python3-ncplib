@@ -1,7 +1,6 @@
 import asyncio
 from datetime import datetime
 from functools import partial
-import sys
 import ncplib
 from tests.base import AsyncTestCase
 
@@ -17,50 +16,13 @@ async def error_server_handler(client):
     raise Exception("BOOM")
 
 
-async def decode_error_server_handler(client):
-    client._writer.write(b"Boom!" * 1024)
-    client._writer.write_eof()
-
-
 async def disconnect_server_handler(client_disconnected_event, client):
-    client_iter = client.__aiter__()
     try:
-        while True:
-            # Use the new async iteration protocol.
-            if sys.version_info >= (3, 5):
-                try:
-                    field = await client_iter.__anext__()
-                except StopAsyncIteration:
-                    break
-            else:
-                # Use the old recv() protocol.
-                try:
-                    field = await client.recv()
-                except ncplib.ConnectionClosed:
-                    break
-            # Send a response.
+        async for field in client:
             field.send(ACKN=True)
             field.send(**field)
     finally:
         client_disconnected_event.set()
-
-
-# class ClientApplication(ncplib.Application):
-
-#     def __init__(self, connection, **spam_data):
-#         super().__init__(connection)
-#         self._spam_data = spam_data
-
-#     async def run_spam(self):
-#         for _ in range(3):
-#             self.connection.send("SPAM", "SPAM", **self._spam_data)
-#             await asyncio.sleep(0.1)
-#         self.connection.close()
-#         await self.connection.wait_closed()
-
-#     async def handle_connect(self):
-#         await super().handle_connect()
-#         self.start_daemon(self.run_spam())
 
 
 class ClientServerTestCase(AsyncTestCase):
