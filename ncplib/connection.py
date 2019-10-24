@@ -61,7 +61,6 @@ import asyncio
 from datetime import datetime, timezone
 from itertools import cycle
 from uuid import getnode as get_mac
-import warnings
 from ncplib.errors import ConnectionError, ConnectionClosed
 from ncplib.packets import encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
