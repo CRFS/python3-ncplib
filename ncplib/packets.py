@@ -128,7 +128,7 @@ def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: b
                 param_type_id = ARRAY_TYPE_CODES_TO_TYPE_ID[param_value.typecode]
                 param_value = param_value.tobytes()
             else:  # pragma: no cover
-                raise TypeError("Unsupported value type {}".format(type(param_value)))
+                raise TypeError(f"Unsupported value type {type(param_value)}")
             # Write the param header.
             param_size = PARAM_HEADER_SIZE + len(param_value)
             param_padding_size = -param_size % 4
@@ -166,7 +166,7 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
     packet_size = packet_size * 4
     if packet_header != PACKET_HEADER:  # pragma: no cover
-        raise DecodeError("Invalid packet header {!r}".format(packet_header))
+        raise DecodeError(f"Invalid packet header {packet_header!r}")
     # Decode the rest of the body data.
     size_remaining = packet_size - PACKET_HEADER_SIZE
 
@@ -174,7 +174,7 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
         offset = 0
         # Check footer.
         if buf[-4:] != PACKET_FOOTER:  # pragma: no cover
-            raise DecodeError("Invalid packet footer {!r}".format(buf[-4:]))
+            raise DecodeError(f"Invalid packet footer {buf[-4:]!r}")
         # Decode fields.
         field_limit = size_remaining - PACKET_FOOTER_SIZE
         fields = []
@@ -219,12 +219,12 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                 offset += param_size
                 # Check for param overflow.
                 if offset > param_limit:  # pragma: no cover
-                    raise DecodeError("Parameter overflow by {} bytes".format(offset - param_limit))
+                    raise DecodeError(f"Parameter overflow by {offset - param_limit} bytes")
             # Store the field.
             fields.append((field_name.rstrip(b" \x00").decode("latin1"), field_id, params))
         # Check for field overflow.
         if offset > field_limit:  # pragma: no cover
-            raise DecodeError("Field overflow by {} bytes".format(offset - field_limit))
+            raise DecodeError(f"Field overflow by {offset - field_limit} bytes")
         # All done!
         return (
             packet_type.rstrip(b" \x00").decode("latin1"),

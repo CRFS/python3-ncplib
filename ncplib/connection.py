@@ -123,11 +123,7 @@ class Field(dict):
         self.id = id
 
     def __repr__(self):  # pragma: no cover
-        return "<Field {packet_type!r} {field_name!r} {params!r}>".format(
-            packet_type=self.packet_type,
-            field_name=self.name,
-            params=dict(self.items()),
-        )
+        return f"<Field {self.packet_type!r} {self.field_name!r} {dict(self.items())!r}>"
 
     def send(self, **params):
         """

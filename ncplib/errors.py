@@ -48,12 +48,7 @@ __all__ = (
 class CommandMixin:
 
     def __init__(self, field, detail, code):
-        super().__init__("{packet_type} {field_name} {detail!r} (code {code})".format(
-            packet_type=field.packet_type,
-            field_name=field.name,
-            detail=detail,
-            code=code,
-        ))
+        super().__init__(f"{field.packet_type} {field.name} {detail!r} (code {code})")
         self.field = field
         self.detail = detail
         self.code = code
