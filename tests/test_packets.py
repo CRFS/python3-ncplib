@@ -1,7 +1,9 @@
+from __future__ import annotations
 import unittest
 from array import array
 from datetime import datetime, timezone
-from ncplib.packets import encode_packet, decode_packet
+from typing import Sequence, Tuple
+from ncplib.packets import Param, encode_packet, decode_packet
 from ncplib import uint
 
 
@@ -26,7 +28,7 @@ REAL_PACKET_EMBEDDED_FOOTER_BUG = (
 )
 
 
-PACKET_VALUES = [
+PACKET_VALUES: Sequence[Tuple[Param, Param]] = [
     # Integers.
     (-2 ** 31, -2 ** 31),
     (0, 0),
@@ -81,7 +83,7 @@ PACKET_VALUES = [
 
 class PacketDatasTestCase(unittest.TestCase):
 
-    def testDecodeRealPacketData(self):
+    def testDecodeRealPacketData(self) -> None:
         self.assertEqual(decode_packet(REAL_PACKET)[4], [
             ("HELO", 0, [
                 ("NCPV", "Beta B01.025:Nov  7 2012, 11:27:52 __TESTING_ONLY__"),
@@ -90,7 +92,7 @@ class PacketDatasTestCase(unittest.TestCase):
             ]),
         ])
 
-    def testEncodeDecodeValue(self):
+    def testEncodeDecodeValue(self) -> None:
         packet_timestamp = datetime.now(tz=timezone.utc)
         for value, expected_value in PACKET_VALUES:
             with self.subTest(value=value, expected_value=expected_value):

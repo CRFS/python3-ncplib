@@ -1,22 +1,25 @@
+from __future__ import annotations
 import asyncio
 from datetime import datetime
 from functools import partial
+from typing import Awaitable, Callable, Mapping, MutableMapping
 import ncplib
+from ncplib.packets import Param
 from tests.base import AsyncTestCase
 
 
-async def echo_server_handler(client):
+async def echo_server_handler(client: ncplib.Connection) -> None:
     assert client.remote_hostname == "ncplib-test"
     async for field in client:
         field.send(ACKN=True)
         field.send(**field)
 
 
-async def error_server_handler(client):
+async def error_server_handler(client: ncplib.Connection) -> None:
     raise Exception("BOOM")
 
 
-async def disconnect_server_handler(client_disconnected_event, client):
+async def disconnect_server_handler(client_disconnected_event: asyncio.Event, client: ncplib.Connection) -> None:
     try:
         async for field in client:
             field.send(ACKN=True)
@@ -29,7 +32,11 @@ class ClientServerTestCase(AsyncTestCase):
 
     # Helpers.
 
-    async def createServer(self, client_connected=echo_server_handler, *, server_auto_auth=True):
+    async def createServer(
+        self,
+        client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler, *,
+        server_auto_auth: bool = True,
+    ) -> int:
         server = await ncplib.start_server(
             client_connected,
             "127.0.0.1", 0,
@@ -39,8 +46,14 @@ class ClientServerTestCase(AsyncTestCase):
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
         return server.sockets[0].getsockname()[1]
 
-    async def createClient(self, *args, client_auto_link=True, client_auto_auth=True, **kwargs):
-        port = await self.createServer(*args, **kwargs)
+    async def createClient(
+        self,
+        client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler, *,
+        client_auto_link: bool = True,
+        client_auto_auth: bool = True,
+        server_auto_auth: bool = True,
+    ) -> ncplib.Connection:
+        port = await self.createServer(client_connected, server_auto_auth=server_auto_auth)
         client = await ncplib.connect(
             "127.0.0.1", port,
             auto_link=client_auto_link,
@@ -51,8 +64,11 @@ class ClientServerTestCase(AsyncTestCase):
         self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))
         return client
 
-    async def assertMessages(self, response, packet_type, expected_fields):
-        fields = {}
+    async def assertMessages(
+        self, response: ncplib.Response, packet_type: str,
+        expected_fields: Mapping[str, Mapping[str, Param]],
+    ) -> None:
+        fields: MutableMapping[str, Mapping[str, Param]] = {}
         while len(fields) < len(expected_fields):
             field = await response.recv()
             fields[field.name] = field
@@ -67,56 +83,56 @@ class ClientServerTestCase(AsyncTestCase):
 
     # Tests.
 
-    async def testClientTransport(self):
+    async def testClientTransport(self) -> None:
         client = await self.createClient()
         self.assertIsInstance(client.transport, asyncio.WriteTransport)
 
-    async def testSend(self):
+    async def testSend(self) -> None:
         client = await self.createClient()
         response = client.send("LINK", "ECHO", FOO="BAR")
         await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
-    async def testSendFiltersMessages(self):
+    async def testSendFiltersMessages(self) -> None:
         client = await self.createClient()
         client.send("JUNK", "JUNK", JUNK="JUNK")
         client.send("LINK", "ECHO", BAZ="QUX")
         response = client.send("LINK", "ECHO", FOO="BAR")
         await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
-    async def testSendPacket(self):
+    async def testSendPacket(self) -> None:
         client = await self.createClient()
         response = client.send_packet("LINK", ECHO={"FOO": "BAR"})
         await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
-    async def testRecvFieldConnectionFiltersMessages(self):
+    async def testRecvFieldConnectionFiltersMessages(self) -> None:
         client = await self.createClient()
         client.send("JUNK", "JUNK", JUNK="JUNK")
         client.send("LINK", "ECHO", FOO="BAR")
         field = await client.recv_field("LINK", "ECHO")
         self.assertEqual(field, {"FOO": "BAR"})
 
-    async def testRecvFieldResponseFiltersMessages(self):
+    async def testRecvFieldResponseFiltersMessages(self) -> None:
         client = await self.createClient()
         client.send("LINK", "ECHO", BAZ="QUX")
         response = client.send("LINK", "ECHO", FOO="BAR")
         field = await response.recv_field("ECHO")
         self.assertEqual(field, {"FOO": "BAR"})
 
-    async def testWarning(self):
+    async def testWarning(self) -> None:
         client = await self.createClient()
         response = client.send("LINK", "ECHO", WARN="Boom!", WARC=10)
         with self.assertWarns(ncplib.CommandWarning) as cx:
             await response.recv()
-        self.assertEqual(cx.warning.field.packet_type, "LINK")
-        self.assertEqual(cx.warning.field.name, "ECHO")
-        self.assertEqual(cx.warning.detail, "Boom!")
-        self.assertEqual(cx.warning.code, 10)
+        self.assertEqual(cx.warning.field.packet_type, "LINK")  # type: ignore
+        self.assertEqual(cx.warning.field.name, "ECHO")  # type: ignore
+        self.assertEqual(cx.warning.detail, "Boom!")  # type: ignore
+        self.assertEqual(cx.warning.code, 10)  # type: ignore
 
-    async def testAuthenticationError(self):
+    async def testAuthenticationError(self) -> None:
         client = await self.createClient(client_auto_auth=False)
         await client.recv_field("LINK", "HELO")
         client.send("LINK", "CCRE")
-        with self.assertLogs("ncplib.server", "WARN"):
+        with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
             with self.assertRaises(ncplib.CommandError) as cx:
                 await client.recv()
         self.assertEqual(cx.exception.field.packet_type, "LINK")
@@ -124,11 +140,11 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.detail, "CIW - This field is required")
         self.assertEqual(cx.exception.code, 401)
 
-    async def testEncodeError(self):
+    async def testEncodeError(self) -> None:
         client = await self.createClient(client_auto_link=False)
         client._writer.write(b"Boom!" * 1024)
         client._writer.write_eof()
-        with self.assertLogs("ncplib.server", "WARN"):
+        with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
             with self.assertRaises(ncplib.CommandError) as cx:
                 while True:
                     await client.recv()
@@ -137,8 +153,8 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.detail, "Bad request")
         self.assertEqual(cx.exception.code, 400)
 
-    async def testTopLevelServerError(self):
-        with self.assertLogs("ncplib.server", "ERROR"):
+    async def testTopLevelServerError(self) -> None:
+        with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
             client = await self.createClient(error_server_handler)
             with self.assertRaises(ncplib.CommandError) as cx:
                 await client.recv()
@@ -147,8 +163,8 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.detail, "Server error")
         self.assertEqual(cx.exception.code, 500)
 
-    async def testServerConnectionError(self):
-        with self.assertLogs("ncplib.server", "ERROR"):
+    async def testServerConnectionError(self) -> None:
+        with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
             with self.assertRaises(ncplib.CommandError) as cx:
                 await self.createClient(error_server_handler, server_auto_auth=False)
         self.assertEqual(cx.exception.field.packet_type, "LINK")
@@ -156,7 +172,7 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.detail, "Server error")
         self.assertEqual(cx.exception.code, 500)
 
-    async def testClientGracefulDisconnect(self):
+    async def testClientGracefulDisconnect(self) -> None:
         client_disconnected_event = asyncio.Event()
         client = await self.createClient(partial(disconnect_server_handler, client_disconnected_event))
         # Ping a packet back and forth.

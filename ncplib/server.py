@@ -124,7 +124,7 @@ API reference
 from __future__ import annotations
 import asyncio
 from types import TracebackType
-from typing import Awaitable, Callable, Sequence, Set, Type, TypeVar
+from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
 import logging
 from socket import socket
 from ncplib.connection import Connection, Field
@@ -286,7 +286,7 @@ class Server:
     async def __aenter__(self) -> "Server":
         return self
 
-    async def __aexit__(self, exc_type: Type[T], exc: T, tb: TracebackType) -> None:
+    async def __aexit__(self, exc_type: Optional[Type[T]], exc: Optional[T], tb: Optional[TracebackType]) -> None:
         self.close()
         await self.wait_closed()
 

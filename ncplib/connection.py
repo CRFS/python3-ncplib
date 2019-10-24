@@ -479,6 +479,6 @@ class Connection(AsyncIteratorMixin):
     async def __aenter__(self: T) -> T:
         return self
 
-    async def __aexit__(self, exc_type: Type[T], exc: T, tb: TracebackType) -> None:
+    async def __aexit__(self, exc_type: Optional[Type[T]], exc: Optional[T], tb: Optional[TracebackType]) -> None:
         self.close()
         await self.wait_closed()

@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import unittest
 from functools import wraps
@@ -5,7 +6,9 @@ from functools import wraps
 
 class AsyncTestCase(unittest.TestCase):
 
-    def __init__(self, methodName):
+    loop: asyncio.AbstractEventLoop
+
+    def __init__(self, methodName: str) -> None:
         # Wrap method in coroutine.
         func = getattr(self, methodName)
         if asyncio.iscoroutinefunction(func):
@@ -18,7 +21,7 @@ class AsyncTestCase(unittest.TestCase):
 
     # Fixtures.
 
-    def setUp(self):
+    def setUp(self) -> None:
         super().setUp()
         self.loop = asyncio.new_event_loop()
         self.loop.set_debug(True)
