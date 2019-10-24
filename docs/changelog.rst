@@ -4,8 +4,8 @@ Changelog
 .. currentmodule:: ncplib
 
 
-3.0.0 - Master
---------------
+3.0.0 - 24/10/2019
+------------------
 
 This release requires a minimum Python version of 3.7.
 
