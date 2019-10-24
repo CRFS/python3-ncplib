@@ -26,7 +26,7 @@ deploy:
     secure: HUnEz+LFkETu4nci6c+RXdCE/JMrYUtO8cE1zxdgM7OauBRqvphLDIWxTmibkwJxGoAY+75rBRJLdUcUOyZhTs+dtEjmpTgRzYOjOflssvN0uc+0/Smfkf3xWaFULEOEHCypM6FuK6dwlKIh2Pn9gBazcP6kjfr/pPivASEiwqgfC0Dw5ArfU9y5C05UQhsehD/C9N9RjgOBJ6lBvXnyZ+/BdJ3bXhGtWMGQQMl7KpT+Nsmz/H5vLuaJgaUq7HYz2RQXhULNTlxb87NqZyC0s2gVRG5OtWP5OfKIuQ70HSmAYtFcZGOJ6h7oieJ4NkgmqhUWaxF5Nwqmsru8Z66fMjFp1nNPqNrFDT/1uOlFezuky7NUfuQfC8Sp1hXkB4hIaDzaefuL3WjaCX4PXHR+0HPDvYX/ZQfShU9X4S3L2hjFOg6xZbva15+CxgMPkxYQ8f9gmI0Wg7TrWY1mm+2qelspMWOolDKUUUJpMEi94LDXFINaRgBV7ofNPmJqMXMEvll1uhT7e3KdXo3HDSmQolPeXDMDjcpV6XFkGXy1zyFaLEPlwN3vlbmTOJpa3InGSq0u7NFMETzxED8/ky/ASgtWgkGEYwl3wWK9LLbdgiwk0oEsDCyWojUuZaiQNPqOoeJDFBDRDkR1TaprkeDteHWQd3tY5q2si94Grnz7raw=
   on:
     tags: true
-    python: 3.6
+    python: 3.8
     repo: CRFS/python3-ncplib
   distributions: sdist
 notifications:
