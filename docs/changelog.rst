@@ -10,6 +10,9 @@ Changelog
 This release requires a minimum Python version of 3.7.
 
 -   **Breaking:** Python 3.7 is now the minimum supported Python version.
+-   **Breaking:** Removed ``app`` framework.
+-   Added :meth:`Connection.wait_closed` to ensure that the connection is fully closed (needed since Python 3.7).
+-   Added full PEP 484 type hints, allowing tools like `mypy` to be used to statically-verify `ncplib` programs.
 
 
 2.3.3 - 27/03/2017
