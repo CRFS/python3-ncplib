@@ -268,8 +268,7 @@ class Connection(AsyncIteratorMixin):
 
     """
 
-    def __init__(self, reader, writer, predicate, *, loop, logger, remote_hostname, auto_link, send_errors):
-        self._loop = loop
+    def __init__(self, reader, writer, predicate, *, logger, remote_hostname, auto_link, send_errors):
         # Logging.
         self.logger = logger
         self.logger.info("Connected to %s over NCP", remote_hostname)
@@ -298,11 +297,11 @@ class Connection(AsyncIteratorMixin):
     def _run_auto_link(self):
         while not self.is_closing():
             self.send_packet("LINK")
-            yield from asyncio.sleep(3, loop=self._loop)
+            yield from asyncio.sleep(3)
 
     def _start_tasks(self):
         if self._auto_link:
-            self._auto_link_task = self._loop.create_task(self._run_auto_link())
+            self._auto_link_task = asyncio.get_running_loop().create_task(self._run_auto_link())
 
     # Receiving fields.
 

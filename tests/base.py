@@ -11,7 +11,7 @@ class AsyncTestCase(unittest.TestCase):
         if asyncio.iscoroutinefunction(func):
             @wraps(func)
             def do_async_test(*args, **kwargs):
-                self.loop.run_until_complete(asyncio.wait_for(func(*args, **kwargs), 6, loop=self.loop))
+                self.loop.run_until_complete(asyncio.wait_for(func(*args, **kwargs), 6))
             setattr(self, methodName, do_async_test)
         # All done!
         super().__init__(methodName)

@@ -162,12 +162,11 @@ class Server:
         Do not instantiate this class directly. Use :func:`start_server` to create a :class:`Server`.
     """
 
-    def __init__(self, client_connected, host, port, *, loop, auto_link, auto_auth):
+    def __init__(self, client_connected, host, port, *, auto_link, auto_auth):
         self._client_connected = client_connected
         self._host = host
         self._port = port
         # Config.
-        self._loop = loop
         self._auto_link = auto_link
         self._auto_auth = auto_auth
         # Handlers.
@@ -177,7 +176,6 @@ class Server:
     def _run_client_connected(self, reader, writer):
         connection = Connection(
             reader, writer, _server_predicate,
-            loop=self._loop,
             logger=logger,
             remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
             auto_link=self._auto_link,
@@ -219,16 +217,13 @@ class Server:
             yield from connection.wait_closed()
 
     def _handle_client_connected(self, reader, writer):
-        handler = self._loop.create_task(self._run_client_connected(reader, writer))
+        handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
         handler.add_done_callback(self._handlers.remove)
         self._handlers.add(handler)
 
     @asyncio.coroutine
     def _connect(self):
-        self._server = yield from asyncio.start_server(
-            self._handle_client_connected, self._host, self._port,
-            loop=self._loop,
-        )
+        self._server = yield from asyncio.start_server(self._handle_client_connected, self._host, self._port)
         for socket in self.sockets:
             logger.info("Listening on %s:%s over NCP", *socket.getsockname()[:2])
 
@@ -274,7 +269,7 @@ class Server:
         """
         # Wait for handlers to complete.
         if self._handlers:
-            yield from asyncio.wait(self._handlers, loop=self._loop)
+            yield from asyncio.wait(self._handlers)
         # Wait for the server to shut down.
         yield from self._server.wait_closed()
 
@@ -304,14 +299,13 @@ _start_server_args = """:param callable client_connected: A coroutine function t
 
 
 @asyncio.coroutine
-def _start_server(client_connected, host, port, *, loop, auto_link, auto_auth):
-    loop = loop or asyncio.get_event_loop()
-    server = Server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
+def _start_server(client_connected, host, port, *, auto_link, auto_auth):
+    server = Server(client_connected, host, port, auto_link=auto_link, auto_auth=auto_auth)
     yield from server._connect()
     return server
 
 
-def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop=None, auto_link=True, auto_auth=True):
+def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, auto_link=True, auto_auth=True):
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
@@ -319,7 +313,7 @@ def start_server(client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *, loop
         Prefer :func:`run_app` unless you need to start multiple servers in parallel.
 
     """
-    return _start_server(client_connected, host, port, loop=loop, auto_link=auto_link, auto_auth=auto_auth)
+    return _start_server(client_connected, host, port, auto_link=auto_link, auto_auth=auto_auth)
 
 
 start_server.__doc__ += _start_server_args + """:return: The created :class:`Server`.
@@ -329,7 +323,7 @@ start_server.__doc__ += _start_server_args + """:return: The created :class:`Ser
 
 def run_app(
     client_connected, host=DEFAULT_HOST, port=DEFAULT_PORT, *,
-    loop=None, auto_link=True, auto_auth=True
+    auto_link=True, auto_auth=True
 ):  # pragma: no cover
     """
     Runs a new :doc:`server` on the given host and port.
@@ -337,10 +331,10 @@ def run_app(
     This function will block until it receives a ``KeyboardInterrupt``, then shut down the server cleanly and return.
 
     """
-    loop = loop or asyncio.get_event_loop()
+    loop = asyncio.get_event_loop()
     server = loop.run_until_complete(_start_server(
         client_connected, host, port,
-        loop=loop, auto_link=auto_link, auto_auth=auto_auth,
+        auto_link=auto_link, auto_auth=auto_auth,
     ))
     try:
         loop.run_forever()

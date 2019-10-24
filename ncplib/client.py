@@ -129,7 +129,6 @@ def _get_remote_hostname(host, port, remote_hostname):
 @asyncio.coroutine
 def _connect(
     host, port, *,
-    loop,
     auto_link,
     auto_auth,
     auto_erro,
@@ -138,17 +137,15 @@ def _connect(
     remote_hostname,
     hostname
 ):
-    loop = loop or asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     # Create the network connection.
     try:
-        reader, writer = yield from asyncio.open_connection(host, port, loop=loop)
+        reader, writer = yield from asyncio.open_connection(host, port)
     except OSError as ex:  # pragma: no cover
         raise ConnectionError(ex)
-
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
-        loop=loop,
         logger=logger,
         remote_hostname=remote_hostname,
         auto_link=auto_link,
@@ -194,7 +191,6 @@ _connect_args = """:param str host: The hostname of the :doc:`server`. This can 
 
 def connect(
     host, port=9999, *,
-    loop=None,
     auto_link=True,
     auto_auth=True,
     auto_erro=True,
@@ -211,7 +207,6 @@ def connect(
     """
     return _connect(
         host, port,
-        loop=loop,
         auto_link=auto_link,
         auto_auth=auto_auth,
         auto_erro=auto_erro,
@@ -232,7 +227,6 @@ connect.__doc__ += _connect_args + """:raises ncplib.NCPError: if the NCP connec
 def run_client(
     client_connected,
     host, port=9999, *,
-    loop=None,
     auto_link=True,
     auto_auth=True,
     auto_erro=True,
@@ -252,14 +246,12 @@ def run_client(
 
     :param int connect_timeout: The time to wait while establishing a client connection.
     """
-    loop = loop or asyncio.get_event_loop()
     remote_hostname = _get_remote_hostname(host, port, remote_hostname)
     try:
         # Connect to the server.
         try:
             connection = yield from asyncio.wait_for(_connect(
                 host, port,
-                loop=loop,
                 auto_link=auto_link,
                 auto_auth=auto_auth,
                 auto_erro=auto_erro,
@@ -267,7 +259,7 @@ def run_client(
                 auto_ackn=auto_ackn,
                 remote_hostname=remote_hostname,
                 hostname=hostname,
-            ), connect_timeout, loop=loop)
+            ), connect_timeout)
         except (asyncio.TimeoutError, NCPError) as ex:
             logger.warning(
                 "Could not connect to %s over NCP: %s", remote_hostname,

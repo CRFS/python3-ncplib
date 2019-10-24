@@ -105,7 +105,7 @@ class Application:
         """
         Starts a background task.
         """
-        daemon = self.connection._loop.create_task(coro)
+        daemon = asyncio.get_running_loop().create_task(coro)
         self._daemons.add(daemon)
         daemon.add_done_callback(self._daemons.remove)
         return daemon
@@ -188,7 +188,7 @@ class Application:
             for daemon in self._daemons:
                 daemon.cancel()
             if self._daemons:
-                yield from asyncio.wait(self._daemons, loop=self.connection._loop)
+                yield from asyncio.wait(self._daemons)
             # All done.
             yield from self.handle_disconnect()
 

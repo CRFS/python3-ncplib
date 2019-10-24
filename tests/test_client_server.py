@@ -69,7 +69,7 @@ class ClientApplication(ncplib.Application):
     def run_spam(self):
         for _ in range(3):
             self.connection.send("SPAM", "SPAM", **self._spam_data)
-            yield from asyncio.sleep(0.1, loop=self.connection._loop)
+            yield from asyncio.sleep(0.1)
         self.connection.close()
         yield from self.connection.wait_closed()
 
@@ -88,7 +88,6 @@ class ClientServerTestCase(AsyncTestCase):
         server = yield from ncplib.start_server(
             client_connected,
             "127.0.0.1", 0,
-            loop=self.loop,
             auto_auth=server_auto_auth,
         )
         yield from server.__aenter__()
@@ -100,7 +99,6 @@ class ClientServerTestCase(AsyncTestCase):
         port = yield from self.createServer(*args, **kwargs)
         client = yield from ncplib.connect(
             "127.0.0.1", port,
-            loop=self.loop,
             auto_link=client_auto_link,
             auto_auth=client_auto_auth,
             hostname="ncplib-test",
@@ -252,7 +250,7 @@ class ClientServerTestCase(AsyncTestCase):
 
     @asyncio.coroutine
     def testClientGracefulDisconnect(self):
-        client_disconnected_event = asyncio.Event(loop=self.loop)
+        client_disconnected_event = asyncio.Event()
         client = yield from self.createClient(partial(disconnect_server_handler, client_disconnected_event))
         # Ping a packet back and forth.
         response = client.send("LINK", "ECHO", FOO="bar")
