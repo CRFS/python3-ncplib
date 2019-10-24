@@ -2,7 +2,7 @@ import unittest
 from array import array
 from datetime import datetime, timezone
 from ncplib.packets import encode_packet, decode_packet
-from ncplib import uint, DecodeWarning
+from ncplib import uint
 
 
 REAL_PACKET = (

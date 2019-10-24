@@ -1,6 +1,8 @@
+from __future__ import annotations
 from array import array
 from datetime import datetime, timezone
 from struct import Struct
+from typing import List, Sequence, Tuple, Union
 import warnings
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.values import uint
@@ -72,7 +74,13 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 }
 
 
-def encode_packet(packet_type, packet_id, timestamp, info, fields):
+Param = Union[bytes, bytearray, memoryview, str, int, uint, bool, array]
+
+
+def encode_packet(
+    packet_type: str, packet_id: int, timestamp: datetime, info: bytes,
+    fields: Sequence[Tuple[str, int, Sequence[Tuple[str, Param]]]],
+) -> bytes:
     timestamp = timestamp.astimezone(timezone.utc)
     # Encode the header.
     packet_header = bytearray(PACKET_HEADER_SIZE)
@@ -86,7 +94,7 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         int(timestamp.timestamp()), timestamp.microsecond * 1000,
         info,
     )
-    chunks = [packet_header]
+    chunks: List[Union[bytes, bytearray, memoryview]] = [packet_header]
     offset = PACKET_HEADER_SIZE
     # Write the packet fields.
     for field_name, field_id, params in fields:
@@ -104,31 +112,18 @@ def encode_packet(packet_type, packet_id, timestamp, info, fields):
         offset += FIELD_HEADER_SIZE
         # Write the params.
         for param_name, param_value in params:
-            # Encode the param value.
-            param_value_cls = param_value.__class__
-            # In benchmarks, a big elif chain is consistently faster than a dictionary lookup.
-            # We check against raw, int and string first, as these are the most commonly used value types in the
-            # PHD tunneling protocol, which has to be super-fast.
-            if param_value_cls is bytes:
-                param_type_id = TYPE_RAW
-            elif param_value_cls is str:
-                param_type_id = TYPE_STRING
-                param_value = param_value.encode("utf-8") + b"\x00"
-            elif param_value_cls is int:
-                param_type_id = TYPE_I32
-                param_value = param_value.to_bytes(4, "little", signed=True)
-            # Check against the other value types.
-            elif param_value_cls is bytearray:  # pragma: no cover.
-                param_type_id = TYPE_RAW
-            elif param_value_cls is memoryview:  # pragma: no cover.
-                param_type_id = TYPE_RAW
-            elif param_value_cls is bool:
-                param_type_id = TYPE_I32
-                param_value = param_value.to_bytes(4, "little", signed=True)
-            elif param_value_cls is uint:
+            if isinstance(param_value, uint):
                 param_type_id = TYPE_U32
                 param_value = param_value.to_bytes(4, "little")
-            elif param_value_cls is array:
+            elif isinstance(param_value, (int, bool)):
+                param_type_id = TYPE_I32
+                param_value = param_value.to_bytes(4, "little", signed=True)
+            elif isinstance(param_value, str):
+                param_type_id = TYPE_STRING
+                param_value = param_value.encode("utf-8") + b"\x00"
+            elif isinstance(param_value, (bytes, bytearray, memoryview)):
+                param_type_id = TYPE_RAW
+            elif isinstance(param_value, array):
                 param_type_id = ARRAY_TYPE_CODES_TO_TYPE_ID[param_value.typecode]
                 param_value = param_value.tobytes()
             else:  # pragma: no cover
