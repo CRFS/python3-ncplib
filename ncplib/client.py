@@ -79,13 +79,13 @@ API reference
 
 .. autofunction:: connect
 """
-
+from __future__ import annotations
 import asyncio
 from functools import partial
 import logging
 import platform
 import warnings
-from ncplib.connection import Connection
+from ncplib.connection import Connection, Field
 from ncplib.errors import CommandError, CommandWarning, ConnectionError
 
 
@@ -97,12 +97,12 @@ __all__ = (
 logger = logging.getLogger(__name__)
 
 
-def _client_predicate(field, *, auto_erro, auto_warn, auto_ackn):
+def _client_predicate(field: Field, *, auto_erro: bool, auto_warn: bool, auto_ackn: bool) -> bool:
     if auto_erro:
         error_detail = field.get("ERRO")
         error_code = field.get("ERRC")
         if error_detail is not None or error_code is not None:
-            raise CommandError(field, error_detail, error_code)
+            raise CommandError(field, error_detail, error_code)  # type: ignore
         # Ignore the rest of packet-level errors.
         if field.name == "ERRO":  # pragma: no cover
             return False
@@ -111,7 +111,7 @@ def _client_predicate(field, *, auto_erro, auto_warn, auto_ackn):
         warning_detail = field.get("WARN")
         warning_code = field.get("WARC")
         if warning_detail is not None or warning_code is not None:
-            warnings.warn(CommandWarning(field, warning_detail, warning_code))
+            warnings.warn(CommandWarning(field, warning_detail, warning_code))  # type: ignore
         # Ignore the rest of packet-level warnings.
         if field.name == "WARN":  # pragma: no cover
             return False
@@ -120,15 +120,15 @@ def _client_predicate(field, *, auto_erro, auto_warn, auto_ackn):
 
 
 async def connect(
-    host, port=9999, *,
-    auto_link=True,
-    auto_auth=True,
-    auto_erro=True,
-    auto_warn=True,
-    auto_ackn=True,
-    remote_hostname=None,
-    hostname=None
-):
+    host: str, port: int = 9999, *,
+    auto_link: bool = True,
+    auto_auth: bool = True,
+    auto_erro: bool = True,
+    auto_warn: bool = True,
+    auto_ackn: bool = True,
+    remote_hostname: str = None,
+    hostname: str = None
+) -> Connection:
     """
     Connects to a :doc:`server`.
 
@@ -150,7 +150,6 @@ async def connect(
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
-    hostname = hostname or platform.node() or "python3-ncplib" if auto_auth else None
     # Create the network connection.
     try:
         reader, writer = await asyncio.open_connection(host, port)
@@ -159,12 +158,13 @@ async def connect(
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         logger=logger,
-        remote_hostname=remote_hostname,
+        remote_hostname=f"{host}:{port}" if remote_hostname is None else remote_hostname,
         auto_link=auto_link,
     )
     # Handle auto auth.
     try:
         if auto_auth:
+            hostname = hostname or platform.node() or "python3-ncplib"
             # Read the initial LINK HELO packet.
             await connection.recv_field("LINK", "HELO")
             # Send the connection request.

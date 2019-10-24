@@ -121,11 +121,13 @@ API reference
 .. autoclass:: Server
     :members:
 """
-
-
+from __future__ import annotations
 import asyncio
+from types import TracebackType
+from typing import Awaitable, Callable, Sequence, Set, Type, TypeVar
 import logging
-from ncplib.connection import Connection
+from socket import socket
+from ncplib.connection import Connection, Field
 from ncplib.errors import NCPError
 
 
@@ -135,10 +137,13 @@ __all__ = (
 )
 
 
+T = TypeVar("T")
+
+
 logger = logging.getLogger(__name__)
 
 
-def _server_predicate(field):
+def _server_predicate(field: Field) -> bool:
     return True
 
 
@@ -161,8 +166,18 @@ class Server:
         Do not instantiate this class directly. Use :func:`start_server` to create a :class:`Server`.
     """
 
-    def __init__(self, client_connected, host, port, *, auto_link, auto_auth):
-        self._client_connected = client_connected
+    _client_connected: Callable[[Connection], Awaitable[None]]
+    _host: str
+    _port: int
+    _auto_link: bool
+    _auto_auth: bool
+    _handlers: Set[asyncio.Task]
+
+    def __init__(
+        self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
+        auto_link: bool, auto_auth: bool,
+    ):
+        self._client_connected = client_connected  # type: ignore
         self._host = host
         self._port = port
         # Config.
@@ -171,7 +186,7 @@ class Server:
         # Handlers.
         self._handlers = set()
 
-    async def _run_client_connected(self, reader, writer):
+    async def _run_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         connection = Connection(
             reader, writer, _server_predicate,
             logger=logger,
@@ -197,7 +212,7 @@ class Server:
                 connection.send("LINK", "SCON")
             # Handle connection.
             connection._start_tasks()
-            await self._client_connected(connection)
+            await self._client_connected(connection)  # type: ignore
         # Close the connection.
         except asyncio.CancelledError:  # pragma: no cover
             raise  # Propagate cancels.
@@ -213,24 +228,24 @@ class Server:
             connection.close()
             await connection.wait_closed()
 
-    def _handle_client_connected(self, reader, writer):
+    def _handle_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
         handler.add_done_callback(self._handlers.remove)
         self._handlers.add(handler)
 
-    async def _connect(self):
+    async def _connect(self) -> None:
         self._server = await asyncio.start_server(self._handle_client_connected, self._host, self._port)
-        for socket in self.sockets:
-            logger.info("Listening on %s:%s over NCP", *socket.getsockname()[:2])
+        for s in self.sockets:
+            logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
 
     @property
-    def sockets(self):
+    def sockets(self) -> Sequence[socket]:
         """
         A list of the connected listening sockets.
         """
-        return self._server.sockets
+        return self._server.sockets  # type: ignore
 
-    def close(self):
+    def close(self) -> None:
         """
         Shuts down the server.
 
@@ -247,7 +262,7 @@ class Server:
         for handler in self._handlers:
             handler.cancel()
 
-    async def wait_closed(self):
+    async def wait_closed(self) -> None:
         """
         Waits for the server to fully shut down.
 
@@ -268,15 +283,20 @@ class Server:
         # Wait for the server to shut down.
         await self._server.wait_closed()
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "Server":
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type: Type[T], exc: T, tb: TracebackType) -> None:
         self.close()
         await self.wait_closed()
 
 
-async def start_server(client_connected, host="0.0.0.0", port=9999, *, auto_link=True, auto_auth=True):
+async def start_server(
+    client_connected: Callable[[Connection], Awaitable[None]],
+    host: str = "0.0.0.0", port: int = 9999, *,
+    auto_link: bool = True,
+    auto_auth: bool = True,
+) -> Server:
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
