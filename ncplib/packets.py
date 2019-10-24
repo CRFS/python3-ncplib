@@ -2,7 +2,7 @@ from __future__ import annotations
 from array import array
 from datetime import datetime, timezone
 from struct import Struct
-from typing import Callable, List, Sequence, Tuple, Union
+from typing import Callable, Iterable, List, Tuple, Union
 import warnings
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.values import uint
@@ -76,8 +76,8 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 
 Bytes = Union[bytes, bytearray]
 Param = Union[Bytes, str, int, uint, bool, array]
-Params = Sequence[Tuple[str, Param]]
-Fields = Sequence[Tuple[str, int, Params]]
+Params = Iterable[Tuple[str, Param]]
+Fields = Iterable[Tuple[str, int, Params]]
 Packet = Tuple[str, int, datetime, bytes, Fields]
 
 

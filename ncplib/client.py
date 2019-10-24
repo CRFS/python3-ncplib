@@ -161,7 +161,6 @@ async def connect(
         logger=logger,
         remote_hostname=remote_hostname,
         auto_link=auto_link,
-        send_errors=False,
     )
     # Handle auto auth.
     try:

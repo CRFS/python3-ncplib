@@ -177,7 +177,6 @@ class Server:
             logger=logger,
             remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
             auto_link=self._auto_link,
-            send_errors=True,
         )
         try:
             # Handle auto-auth.

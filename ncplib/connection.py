@@ -56,13 +56,16 @@ API reference
 .. autoclass:: Field
     :members:
 """
-
+from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 from itertools import cycle
+import logging
+from types import TracebackType
+from typing import AsyncIterator, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
 from ncplib.errors import ConnectionError, ConnectionClosed
-from ncplib.packets import encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
+from ncplib.packets import Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
 __all__ = (
@@ -70,6 +73,9 @@ __all__ = (
     "Response",
     "Field",
 )
+
+
+T = TypeVar("T")
 
 
 # The last four bytes of the MAC address is used as an ID field.
@@ -80,7 +86,7 @@ CLIENT_ID = get_mac().to_bytes(6, "little")[-4:]
 _gen_id = cycle(range(2 ** 32)).__next__
 
 
-class Field(dict):
+class Field(Dict[str, Param]):
 
     """
     A :term:`NCP field` received by a :class:`Connection`.
@@ -114,7 +120,17 @@ class Field(dict):
 
     __slots__ = ("connection", "packet_type", "packet_timestamp", "name", "id",)
 
-    def __init__(self, connection, packet_type, packet_timestamp, name, id, params):
+    connection: Connection
+    packet_type: str
+    packet_timestamp: datetime
+    name: str
+    id: int
+
+    def __init__(
+        self, connection: Connection,
+        packet_type: str, packet_timestamp: datetime,
+        name: str, id: int, params: Params,
+    ) -> None:
         super().__init__(params)
         self.connection = connection
         self.packet_type = packet_type
@@ -122,10 +138,10 @@ class Field(dict):
         self.name = name
         self.id = id
 
-    def __repr__(self):  # pragma: no cover
-        return f"<Field {self.packet_type!r} {self.field_name!r} {dict(self.items())!r}>"
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"<Field {self.packet_type!r} {self.name!r} {dict(self.items())!r}>"
 
-    def send(self, **params):
+    def send(self, **params: Param) -> Response:
         """
         Sends a :term:`NCP packet` containing a single field in reply to this field.
 
@@ -147,12 +163,12 @@ class AsyncIteratorMixin:
 
     __slots__ = ()
 
-    def __aiter__(self):
+    def __aiter__(self) -> AsyncIterator[Field]:
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> Field:
         try:
-            return (await self.recv())
+            return (await self.recv())  # type: ignore
         except ConnectionClosed:
             raise StopAsyncIteration
 
@@ -178,12 +194,16 @@ class Response(AsyncIteratorMixin):
 
     __slots__ = ("_connection", "_packet_type", "_expected_fields")
 
-    def __init__(self, connection, packet_type, expected_fields):
+    _connection: Connection
+    _packet_type: str
+    _expected_fields: Set[Tuple[str, int]]
+
+    def __init__(self, connection: Connection, packet_type: str, expected_fields: Set[Tuple[str, int]]) -> None:
         self._connection = connection
         self._packet_type = packet_type
         self._expected_fields = expected_fields
 
-    async def recv(self):
+    async def recv(self) -> Field:
         """
         Waits for the next :class:`Field` received in reply to the sent :term:`NCP packet`.
 
@@ -198,7 +218,7 @@ class Response(AsyncIteratorMixin):
             if field.packet_type == self._packet_type and (field.name, field.id) in self._expected_fields:
                 return field
 
-    async def recv_field(self, field_name):
+    async def recv_field(self, field_name: str) -> Field:
         """
         Waits for the next matching :class:`Field` received in reply to the sent :term:`NCP packet`.
 
@@ -254,13 +274,27 @@ class Connection(AsyncIteratorMixin):
 
     """
 
-    def __init__(self, reader, writer, predicate, *, logger, remote_hostname, auto_link, send_errors):
+    logger: logging.Logger
+    _reader: asyncio.StreamReader
+    _predicate: Callable[[Field], bool]
+    _field_buffer: List[Field]
+    _writer: asyncio.StreamWriter
+    remote_hostname: str
+    _auto_link: bool
+    _auto_link_task: Optional[asyncio.Task]
+
+    def __init__(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, predicate: Callable[[Field], bool], *,
+        logger: logging.Logger,
+        remote_hostname: str,
+        auto_link: bool,
+    ):
         # Logging.
         self.logger = logger
         self.logger.info("Connected to %s over NCP", remote_hostname)
         # Packet reading.
         self._reader = reader
-        self._predicate = predicate
+        self._predicate = predicate  # type: ignore
         self._field_buffer = []
         # Packet writing.
         self._writer = writer
@@ -268,10 +302,9 @@ class Connection(AsyncIteratorMixin):
         self.remote_hostname = remote_hostname
         self._auto_link = auto_link
         self._auto_link_task = None
-        self._send_errors = send_errors
 
     @property
-    def transport(self):
+    def transport(self) -> asyncio.BaseTransport:
         """
         The :class:`asyncio.WriteTransport` used by this connection.
         """
@@ -279,18 +312,18 @@ class Connection(AsyncIteratorMixin):
 
     # Background tasks.
 
-    async def _run_auto_link(self):
+    async def _run_auto_link(self) -> None:
         while not self.is_closing():
             self.send_packet("LINK")
             await asyncio.sleep(3)
 
-    def _start_tasks(self):
+    def _start_tasks(self) -> None:
         if self._auto_link:
             self._auto_link_task = asyncio.get_running_loop().create_task(self._run_auto_link())
 
     # Receiving fields.
 
-    async def recv(self):
+    async def recv(self) -> Field:
         """
         Waits for the next :class:`Field` received by the connection.
 
@@ -308,7 +341,7 @@ class Connection(AsyncIteratorMixin):
                     "Received field %s %s from %s over NCP",
                     field.packet_type, field.name, self.remote_hostname
                 )
-                if self._predicate(field):
+                if self._predicate(field):  # type: ignore
                     return field
             # Read and decode the packet.
             try:
@@ -328,7 +361,7 @@ class Connection(AsyncIteratorMixin):
             ]
             self._field_buffer.reverse()
 
-    async def recv_field(self, packet_type, field_name):
+    async def recv_field(self, packet_type: str, field_name: str) -> Field:
         """
         Waits for the next matching :class:`Field` received by the connection.
 
@@ -347,7 +380,7 @@ class Connection(AsyncIteratorMixin):
 
     # Packet writing.
 
-    def _send_packet(self, packet_type, fields):
+    def _send_packet(self, packet_type: str, fields: Fields) -> Response:
         encoded_packet = encode_packet(packet_type, _gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
@@ -360,7 +393,7 @@ class Connection(AsyncIteratorMixin):
 
     # Sending fields.
 
-    def send_packet(self, packet_type, **fields):
+    def send_packet(self, packet_type: str, **fields: Mapping[str, Param]) -> Response:
         """
         Sends a :term:`NCP packet` containing multiple :term:`NCP fields <NCP field>`.
 
@@ -387,7 +420,7 @@ class Connection(AsyncIteratorMixin):
             in fields.items()
         ])
 
-    def send(self, packet_type, field_name, **params):
+    def send(self, packet_type: str, field_name: str, **params: Param) -> Response:
         """
         Sends a :term:`NCP packet` containing a single :term:`NCP field`.
 
@@ -408,7 +441,7 @@ class Connection(AsyncIteratorMixin):
 
     # Connection lifecycle.
 
-    def is_closing(self):
+    def is_closing(self) -> bool:
         """
         Returns True if the connection is closing.
 
@@ -416,7 +449,7 @@ class Connection(AsyncIteratorMixin):
         """
         return self.transport.is_closing()
 
-    def close(self):
+    def close(self) -> None:
         """
         Closes the connection.
 
@@ -432,7 +465,7 @@ class Connection(AsyncIteratorMixin):
         self._writer.close()
         self.logger.info("Disconnected from %s over NCP", self.remote_hostname)
 
-    async def wait_closed(self):
+    async def wait_closed(self) -> None:
         """
         Waits for the connection to finish closing.
 
@@ -443,9 +476,9 @@ class Connection(AsyncIteratorMixin):
         """
         await self._writer.wait_closed()
 
-    async def __aenter__(self):
+    async def __aenter__(self: T) -> T:
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type: Type[T], exc: T, tb: TracebackType) -> None:
         self.close()
         await self.wait_closed()
