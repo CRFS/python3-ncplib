@@ -190,11 +190,6 @@ def decode_packet_cps(header_buf):
             # Decode params.
             params = []
             while offset < param_limit:
-                # HACK: Work around a known garbled NCP packet problem from Axis nodes.
-                if buf[offset:offset+8] == PACKET_FOOTER_NO_CHECKSUM:
-                    warnings.warn(DecodeWarning("Encountered embedded packet footer bug"))
-                    offset += 8
-                    continue
                 # Decode the param header.
                 param_name, param_size, param_type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
                 param_size = int.from_bytes(param_size, "little") * 4

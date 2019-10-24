@@ -90,34 +90,6 @@ class PacketDatasTestCase(unittest.TestCase):
             ]),
         ])
 
-    def testDecodeEmbeddedPacketFooterBug(self):
-        with self.assertWarns(DecodeWarning) as cm:
-            self.assertEqual(
-                decode_packet(REAL_PACKET_EMBEDDED_FOOTER_BUG)[4],
-                [
-                    ('STAT', 1, [
-                        ('OCON', 3),
-                        ('CADD', '127.0.0.1,127.0.0.1,192.168.1.28'),
-                        ('CIDS', 'rfeye000709,rfeye000709,python3-ncplib'),
-                        ('RGPS', 'no GPS,no GPS,no GPS'),
-                        ('ELOC', 0),
-                    ]),
-                    ('SGPS', 1, [
-                        ('LATI', 51180800),
-                        ('LONG', -100000),
-                        ('STAT', 1),
-                        ('GFIX', 1),
-                        ('SATS', 9),
-                        ('SPEE', 20372),
-                        ('HEAD', 4256),
-                        ('ALTI', 9000),
-                        ('UTIM', 1441030068),
-                        ('TSTR', 'Mon Aug 31 14:07:48 2015'),
-                    ]),
-                ],
-            )
-        self.assertEqual(str(cm.warning), "Encountered embedded packet footer bug")
-
     def testEncodeDecodeValue(self):
         packet_timestamp = datetime.now(tz=timezone.utc)
         for value, expected_value in PACKET_VALUES:
