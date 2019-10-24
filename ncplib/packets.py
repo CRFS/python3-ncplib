@@ -2,7 +2,7 @@ from __future__ import annotations
 from array import array
 from datetime import datetime, timezone
 from struct import Struct
-from typing import List, Sequence, Tuple, Union
+from typing import Callable, List, Sequence, Tuple, Union
 import warnings
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.values import uint
@@ -74,13 +74,14 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 }
 
 
-Param = Union[bytes, bytearray, memoryview, str, int, uint, bool, array]
+Bytes = Union[bytes, bytearray]
+Param = Union[Bytes, str, int, uint, bool, array]
+Params = Sequence[Tuple[str, Param]]
+Fields = Sequence[Tuple[str, int, Params]]
+Packet = Tuple[str, int, datetime, bytes, Fields]
 
 
-def encode_packet(
-    packet_type: str, packet_id: int, timestamp: datetime, info: bytes,
-    fields: Sequence[Tuple[str, int, Sequence[Tuple[str, Param]]]],
-) -> bytes:
+def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: bytes, fields: Fields) -> bytes:
     timestamp = timestamp.astimezone(timezone.utc)
     # Encode the header.
     packet_header = bytearray(PACKET_HEADER_SIZE)
@@ -94,7 +95,7 @@ def encode_packet(
         int(timestamp.timestamp()), timestamp.microsecond * 1000,
         info,
     )
-    chunks: List[Union[bytes, bytearray, memoryview]] = [packet_header]
+    chunks: List[Bytes] = [packet_header]
     offset = PACKET_HEADER_SIZE
     # Write the packet fields.
     for field_name, field_id, params in fields:
@@ -152,7 +153,7 @@ def encode_packet(
 
 # PacketData decoding.
 
-def decode_packet_cps(header_buf):
+def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]]:
     (
         packet_header,
         packet_type,
@@ -165,15 +166,15 @@ def decode_packet_cps(header_buf):
     ) = PACKET_HEADER_STRUCT.unpack(header_buf)
     packet_size = packet_size * 4
     if packet_header != PACKET_HEADER:  # pragma: no cover
-        raise DecodeError("Invalid packet header {}".format(packet_header))
+        raise DecodeError("Invalid packet header {!r}".format(packet_header))
     # Decode the rest of the body data.
     size_remaining = packet_size - PACKET_HEADER_SIZE
 
-    def decode_packet_body(buf):
+    def decode_packet_body(buf: Bytes) -> Packet:
         offset = 0
         # Check footer.
         if buf[-4:] != PACKET_FOOTER:  # pragma: no cover
-            raise DecodeError("Invalid packet footer {}".format(buf[-4:]))
+            raise DecodeError("Invalid packet footer {!r}".format(buf[-4:]))
         # Decode fields.
         field_limit = size_remaining - PACKET_FOOTER_SIZE
         fields = []
@@ -189,31 +190,28 @@ def decode_packet_cps(header_buf):
                 param_name, param_size, param_type_id = PARAM_HEADER_STRUCT.unpack_from(buf, offset)
                 param_size = int.from_bytes(param_size, "little") * 4
                 # Decode the param value.
-                param_value = buf[offset+PARAM_HEADER_SIZE:offset+param_size]
-                # In benchmarks, a big elif chain is consistently faster than a dictionary lookup.
-                # We check against raw, int and string first, as these are the most commonly used value types in the
-                # PHD tunneling protocol, which has to be super-fast.
-                if param_type_id == TYPE_RAW:
-                    param_value = bytes(param_value)
+                param_value_raw = buf[offset+PARAM_HEADER_SIZE:offset+param_size]
+                param_value: Param
+                if param_type_id == TYPE_U32:
+                    param_value = uint.from_bytes(param_value_raw, "little")
                 elif param_type_id == TYPE_I32:
-                    param_value = int.from_bytes(param_value, "little", signed=True)
+                    param_value = int.from_bytes(param_value_raw, "little", signed=True)
                 elif param_type_id == TYPE_STRING:
-                    param_value = param_value.split(b"\x00", 1)[0].decode()
-                # Check against the other value types.
-                elif param_type_id == TYPE_U32:
-                    param_value = uint.from_bytes(param_value, "little")
+                    param_value = param_value_raw.split(b"\x00", 1)[0].decode()
+                elif param_type_id == TYPE_RAW:
+                    param_value = bytes(param_value_raw)
                 elif param_type_id == TYPE_ARRAY_U8:
-                    param_value = array("B", param_value)
+                    param_value = array("B", param_value_raw)
                 elif param_type_id == TYPE_ARRAY_U16:
-                    param_value = array("H", param_value)
+                    param_value = array("H", param_value_raw)
                 elif param_type_id == TYPE_ARRAY_U32:
-                    param_value = array("I", param_value)
+                    param_value = array("I", param_value_raw)
                 elif param_type_id == TYPE_ARRAY_I8:
-                    param_value = array("b", param_value)
+                    param_value = array("b", param_value_raw)
                 elif param_type_id == TYPE_ARRAY_I16:
-                    param_value = array("h", param_value)
+                    param_value = array("h", param_value_raw)
                 elif param_type_id == TYPE_ARRAY_I32:
-                    param_value = array("i", param_value)
+                    param_value = array("i", param_value_raw)
                 else:  # pragma: no cover
                     warnings.warn(DecodeWarning("Unsupported type ID", param_type_id))
                 # Store the param.
@@ -227,7 +225,6 @@ def decode_packet_cps(header_buf):
         # Check for field overflow.
         if offset > field_limit:  # pragma: no cover
             raise DecodeError("Field overflow by {} bytes".format(offset - field_limit))
-
         # All done!
         return (
             packet_type.rstrip(b" \x00").decode("latin1"),
@@ -241,6 +238,6 @@ def decode_packet_cps(header_buf):
     return size_remaining, decode_packet_body
 
 
-def decode_packet(buf):
+def decode_packet(buf: Bytes) -> Packet:
     body_size, decode_packet_body = decode_packet_cps(buf[:PACKET_HEADER_SIZE])
     return decode_packet_body(buf[PACKET_HEADER_SIZE:])  # 32 is the size of the packet header.
