@@ -132,8 +132,6 @@ async def connect(
     """
     Connects to a :doc:`server`.
 
-    This function is a *coroutine*.
-
     :param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.
     :param int port: The port number of the :doc:`server`.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.

@@ -207,8 +207,6 @@ class Response(AsyncIteratorMixin):
         """
         Waits for the next :class:`Field` received in reply to the sent :term:`NCP packet`.
 
-        This method is a *coroutine*.
-
         :raises ncplib.NCPError: if a field could not be retrieved from the connection.
         :return: The next :class:`Field` received.
         :rtype: Field
@@ -221,8 +219,6 @@ class Response(AsyncIteratorMixin):
     async def recv_field(self, field_name: str) -> Field:
         """
         Waits for the next matching :class:`Field` received in reply to the sent :term:`NCP packet`.
-
-        This method is a *coroutine*.
 
         .. hint::
 
@@ -327,8 +323,6 @@ class Connection(AsyncIteratorMixin):
         """
         Waits for the next :class:`Field` received by the connection.
 
-        This method is a *coroutine*.
-
         :raises ncplib.NCPError: if a field could not be retrieved from the connection.
         :return: The next :class:`Field` received.
         :rtype: Field
@@ -364,8 +358,6 @@ class Connection(AsyncIteratorMixin):
     async def recv_field(self, packet_type: str, field_name: str) -> Field:
         """
         Waits for the next matching :class:`Field` received by the connection.
-
-        This method is a *coroutine*.
 
         :param str packet_type: The packet type, must be a valid :term:`identifier`.
         :param str field_name: The field name, must be a valid :term:`identifier`.

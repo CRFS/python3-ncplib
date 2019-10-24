@@ -266,8 +266,6 @@ class Server:
         """
         Waits for the server to fully shut down.
 
-        This method is a *coroutine*.
-
         .. important::
 
             Only call this method after first calling :meth:`close`.
