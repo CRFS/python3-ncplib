@@ -47,20 +47,6 @@ __all__ = (
 
 class CommandMixin:
 
-    """
-    .. attribute:: field
-
-        The :class:`ncplib.Field` that triggered the error.
-
-    .. attribute:: detail
-
-        The human-readable :class:`str` message from the server.
-
-    .. attribute:: code
-
-        The :class:`int` code from the server,
-    """
-
     def __init__(self, field, detail, code):
         super().__init__("{packet_type} {field_name} {detail!r} (code {code})".format(
             packet_type=field.packet_type,
@@ -101,8 +87,18 @@ class CommandError(CommandMixin, NCPError):
 
     Can be disabled by setting ``auto_erro`` to :obj:`False` in :func:`ncplib.connect`.
 
+    .. attribute:: field
+
+        The :class:`ncplib.Field` that triggered the error.
+
+    .. attribute:: detail
+
+        The human-readable :class:`str` message from the server.
+
+    .. attribute:: code
+
+        The :class:`int` code from the server,
     """
-    __doc__ += CommandMixin.__doc__
 
 
 class DecodeError(NCPError):
@@ -126,8 +122,18 @@ class CommandWarning(CommandMixin, NCPWarning):
 
     Can be disabled by setting ``auto_warn`` to :obj:`False` in :func:`ncplib.connect`.
 
+    .. attribute:: field
+
+        The :class:`ncplib.Field` that triggered the error.
+
+    .. attribute:: detail
+
+        The human-readable :class:`str` message from the server.
+
+    .. attribute:: code
+
+        The :class:`int` code from the server,
     """
-    __doc__ += CommandMixin.__doc__
 
 
 class DecodeWarning(NCPWarning):

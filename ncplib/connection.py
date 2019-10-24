@@ -80,23 +80,6 @@ CLIENT_ID = get_mac().to_bytes(6, "little")[-4:]
 _gen_id = cycle(range(2 ** 32)).__next__
 
 
-_send_return_doc = """:return: A :class:`Response` providing access to any :class:`Field` instances received in reply to
-            the sent packet.
-        :rtype: Response
-        :raises ValueError: if any of the packet, field or parameter names were not a valid :term:`identifier`, or any
-            of the parameter values were invalid.
-        :raises TypeError: if any of the parameter values were not one of the supported
-            :doc:`value types <values>`.
-        """
-
-_recv_return_doc = """
-        :raises ncplib.NCPError: if a field could not be retrieved from the connection.
-        :return: The next :class:`Field` received.
-        :rtype: Field
-
-        """
-
-
 class Field(dict):
 
     """
@@ -153,9 +136,15 @@ class Field(dict):
         :param \\**params: Keyword arguments, one per :term:`NCP parameter`. Each parameter name should be a valid
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
+        :return: A :class:`Response` providing access to any :class:`Field` instances received in reply to
+            the sent packet.
+        :rtype: Response
+        :raises ValueError: if any of the packet, field or parameter names were not a valid :term:`identifier`, or any
+            of the parameter values were invalid.
+        :raises TypeError: if any of the parameter values were not one of the supported
+            :doc:`value types <values>`.
         """
         return self.connection._send_packet(self.packet_type, [(self.name, self.id, params.items())])
-    send.__doc__ += _send_return_doc
 
 
 class AsyncIteratorMixin:
@@ -204,12 +193,14 @@ class Response(AsyncIteratorMixin):
 
         This method is a *coroutine*.
 
+        :raises ncplib.NCPError: if a field could not be retrieved from the connection.
+        :return: The next :class:`Field` received.
+        :rtype: Field
         """
         while True:
             field = await self._connection.recv()
             if field.packet_type == self._packet_type and (field.name, field.id) in self._expected_fields:
                 return field
-    recv.__doc__ += _recv_return_doc
 
     async def recv_field(self, field_name):
         """
@@ -222,12 +213,14 @@ class Response(AsyncIteratorMixin):
             Prefer :meth:`recv` unless the sent packet contained multiple fields.
 
         :param str field_name: The field name, must be a valid :term:`identifier`.
+        :raises ncplib.NCPError: if a field could not be retrieved from the connection.
+        :return: The next :class:`Field` received.
+        :rtype: Field
         """
         while True:
             field = await self.recv()
             if field.name == field_name:
                 return field
-    recv_field.__doc__ += _recv_return_doc
 
 
 class Connection(AsyncIteratorMixin):
@@ -307,6 +300,9 @@ class Connection(AsyncIteratorMixin):
 
         This method is a *coroutine*.
 
+        :raises ncplib.NCPError: if a field could not be retrieved from the connection.
+        :return: The next :class:`Field` received.
+        :rtype: Field
         """
         while True:
             # Return buffered fields.
@@ -335,7 +331,6 @@ class Connection(AsyncIteratorMixin):
                 for field_name, field_id, params in fields
             ]
             self._field_buffer.reverse()
-    recv.__doc__ += _recv_return_doc
 
     async def recv_field(self, packet_type, field_name):
         """
@@ -345,12 +340,14 @@ class Connection(AsyncIteratorMixin):
 
         :param str packet_type: The packet type, must be a valid :term:`identifier`.
         :param str field_name: The field name, must be a valid :term:`identifier`.
+        :raises ncplib.NCPError: if a field could not be retrieved from the connection.
+        :return: The next :class:`Field` received.
+        :rtype: Field
         """
         while True:
             field = await self.recv()
             if field.packet_type == packet_type and field.name == field_name:
                 return field
-    recv_field.__doc__ += _recv_return_doc
 
     # Packet writing.
 
@@ -380,13 +377,19 @@ class Connection(AsyncIteratorMixin):
             the field value should be a :class:`dict` of parameter names mapped to parameter values. Each parameter name
             should be a valid :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
+        :return: A :class:`Response` providing access to any :class:`Field` instances received in reply to
+            the sent packet.
+        :rtype: Response
+        :raises ValueError: if any of the packet, field or parameter names were not a valid :term:`identifier`, or any
+            of the parameter values were invalid.
+        :raises TypeError: if any of the parameter values were not one of the supported
+            :doc:`value types <values>`.
         """
         return self._send_packet(packet_type, [
             (field_name, _gen_id(), field_params.items())
             for field_name, field_params
             in fields.items()
         ])
-    send_packet.__doc__ += _send_return_doc
 
     def send(self, packet_type, field_name, **params):
         """
@@ -397,9 +400,15 @@ class Connection(AsyncIteratorMixin):
         :param \\**params: Keyword arguments, one per :term:`NCP parameter`. Each parameter name should be a valid
             :term:`identifier`, and each parameter value should be one of the supported
             :doc:`value types <values>`.
+        :return: A :class:`Response` providing access to any :class:`Field` instances received in reply to
+            the sent packet.
+        :rtype: Response
+        :raises ValueError: if any of the packet, field or parameter names were not a valid :term:`identifier`, or any
+            of the parameter values were invalid.
+        :raises TypeError: if any of the parameter values were not one of the supported
+            :doc:`value types <values>`.
         """
         return self._send_packet(packet_type, [(field_name, _gen_id(), params.items())])
-    send.__doc__ += _send_return_doc
 
     # Connection lifecycle.
 
