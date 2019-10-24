@@ -12,6 +12,7 @@ setup(
     author_email="dhall@crfs.com",
     url="https://github.com/CRFS/python3-ncplib",
     packages=find_packages(exclude=["tests", "examples"]),
+    package_data={"ncplib": ["py.typed"]},
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Web Environment",
