@@ -62,9 +62,9 @@ from datetime import datetime, timezone
 from itertools import cycle
 import logging
 from types import TracebackType
-from typing import AsyncIterator, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
+from typing import AsyncIterator, Awaitable, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
-from ncplib.errors import NetworkError, ConnectionClosed
+from ncplib.errors import NetworkError, NetworkTimeout, ConnectionClosed
 from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
@@ -87,6 +87,13 @@ _gen_id = cycle(range(2 ** 32)).__next__
 
 
 DEFAULT_TIMEOUT = 15
+
+
+async def _wait_for(coro: Awaitable[T], timeout: Optional[float]) -> T:
+    try:
+        return await asyncio.wait_for(coro, timeout)
+    except asyncio.TimeoutError as ex:
+        raise NetworkTimeout(ex)
 
 
 class Field(Dict[str, Param]):
@@ -364,7 +371,7 @@ class Connection(AsyncIteratorMixin):
             (
                 packet_type, packet_id, packet_timestamp,
                 packet_info, fields,
-            ) = await asyncio.wait_for(self._recv_packet(), self.timeout)
+            ) = await _wait_for(self._recv_packet(), self.timeout)
             # Store the fields in the field buffer.
             self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
             self._field_buffer = [
@@ -484,7 +491,7 @@ class Connection(AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call
             :meth:`Connection.wait_closed` manually.
         """
-        await asyncio.wait_for(self._writer.wait_closed(), self.timeout)
+        await _wait_for(self._writer.wait_closed(), self.timeout)
 
     async def __aenter__(self: T) -> T:
         return self

@@ -127,7 +127,7 @@ from types import TracebackType
 from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
 import logging
 from socket import socket
-from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, Connection, Field
 from ncplib.errors import NCPError
 
 
@@ -239,7 +239,7 @@ class Server:
         self._handlers.add(handler)
 
     async def _connect(self) -> None:
-        self._server = await asyncio.wait_for(
+        self._server = await _wait_for(
             asyncio.start_server(self._handle_client_connected, self._host, self._port),
             self._timeout,
         )
@@ -285,9 +285,9 @@ class Server:
         """
         # Wait for handlers to complete.
         if self._handlers:
-            await asyncio.wait_for(asyncio.wait(self._handlers), timeout=self._timeout)
+            await _wait_for(asyncio.wait(self._handlers), timeout=self._timeout)
         # Wait for the server to shut down.
-        await asyncio.wait_for(self._server.wait_closed(), timeout=self._timeout)
+        await _wait_for(self._server.wait_closed(), timeout=self._timeout)
 
     async def __aenter__(self) -> "Server":
         return self

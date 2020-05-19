@@ -16,6 +16,9 @@ API reference
 .. autoexception:: NetworkError
     :members:
 
+.. autoexception:: NetworkTimeout
+    :members:
+
 .. autoexception:: ConnectionClosed
     :members:
 
@@ -32,6 +35,7 @@ API reference
     :members:
 """
 from __future__ import annotations
+import asyncio
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -41,6 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = (
     "NCPError",
     "NetworkError",
+    "NetworkTimeout",
     "ConnectionClosed",
     "CommandError",
     "DecodeError",
@@ -74,6 +79,13 @@ class NetworkError(NCPError):
 
     """
     Raised when an NCP :class:`Connection` cannot connect, or disconnects unexpectedly.
+    """
+
+
+class NetworkTimeout(NetworkError, asyncio.TimeoutError):
+
+    """
+    Raised when an NCP :class:`Connection` times out while performing network activity.
     """
 
 
