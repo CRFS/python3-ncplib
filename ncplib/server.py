@@ -127,7 +127,7 @@ from types import TracebackType
 from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
 import logging
 from socket import socket
-from ncplib.connection import Connection, Field
+from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
 from ncplib.errors import NCPError
 
 
@@ -169,18 +169,22 @@ class Server:
     _client_connected: Callable[[Connection], Awaitable[None]]
     _host: str
     _port: int
+    _timeout: Optional[float]
     _auto_link: bool
     _auto_auth: bool
     _handlers: Set[asyncio.Task]
 
     def __init__(
         self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
-        auto_link: bool, auto_auth: bool,
+        timeout: Optional[float],
+        auto_link: bool,
+        auto_auth: bool,
     ):
         self._client_connected = client_connected  # type: ignore
         self._host = host
         self._port = port
         # Config.
+        self._timeout = timeout
         self._auto_link = auto_link
         self._auto_auth = auto_auth
         # Handlers.
@@ -191,6 +195,7 @@ class Server:
             reader, writer, _server_predicate,
             logger=logger,
             remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
+            timeout=self._timeout,
             auto_link=self._auto_link,
         )
         try:
@@ -234,7 +239,10 @@ class Server:
         self._handlers.add(handler)
 
     async def _connect(self) -> None:
-        self._server = await asyncio.start_server(self._handle_client_connected, self._host, self._port)
+        self._server = await asyncio.wait_for(
+            asyncio.start_server(self._handle_client_connected, self._host, self._port),
+            self._timeout,
+        )
         for s in self.sockets:
             logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
 
@@ -277,9 +285,9 @@ class Server:
         """
         # Wait for handlers to complete.
         if self._handlers:
-            await asyncio.wait(self._handlers)
+            await asyncio.wait_for(asyncio.wait(self._handlers), timeout=self._timeout)
         # Wait for the server to shut down.
-        await self._server.wait_closed()
+        await asyncio.wait_for(self._server.wait_closed(), timeout=self._timeout)
 
     async def __aenter__(self) -> "Server":
         return self
@@ -292,6 +300,7 @@ class Server:
 async def start_server(
     client_connected: Callable[[Connection], Awaitable[None]],
     host: str = "0.0.0.0", port: int = 9999, *,
+    timeout: Optional[float] = DEFAULT_TIMEOUT,
     auto_link: bool = True,
     auto_auth: bool = True,
 ) -> Server:
@@ -303,11 +312,13 @@ async def start_server(
             will automatically close. If the client closes the connection, the connection handler will exit.
     :param str host: The host to bind the server to.
     :param int port: The port to bind the server to.
+    :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
+        deadlocks. Applies to: creating server, receiving a packet, closing client connection, closing server.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
     :return: The created :class:`Server`.
     :rtype: Server
     """
-    server = Server(client_connected, host, port, auto_link=auto_link, auto_auth=auto_auth)
+    server = Server(client_connected, host, port, timeout=timeout, auto_link=auto_link, auto_auth=auto_auth)
     await server._connect()
     return server

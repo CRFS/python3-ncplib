@@ -65,7 +65,7 @@ from types import TracebackType
 from typing import AsyncIterator, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
 from ncplib.errors import ConnectionClosed
-from ncplib.packets import Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
+from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
 __all__ = (
@@ -84,6 +84,9 @@ CLIENT_ID = get_mac().to_bytes(6, "little")[-4:]
 
 # ID generation.
 _gen_id = cycle(range(2 ** 32)).__next__
+
+
+DEFAULT_TIMEOUT = 15
 
 
 class Field(Dict[str, Param]):
@@ -268,12 +271,18 @@ class Connection(AsyncIteratorMixin):
 
         The identifying hostname for the remote end of the connection.
 
+    .. attribute:: timeout
+
+        The network timeout (in seconds). If `None`, no timeout is used, which can lead to deadlocks. Applies to:
+        receiving a packet, closing connection.
+
     """
 
     logger: logging.Logger
     _reader: asyncio.StreamReader
     _predicate: Callable[[Field], bool]
     _field_buffer: List[Field]
+    timeout: Optional[float]
     _writer: asyncio.StreamWriter
     remote_hostname: str
     _auto_link: bool
@@ -283,6 +292,7 @@ class Connection(AsyncIteratorMixin):
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, predicate: Callable[[Field], bool], *,
         logger: logging.Logger,
         remote_hostname: str,
+        timeout: Optional[float],
         auto_link: bool,
     ):
         # Logging.
@@ -292,6 +302,7 @@ class Connection(AsyncIteratorMixin):
         self._reader = reader
         self._predicate = predicate  # type: ignore
         self._field_buffer = []
+        self.timeout = timeout
         # Packet writing.
         self._writer = writer
         # Config.
@@ -319,6 +330,15 @@ class Connection(AsyncIteratorMixin):
 
     # Receiving fields.
 
+    async def _recv_packet(self) -> Packet:
+        try:
+            header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
+            size_remaining, decode_packet_body = decode_packet_cps(header_buf)
+            body_buf = await self._reader.readexactly(size_remaining)
+        except asyncio.IncompleteReadError:
+            raise ConnectionClosed("Connection closed")
+        return decode_packet_body(body_buf)
+
     async def recv(self) -> Field:
         """
         Waits for the next :class:`Field` received by the connection.
@@ -337,14 +357,10 @@ class Connection(AsyncIteratorMixin):
                 )
                 if self._predicate(field):  # type: ignore
                     return field
-            # Read and decode the packet.
-            try:
-                header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
-                size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-                body_buf = await self._reader.readexactly(size_remaining)
-            except asyncio.IncompleteReadError:
-                raise ConnectionClosed("Connection closed")
-            packet_type, packet_id, packet_timestamp, packet_info, fields = decode_packet_body(body_buf)
+            (
+                packet_type, packet_id, packet_timestamp,
+                packet_info, fields,
+            ) = await asyncio.wait_for(self._recv_packet(), self.timeout)
             # Store the fields in the field buffer.
             self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
             self._field_buffer = [
@@ -464,7 +480,7 @@ class Connection(AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call
             :meth:`Connection.wait_closed` manually.
         """
-        await self._writer.wait_closed()
+        await asyncio.wait_for(self._writer.wait_closed(), self.timeout)
 
     async def __aenter__(self: T) -> T:
         return self

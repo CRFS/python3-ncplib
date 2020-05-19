@@ -84,8 +84,9 @@ import asyncio
 from functools import partial
 import logging
 import platform
+from typing import Optional
 import warnings
-from ncplib.connection import Connection, Field
+from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
 from ncplib.errors import CommandError, CommandWarning
 
 
@@ -121,39 +122,43 @@ def _client_predicate(field: Field, *, auto_erro: bool, auto_warn: bool, auto_ac
 
 async def connect(
     host: str, port: int = 9999, *,
+    remote_hostname: str = None,
+    hostname: str = None,
+    timeout: Optional[float] = DEFAULT_TIMEOUT,
     auto_link: bool = True,
     auto_auth: bool = True,
     auto_erro: bool = True,
     auto_warn: bool = True,
     auto_ackn: bool = True,
-    remote_hostname: str = None,
-    hostname: str = None
 ) -> Connection:
     """
     Connects to a :doc:`server`.
 
     :param str host: The hostname of the :doc:`server`. This can be an IP address or domain name.
     :param int port: The port number of the :doc:`server`.
+    :param str remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
+        be the host:port of the NCP server.
+    :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
+        enabled. Defaults to the system hostname.
+    :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
+        deadlocks. Applies to: connecting, receiving a packet, disconnecting.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
         :term:`NCP parameter`.
-    :param str remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
-        be the host:port of the NCP server.
-    :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
-        enabled. Defaults to the system hostname.
     :raises ncplib.NCPError: if the NCP connection failed.
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
     # Create the network connection.
-    reader, writer = await asyncio.open_connection(host, port)
+    reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         logger=logger,
         remote_hostname=f"{host}:{port}" if remote_hostname is None else remote_hostname,
+        timeout=timeout,
         auto_link=auto_link,
     )
     # Handle auto auth.
