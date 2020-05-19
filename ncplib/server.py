@@ -234,7 +234,7 @@ class Server:
                 connection.close()
                 await connection.wait_closed()
             except NCPError as ex:  # pragma: no cover
-                logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
+                logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
 
     def _handle_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
