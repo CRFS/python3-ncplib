@@ -16,7 +16,7 @@ script:
   - flake8
   - mypy ncplib tests
   - coverage run -m unittest discover tests
-  - (cd docs && sphinx-build -n -W . _build)
+  - (cd docs && sphinx-build -W . _build)
 after_success:
   - coverage report
 deploy:
