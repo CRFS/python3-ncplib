@@ -13,7 +13,7 @@ API reference
 .. autoexception:: NCPError
     :members:
 
-.. autoexception:: ConnectionError
+.. autoexception:: NetworkError
     :members:
 
 .. autoexception:: ConnectionClosed
@@ -40,7 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = (
     "NCPError",
-    "ConnectionError",
+    "NetworkError",
     "ConnectionClosed",
     "CommandError",
     "DecodeError",
@@ -70,7 +70,7 @@ class NCPError(Exception):
     """Base class for all exceptions thrown by :mod:`ncplib`."""
 
 
-class ConnectionError(NCPError):
+class NetworkError(NCPError):
 
     """
     Raised when an NCP :class:`Connection` cannot connect, or disconnects unexpectedly.

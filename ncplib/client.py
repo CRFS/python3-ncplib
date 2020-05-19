@@ -87,7 +87,7 @@ import platform
 from typing import Optional
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
-from ncplib.errors import CommandError, CommandWarning, ConnectionError
+from ncplib.errors import CommandError, CommandWarning, NetworkError
 
 
 __all__ = (
@@ -156,7 +156,7 @@ async def connect(
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
     except OSError as ex:  # pragma: no cover
-        raise ConnectionError(ex)
+        raise NetworkError(ex)
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         logger=logger,

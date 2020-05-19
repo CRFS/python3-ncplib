@@ -64,7 +64,7 @@ import logging
 from types import TracebackType
 from typing import AsyncIterator, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
-from ncplib.errors import ConnectionError, ConnectionClosed
+from ncplib.errors import NetworkError, ConnectionClosed
 from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
@@ -335,10 +335,12 @@ class Connection(AsyncIteratorMixin):
             header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
             size_remaining, decode_packet_body = decode_packet_cps(header_buf)
             body_buf = await self._reader.readexactly(size_remaining)
-        except asyncio.IncompleteReadError:
-            raise ConnectionClosed("Connection closed")
+        except asyncio.IncompleteReadError as ex:
+            if len(ex.partial) == 0:
+                raise ConnectionClosed("Connection closed")
+            raise NetworkError(ex)  # pragma: no cover
         except OSError as ex:  # pragma: no cover
-            raise ConnectionError(ex)
+            raise NetworkError(ex)
         return decode_packet_body(body_buf)
 
     async def recv(self) -> Field:
