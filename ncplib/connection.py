@@ -178,7 +178,7 @@ class AsyncIteratorMixin:
 
     async def __anext__(self) -> Field:
         try:
-            return (await self.recv())  # type: ignore
+            return await self.recv()  # type: ignore
         except ConnectionClosed:
             raise StopAsyncIteration
 
