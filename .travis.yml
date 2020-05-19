@@ -6,8 +6,7 @@ python:
 cache: pip
 env:
   global:
-    - PYTHONWARNINGS=default,ignore::PendingDeprecationWarning
-    - PYTHONASYNCIODEBUG=1
+    - PYTHONDEVMODE=1
 matrix:
   fast_finish: true
 install:
