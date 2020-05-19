@@ -221,7 +221,7 @@ class Server:
         # Close the connection.
         except asyncio.CancelledError:  # pragma: no cover
             raise  # Propagate cancels.
-        except (NCPError, OSError, TimeoutError) as ex:  # Warnings on client decode error.
+        except NCPError as ex:  # Warnings on client decode error.
             logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
             if not connection.is_closing():
                 connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)

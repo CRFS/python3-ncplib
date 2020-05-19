@@ -13,6 +13,9 @@ API reference
 .. autoexception:: NCPError
     :members:
 
+.. autoexception:: ConnectionError
+    :members:
+
 .. autoexception:: ConnectionClosed
     :members:
 
@@ -37,6 +40,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 __all__ = (
     "NCPError",
+    "ConnectionError",
     "ConnectionClosed",
     "CommandError",
     "DecodeError",
@@ -64,6 +68,13 @@ class CommandMixin:
 class NCPError(Exception):
 
     """Base class for all exceptions thrown by :mod:`ncplib`."""
+
+
+class ConnectionError(NCPError):
+
+    """
+    Raised when an NCP :class:`Connection` cannot connect, or disconnects unexpectedly.
+    """
 
 
 class ConnectionClosed(NCPError):
