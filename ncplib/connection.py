@@ -466,6 +466,7 @@ class Connection(AsyncIteratorMixin):
         if self._auto_link and self._auto_link_task is not None:
             self._auto_link_task.cancel()
         # Close the connection.
+        self._writer.write_eof()
         self._writer.close()
         self.logger.info("Disconnected from %s over NCP", self.remote_hostname)
 
