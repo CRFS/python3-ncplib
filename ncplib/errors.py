@@ -36,7 +36,8 @@ API reference
 """
 from __future__ import annotations
 import asyncio
-from typing import TYPE_CHECKING
+from contextlib import contextmanager
+from typing import Generator, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from ncplib.connection import Field
@@ -66,6 +67,22 @@ class CommandMixin:
         self.field = field
         self.detail = detail
         self.code = code
+
+
+@contextmanager
+def _wrap_errors() -> Generator[None, None, None]:
+    try:
+        yield
+    except asyncio.CancelledError:  # pragma: no cover
+        raise  # Propagate cancels.
+    except asyncio.TimeoutError as ex:  # pragma: no cover
+        raise NetworkTimeout(ex)
+    except OSError as ex:  # pragma: no cover
+        raise NetworkError(ex)
+    except asyncio.IncompleteReadError as ex:
+        if len(ex.partial) == 0:
+            raise ConnectionClosed("Connection closed")
+        raise NetworkError(ex)  # pragma: no cover
 
 
 # Errors.

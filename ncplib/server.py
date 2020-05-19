@@ -127,8 +127,8 @@ from types import TracebackType
 from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
 import logging
 from socket import socket
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, Connection, Field
-from ncplib.errors import NCPError
+from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
+from ncplib.errors import _wrap_errors, NCPError
 
 
 __all__ = (
@@ -230,8 +230,11 @@ class Server:
             if not connection.is_closing():
                 connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
-            connection.close()
-            await connection.wait_closed()
+            try:
+                connection.close()
+                await connection.wait_closed()
+            except NCPError as ex:  # pragma: no cover
+                logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
 
     def _handle_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
@@ -239,10 +242,11 @@ class Server:
         self._handlers.add(handler)
 
     async def _connect(self) -> None:
-        self._server = await _wait_for(
-            asyncio.start_server(self._handle_client_connected, self._host, self._port),
-            self._timeout,
-        )
+        with _wrap_errors():
+            self._server = await asyncio.wait_for(
+                asyncio.start_server(self._handle_client_connected, self._host, self._port),
+                self._timeout,
+            )
         for s in self.sockets:
             logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
 
@@ -285,9 +289,10 @@ class Server:
         """
         # Wait for handlers to complete.
         if self._handlers:
-            await _wait_for(asyncio.wait(self._handlers), timeout=self._timeout)
+            await asyncio.wait(self._handlers)
         # Wait for the server to shut down.
-        await _wait_for(self._server.wait_closed(), timeout=self._timeout)
+        with _wrap_errors():
+            await asyncio.wait_for(self._server.wait_closed(), timeout=self._timeout)
 
     async def __aenter__(self) -> "Server":
         return self
@@ -313,7 +318,7 @@ async def start_server(
     :param str host: The host to bind the server to.
     :param int port: The port to bind the server to.
     :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
-        deadlocks. Applies to: creating server, receiving a packet, closing client connection, closing server.
+        deadlocks. Applies to: creating server, receiving a packet, closing server.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
     :return: The created :class:`Server`.

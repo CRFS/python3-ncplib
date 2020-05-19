@@ -86,8 +86,8 @@ import logging
 import platform
 from typing import Optional
 import warnings
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, Connection, Field
-from ncplib.errors import CommandError, CommandWarning, NetworkError
+from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
+from ncplib.errors import _wrap_errors, CommandError, CommandWarning
 
 
 __all__ = (
@@ -153,10 +153,8 @@ async def connect(
     :rtype: Connection
     """
     # Create the network connection.
-    try:
-        reader, writer = await _wait_for(asyncio.open_connection(host, port), timeout)
-    except OSError as ex:  # pragma: no cover
-        raise NetworkError(ex)
+    with _wrap_errors():
+        reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         logger=logger,
