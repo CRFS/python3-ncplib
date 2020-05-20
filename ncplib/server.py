@@ -230,8 +230,8 @@ class Server:
             if not connection.is_closing():
                 connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
         finally:
+            connection.close()
             try:
-                connection.close()
                 await connection.wait_closed()
             except NCPError as ex:  # pragma: no cover
                 logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
