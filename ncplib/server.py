@@ -127,8 +127,8 @@ from types import TracebackType
 from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
 import logging
 from socket import socket
-from ncplib.connection import DEFAULT_TIMEOUT, Connection, Field
-from ncplib.errors import _wrap_errors, NCPError
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, Connection, Field
+from ncplib.errors import NCPError
 
 
 __all__ = (
@@ -220,7 +220,7 @@ class Server:
             await self._client_connected(connection)  # type: ignore
         # Close the connection.
         except asyncio.CancelledError:  # pragma: no cover
-            raise  # Propagate cancels.
+            raise  # Propagate cancels, not needed in Python3.8+.
         except NCPError as ex:  # Warnings on client decode error.
             logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
             if not connection.is_closing():
@@ -242,11 +242,10 @@ class Server:
         self._handlers.add(handler)
 
     async def _connect(self) -> None:
-        with _wrap_errors():
-            self._server = await asyncio.wait_for(
-                asyncio.start_server(self._handle_client_connected, self._host, self._port),
-                self._timeout,
-            )
+        self._server = await _wait_for(
+            asyncio.start_server(self._handle_client_connected, self._host, self._port),
+            self._timeout,
+        )
         for s in self.sockets:
             logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
 
@@ -291,8 +290,7 @@ class Server:
         if self._handlers:
             await asyncio.wait(self._handlers)
         # Wait for the server to shut down.
-        with _wrap_errors():
-            await asyncio.wait_for(self._server.wait_closed(), timeout=self._timeout)
+        await _wait_for(self._server.wait_closed(), self._timeout)
 
     async def __aenter__(self) -> "Server":
         return self

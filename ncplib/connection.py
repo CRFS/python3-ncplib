@@ -58,13 +58,14 @@ API reference
 """
 from __future__ import annotations
 import asyncio
+from async_timeout import timeout
 from datetime import datetime, timezone
 from itertools import cycle
 import logging
 from types import TracebackType
-from typing import AsyncIterator, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
+from typing import AsyncIterator, Awaitable, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
-from ncplib.errors import _wrap_errors, ConnectionClosed
+from ncplib.errors import NetworkError, NetworkTimeout, ConnectionClosed
 from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
@@ -87,6 +88,18 @@ _gen_id = cycle(range(2 ** 32)).__next__
 
 
 DEFAULT_TIMEOUT = 15
+
+
+async def _wait_for(coro: Awaitable[T], ms: Optional[float]) -> T:
+    try:
+        async with timeout(ms):
+            return await coro
+    except asyncio.CancelledError:  # pragma: no cover
+        raise  # Propagate cancels, not needed in Python3.8+.
+    except asyncio.TimeoutError as ex:  # pragma: no cover
+        raise NetworkTimeout(ex) from ex
+    except OSError as ex:  # pragma: no cover
+        raise NetworkError(ex) from ex
 
 
 class Field(Dict[str, Param]):
@@ -331,9 +344,19 @@ class Connection(AsyncIteratorMixin):
     # Receiving fields.
 
     async def _recv_packet(self) -> Packet:
-        header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
+        # Read the header. If there's no more data in the pipe, it's a graceful close.
+        try:
+            header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
+        except asyncio.IncompleteReadError as ex:
+            if len(ex.partial) == 0:
+                raise ConnectionClosed("Connection closed")
+            raise NetworkError(ex) from ex  # pragma: no cover
+        # Read the body. This has to be present, or it's an unexpected close.
         size_remaining, decode_packet_body = decode_packet_cps(header_buf)
-        body_buf = await self._reader.readexactly(size_remaining)
+        try:
+            body_buf = await self._reader.readexactly(size_remaining)
+        except asyncio.IncompleteReadError as ex:
+            raise NetworkError(ex) from ex  # pragma: no cover
         return decode_packet_body(body_buf)
 
     async def recv(self) -> Field:
@@ -354,11 +377,10 @@ class Connection(AsyncIteratorMixin):
                 )
                 if self._predicate(field):  # type: ignore
                     return field
-            with _wrap_errors():
-                (
-                    packet_type, packet_id, packet_timestamp,
-                    packet_info, fields,
-                ) = await asyncio.wait_for(self._recv_packet(), self.timeout)
+            packet_type, packet_id, packet_timestamp, packet_info, fields = await _wait_for(
+                self._recv_packet(),
+                self.timeout,
+            )
             # Store the fields in the field buffer.
             self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
             self._field_buffer = [
@@ -479,8 +501,7 @@ class Connection(AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call
             :meth:`Connection.wait_closed` manually.
         """
-        with _wrap_errors():
-            await asyncio.wait_for(self._writer.wait_closed(), self.timeout)
+        await _wait_for(self._writer.wait_closed(), self.timeout)
 
     async def __aenter__(self: T) -> T:
         return self

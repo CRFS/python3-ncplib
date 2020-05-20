@@ -13,6 +13,9 @@ setup(
     url="https://github.com/CRFS/python3-ncplib",
     packages=find_packages(exclude=["tests", "examples"]),
     package_data={"ncplib": ["py.typed"]},
+    install_requires=[
+        "async_timeout>=3.0,<4.0",
+    ],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: Web Environment",
