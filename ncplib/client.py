@@ -141,7 +141,7 @@ async def connect(
     :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
         enabled. Defaults to the system hostname.
     :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
-        deadlocks. Applies to: connecting, receiving a packet, disconnecting.
+        deadlocks. Applies to: connecting, receiving a packet, closing connection.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.

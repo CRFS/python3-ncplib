@@ -316,7 +316,7 @@ async def start_server(
     :param str host: The host to bind the server to.
     :param int port: The port to bind the server to.
     :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
-        deadlocks. Applies to: creating server, receiving a packet, closing server.
+        deadlocks. Applies to: creating server, receiving a packet, closing connection, closing server.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
     :return: The created :class:`Server`.
