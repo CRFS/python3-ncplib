@@ -4,8 +4,8 @@ Changelog
 .. currentmodule:: ncplib
 
 
-4.0.0 - In progress
--------------------
+4.0.0 - 20/05/2019
+------------------
 
 - **Breaking:** Renamed :class:`ConnectionError` to :class:`NetworkError` to avoid conflicts with stdlib.
 - Added `timeout` parameter to :meth:`connect`, :meth:`start_server` and :class:`Connection`. This is the network
