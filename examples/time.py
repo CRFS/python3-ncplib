@@ -50,4 +50,4 @@ async def main():
 
 # Run the async main method if this file is run as a script.
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())
