@@ -10,7 +10,7 @@ Changelog
 - **Breaking:** Renamed :class:`ConnectionError` to :class:`NetworkError` to avoid conflicts with stdlib.
 - Added `timeout` parameter to :meth:`connect`, :meth:`start_server` and :class:`Connection`. This is the network
   timeout (in seconds). If `None`, no timeout is used, which can lead to deadlocks. The default timeout is 15 seconds.
-  A :class:`NetworkTimeout` error will be raised if a timeout is exceeded.
+  A :class:`NetworkTimeoutError` error will be raised if a timeout is exceeded.
 
 
 

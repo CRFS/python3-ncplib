@@ -65,7 +65,7 @@ import logging
 from types import TracebackType
 from typing import AsyncIterator, Awaitable, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
-from ncplib.errors import NetworkError, NetworkTimeout, ConnectionClosed
+from ncplib.errors import NetworkError, NetworkTimeoutError, ConnectionClosed, DecodeError
 from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
@@ -97,7 +97,7 @@ async def _wait_for(coro: Awaitable[T], ms: Optional[float]) -> T:
     except asyncio.CancelledError:  # pragma: no cover
         raise  # Propagate cancels, not needed in Python3.8+.
     except asyncio.TimeoutError as ex:  # pragma: no cover
-        raise NetworkTimeout(ex) from ex
+        raise NetworkTimeoutError(ex) from ex
     except OSError as ex:  # pragma: no cover
         raise NetworkError(ex) from ex
 
@@ -349,14 +349,14 @@ class Connection(AsyncIteratorMixin):
             header_buf = await self._reader.readexactly(PACKET_HEADER_SIZE)
         except asyncio.IncompleteReadError as ex:
             if len(ex.partial) == 0:
-                raise ConnectionClosed("Connection closed")
-            raise NetworkError(ex) from ex  # pragma: no cover
+                raise ConnectionClosed("Connection closed") from ex
+            raise DecodeError(ex) from ex  # pragma: no cover
         # Read the body. This has to be present, or it's an unexpected close.
         size_remaining, decode_packet_body = decode_packet_cps(header_buf)
         try:
             body_buf = await self._reader.readexactly(size_remaining)
         except asyncio.IncompleteReadError as ex:
-            raise NetworkError(ex) from ex  # pragma: no cover
+            raise DecodeError(ex) from ex  # pragma: no cover
         return decode_packet_body(body_buf)
 
     async def recv(self) -> Field:

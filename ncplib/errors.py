@@ -16,7 +16,7 @@ API reference
 .. autoexception:: NetworkError
     :members:
 
-.. autoexception:: NetworkTimeout
+.. autoexception:: NetworkTimeoutError
     :members:
 
 .. autoexception:: ConnectionClosed
@@ -45,7 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = (
     "NCPError",
     "NetworkError",
-    "NetworkTimeout",
+    "NetworkTimeoutError",
     "ConnectionClosed",
     "CommandError",
     "DecodeError",
@@ -75,21 +75,21 @@ class NCPError(Exception):
     """Base class for all exceptions thrown by :mod:`ncplib`."""
 
 
-class NetworkError(NCPError):
+class NetworkError(NCPError, OSError):
 
     """
     Raised when an NCP :class:`Connection` cannot connect, or disconnects unexpectedly.
     """
 
 
-class NetworkTimeout(NetworkError, asyncio.TimeoutError):
+class NetworkTimeoutError(NCPError, asyncio.TimeoutError):
 
     """
     Raised when an NCP :class:`Connection` times out while performing network activity.
     """
 
 
-class ConnectionClosed(NCPError):
+class ConnectionClosed(NCPError, EOFError):
 
     """
     Raised when an NCP :class:`Connection` is closed gracefully.
