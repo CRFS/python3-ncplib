@@ -143,7 +143,6 @@ class ClientServerTestCase(AsyncTestCase):
     async def testEncodeError(self) -> None:
         client = await self.createClient(client_auto_link=False)
         client._writer.write(b"Boom!" * 1024)
-        client._writer.write_eof()
         with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
             with self.assertRaises(ncplib.CommandError) as cx:
                 while True:
