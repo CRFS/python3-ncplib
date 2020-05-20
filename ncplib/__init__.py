@@ -53,8 +53,6 @@ More information
 """
 
 
-__version__ = (3, 0, 0)
-
 from ncplib.client import *  # noqa
 from ncplib.connection import *  # noqa
 from ncplib.errors import *  # noqa

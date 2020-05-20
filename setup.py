@@ -1,11 +1,9 @@
 from setuptools import setup, find_packages
 
-from ncplib import __version__
-
 
 setup(
     name="ncplib",
-    version=".".join(map(str, __version__)),
+    version="3.0.0",
     license="BSD",
     description="CRFS NCP library for Python 3.",
     author="Dave Hall",
