@@ -121,6 +121,10 @@ class Field(Dict[str, Param]):
 
         The type of :term:`NCP packet` that contained this field. This will be a valid :term:`identifier`.
 
+    .. attribute:: packet_id
+
+        The ID of the of :term:`NCP packet` that contained this field.
+
     .. attribute:: packet_timestamp
 
         A timezone-aware :class:`datetime.datetime` describing when the containing packet was sent.
@@ -134,22 +138,24 @@ class Field(Dict[str, Param]):
         The unique :class:`int` ID of this field.
     """
 
-    __slots__ = ("connection", "packet_type", "packet_timestamp", "name", "id",)
+    __slots__ = ("connection", "packet_type", "packet_id", "packet_timestamp", "name", "id",)
 
     connection: Connection
     packet_type: str
+    packet_id: int
     packet_timestamp: datetime
     name: str
     id: int
 
     def __init__(
         self, connection: Connection,
-        packet_type: str, packet_timestamp: datetime,
+        packet_type: str, packet_id: int, packet_timestamp: datetime,
         name: str, id: int, params: Params,
     ) -> None:
         super().__init__(params)
         self.connection = connection
         self.packet_type = packet_type
+        self.packet_id = packet_id
         self.packet_timestamp = packet_timestamp
         self.name = name
         self.id = id
@@ -172,7 +178,7 @@ class Field(Dict[str, Param]):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self.connection._send_packet(self.packet_type, [(self.name, self.id, params.items())])
+        return self.connection._send_packet(self.packet_type, self.packet_id, [(self.name, self.id, params.items())])
 
 
 class AsyncIteratorMixin:
@@ -208,15 +214,21 @@ class Response(AsyncIteratorMixin):
         The *async for loop* will only terminate when the underlying connection closes.
     """
 
-    __slots__ = ("_connection", "_packet_type", "_expected_fields")
+    __slots__ = ("_connection", "_packet_type", "_packet_id", "_expected_fields")
 
     _connection: Connection
     _packet_type: str
+    _packet_id: int
     _expected_fields: Set[Tuple[str, int]]
 
-    def __init__(self, connection: Connection, packet_type: str, expected_fields: Set[Tuple[str, int]]) -> None:
+    def __init__(
+        self, connection: Connection,
+        packet_type: str, packet_id: int,
+        expected_fields: Set[Tuple[str, int]],
+    ) -> None:
         self._connection = connection
         self._packet_type = packet_type
+        self._packet_id = packet_id
         self._expected_fields = expected_fields
 
     async def recv(self) -> Field:
@@ -229,7 +241,11 @@ class Response(AsyncIteratorMixin):
         """
         while True:
             field = await self._connection.recv()
-            if field.packet_type == self._packet_type and (field.name, field.id) in self._expected_fields:
+            if (
+                field.packet_type == self._packet_type and
+                field.packet_id == self._packet_id and
+                (field.name, field.id) in self._expected_fields
+            ):
                 return field
 
     async def recv_field(self, field_name: str) -> Field:
@@ -355,8 +371,8 @@ class Connection(AsyncIteratorMixin):
         size_remaining, decode_packet_body = decode_packet_cps(header_buf)
         try:
             body_buf = await self._reader.readexactly(size_remaining)
-        except asyncio.IncompleteReadError as ex:
-            raise DecodeError(ex) from ex  # pragma: no cover
+        except asyncio.IncompleteReadError as ex:  # pragma: no cover
+            raise DecodeError(ex) from ex
         return decode_packet_body(body_buf)
 
     async def recv(self) -> Field:
@@ -384,7 +400,7 @@ class Connection(AsyncIteratorMixin):
             # Store the fields in the field buffer.
             self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
             self._field_buffer = [
-                Field(self, packet_type, packet_timestamp, field_name, field_id, params)
+                Field(self, packet_type, packet_id, packet_timestamp, field_name, field_id, params)
                 for field_name, field_id, params in fields
             ]
             self._field_buffer.reverse()
@@ -406,8 +422,8 @@ class Connection(AsyncIteratorMixin):
 
     # Packet writing.
 
-    def _send_packet(self, packet_type: str, fields: Fields) -> Response:
-        encoded_packet = encode_packet(packet_type, _gen_id(), datetime.now(tz=timezone.utc), CLIENT_ID, fields)
+    def _send_packet(self, packet_type: str, packet_id: int, fields: Fields) -> Response:
+        encoded_packet = encode_packet(packet_type, packet_id, datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
         expected_fields = set()
@@ -415,7 +431,7 @@ class Connection(AsyncIteratorMixin):
             self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field_name, self.remote_hostname)
             expected_fields.add((field_name, field_id))
         # Create an iterator of response fields.
-        return Response(self, packet_type, expected_fields)
+        return Response(self, packet_type, packet_id, expected_fields)
 
     # Sending fields.
 
@@ -440,7 +456,7 @@ class Connection(AsyncIteratorMixin):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, [
+        return self._send_packet(packet_type, _gen_id(), [
             (field_name, _gen_id(), field_params.items())
             for field_name, field_params
             in fields.items()
@@ -463,7 +479,7 @@ class Connection(AsyncIteratorMixin):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, [(field_name, _gen_id(), params.items())])
+        return self._send_packet(packet_type, _gen_id(), [(field_name, _gen_id(), params.items())])
 
     # Connection lifecycle.
 

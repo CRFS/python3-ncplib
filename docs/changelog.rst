@@ -4,7 +4,15 @@ Changelog
 .. currentmodule:: ncplib
 
 
-4.0.0 - 20/05/2019
+4.1.0 - 07/07/2020
+------------------
+
+- Added `Field.packet_id` attribute.
+- :meth:`Field.send` now includes the ID of the of :term:`NCP packet` that contained the field.
+- :meth:`Response.recv` now requires the ID of the of :term:`NCP packet` in replies.
+
+
+4.0.0 - 20/05/2020
 ------------------
 
 - **Breaking:** Renamed :class:`ConnectionError` to :class:`NetworkError` to avoid conflicts with stdlib.
