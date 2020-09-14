@@ -83,6 +83,8 @@ T = TypeVar("T")
 # The last four bytes of the MAC address is used as an ID field.
 CLIENT_ID = get_mac().to_bytes(6, "little")[-4:]
 
+# The footer and other metadata for the LINK heartbeat packet trailer.
+LINK_TRAILER = b"".join((b'\x00\x00\x00\x00', CLIENT_ID, b'\x00\x00\x00\x00\xaa\xbb\xcc\xdd'))
 
 # ID generation.
 _gen_id = cycle(range(2 ** 32)).__next__
@@ -351,25 +353,10 @@ class Connection(AsyncIteratorMixin):
 
     async def _run_auto_link(self) -> None:
         while not self._writer.transport.is_closing():
-            print(b"".join((
-                # Static header with hardcoded packet ID.
-                b'\xdd\xcc\xbb\xaaLINK\n\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00',
-                # Timestamp rounded to nearest second.
-                int(time()).to_bytes(4, "little"),
-                b'\x00\x00\x00\x00',
-                CLIENT_ID,
-                # Zero-length fields plus footer.
-                b'\x00\x00\x00\x00\xaa\xbb\xcc\xdd',
-            )))
             self._writer.write(b"".join((
-                # Static header with hardcoded packet ID.
                 b'\xdd\xcc\xbb\xaaLINK\n\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00',
-                # Timestamp rounded to nearest second.
                 int(time()).to_bytes(4, "little"),
-                b'\x00\x00\x00\x00',
-                CLIENT_ID,
-                # Zero-length fields plus footer.
-                b'\x00\x00\x00\x00\xaa\xbb\xcc\xdd',
+                LINK_TRAILER,
             )))
             await asyncio.sleep(3)
 
