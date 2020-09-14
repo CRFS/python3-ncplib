@@ -62,6 +62,7 @@ from async_timeout import timeout
 from datetime import datetime, timezone
 from itertools import cycle
 import logging
+from time import time
 from types import TracebackType
 from typing import AsyncIterator, Awaitable, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
@@ -349,8 +350,27 @@ class Connection(AsyncIteratorMixin):
     # Background tasks.
 
     async def _run_auto_link(self) -> None:
-        while not self.is_closing():
-            self.send_packet("LINK")
+        while not self._writer.transport.is_closing():
+            print(b"".join((
+                # Static header with hardcoded packet ID.
+                b'\xdd\xcc\xbb\xaaLINK\n\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00',
+                # Timestamp rounded to nearest second.
+                int(time()).to_bytes(4, "little"),
+                b'\x00\x00\x00\x00',
+                CLIENT_ID,
+                # Zero-length fields plus footer.
+                b'\x00\x00\x00\x00\xaa\xbb\xcc\xdd',
+            )))
+            self._writer.write(b"".join((
+                # Static header with hardcoded packet ID.
+                b'\xdd\xcc\xbb\xaaLINK\n\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00',
+                # Timestamp rounded to nearest second.
+                int(time()).to_bytes(4, "little"),
+                b'\x00\x00\x00\x00',
+                CLIENT_ID,
+                # Zero-length fields plus footer.
+                b'\x00\x00\x00\x00\xaa\xbb\xcc\xdd',
+            )))
             await asyncio.sleep(3)
 
     def _start_tasks(self) -> None:
