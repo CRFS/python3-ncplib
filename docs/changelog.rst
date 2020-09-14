@@ -3,6 +3,11 @@ Changelog
 
 .. currentmodule:: ncplib
 
+4.1.1 - 14/09/2020
+------------------
+
+- Optimized `auto_link` background task.
+
 
 4.1.0 - 07/07/2020
 ------------------
