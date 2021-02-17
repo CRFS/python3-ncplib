@@ -217,21 +217,19 @@ class Response(AsyncIteratorMixin):
         The *async for loop* will only terminate when the underlying connection closes.
     """
 
-    __slots__ = ("_connection", "_packet_type", "_packet_id", "_expected_fields")
+    __slots__ = ("_connection", "_packet_type", "_expected_fields")
 
     _connection: Connection
     _packet_type: str
-    _packet_id: int
     _expected_fields: Set[Tuple[str, int]]
 
     def __init__(
         self, connection: Connection,
-        packet_type: str, packet_id: int,
+        packet_type: str,
         expected_fields: Set[Tuple[str, int]],
     ) -> None:
         self._connection = connection
         self._packet_type = packet_type
-        self._packet_id = packet_id
         self._expected_fields = expected_fields
 
     async def recv(self) -> Field:
@@ -246,7 +244,6 @@ class Response(AsyncIteratorMixin):
             field = await self._connection.recv()
             if (
                 field.packet_type == self._packet_type and
-                field.packet_id == self._packet_id and
                 (field.name, field.id) in self._expected_fields
             ):
                 return field
@@ -438,7 +435,7 @@ class Connection(AsyncIteratorMixin):
             self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field_name, self.remote_hostname)
             expected_fields.add((field_name, field_id))
         # Create an iterator of response fields.
-        return Response(self, packet_type, packet_id, expected_fields)
+        return Response(self, packet_type, expected_fields)
 
     # Sending fields.
 
