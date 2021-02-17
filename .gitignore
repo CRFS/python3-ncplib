@@ -12,3 +12,4 @@ Thumbs.db
 /.cache
 /docs/_build
 /.mypy_cache
+/todo.txt
