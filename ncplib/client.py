@@ -124,7 +124,6 @@ async def connect(
     remote_hostname: str = None,
     hostname: str = None,
     timeout: int = DEFAULT_TIMEOUT,
-    auto_link: bool = True,
     auto_auth: bool = True,
     auto_erro: bool = True,
     auto_warn: bool = True,
@@ -141,7 +140,6 @@ async def connect(
         enabled. Defaults to the system hostname.
     :param int timeout: The network timeout (in seconds). Applies to: connecting, receiving a packet, closing
         connection.
-    :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
@@ -158,7 +156,6 @@ async def connect(
         logger=logger,
         remote_hostname=f"{host}:{port}" if remote_hostname is None else remote_hostname,
         timeout=timeout,
-        auto_link=auto_link,
     )
     # Handle auto auth.
     try:

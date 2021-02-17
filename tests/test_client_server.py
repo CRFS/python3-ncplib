@@ -49,14 +49,12 @@ class ClientServerTestCase(AsyncTestCase):
     async def createClient(
         self,
         client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler, *,
-        client_auto_link: bool = True,
         client_auto_auth: bool = True,
         server_auto_auth: bool = True,
     ) -> ncplib.Connection:
         port = await self.createServer(client_connected, server_auto_auth=server_auto_auth)
         client = await ncplib.connect(
             "127.0.0.1", port,
-            auto_link=client_auto_link,
             auto_auth=client_auto_auth,
             hostname="ncplib-test",
         )
@@ -141,7 +139,7 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.code, 401)
 
     async def testEncodeError(self) -> None:
-        client = await self.createClient(client_auto_link=False)
+        client = await self.createClient()
         client._writer.write(b"Boom!" * 1024)
         with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
             with self.assertRaises(ncplib.CommandError) as cx:

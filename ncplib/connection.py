@@ -314,7 +314,6 @@ class Connection(AsyncIteratorMixin):
     timeout: int
     _writer: asyncio.StreamWriter
     remote_hostname: str
-    _auto_link: bool
     _auto_link_task: Optional[asyncio.Task]
 
     def __init__(
@@ -322,7 +321,6 @@ class Connection(AsyncIteratorMixin):
         logger: logging.Logger,
         remote_hostname: str,
         timeout: int,
-        auto_link: bool,
     ):
         # Logging.
         self.logger = logger
@@ -336,7 +334,6 @@ class Connection(AsyncIteratorMixin):
         self._writer = writer
         # Config.
         self.remote_hostname = remote_hostname
-        self._auto_link = auto_link
         self._auto_link_task = None
 
     @property
@@ -355,11 +352,10 @@ class Connection(AsyncIteratorMixin):
                 int(time()).to_bytes(4, "little"),
                 LINK_TRAILER,
             )))
-            await asyncio.sleep(3)
+            await asyncio.sleep(int(self.timeout * 0.66))
 
     def _start_tasks(self) -> None:
-        if self._auto_link:
-            self._auto_link_task = asyncio.get_running_loop().create_task(self._run_auto_link())
+        self._auto_link_task = asyncio.get_running_loop().create_task(self._run_auto_link())
 
     # Receiving fields.
 
@@ -505,8 +501,9 @@ class Connection(AsyncIteratorMixin):
             manually.
         """
         # Stop handlers.
-        if self._auto_link and self._auto_link_task is not None:
+        if self._auto_link_task is not None:
             self._auto_link_task.cancel()
+            self._auto_link_task = None
         # Close the connection.
         self._writer.close()
         self.logger.info("Disconnected from %s over NCP", self.remote_hostname)
