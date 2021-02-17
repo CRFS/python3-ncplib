@@ -90,7 +90,7 @@ LINK_TRAILER = b"".join((b'\x00\x00\x00\x00', CLIENT_ID, b'\x00\x00\x00\x00\xaa\
 _gen_id = cycle(range(2 ** 32)).__next__
 
 
-DEFAULT_TIMEOUT = 15
+DEFAULT_TIMEOUT = 60
 
 
 async def _wait_for(coro: Awaitable[T], ms: Optional[float]) -> T:
