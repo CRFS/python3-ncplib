@@ -4,8 +4,7 @@ ncplib
 
 :term:`NCP` library for Python 3, developed by `CRFS`_.
 
-.. image:: https://travis-ci.org/CRFS/python3-ncplib.svg?branch=master
-    :target: https://travis-ci.org/CRFS/python3-ncplib
+.. image:: https://github.com/CRFS/python3-ncplib/workflows/Python%20package/badge.svg
 
 
 Features
@@ -21,7 +20,6 @@ Resources
 
 -   `Documentation`_ is on Read the Docs.
 -   `Examples`_, `issue tracking`_ and `source code`_ are on GitHub.
--   `Continuous integration`_ is on Travis CI.
 
 
 Usage
