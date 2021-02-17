@@ -84,7 +84,6 @@ import asyncio
 from functools import partial
 import logging
 import platform
-from typing import Optional
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, Connection, Field
 from ncplib.errors import CommandError, CommandWarning
@@ -124,7 +123,7 @@ async def connect(
     host: str, port: int = 9999, *,
     remote_hostname: str = None,
     hostname: str = None,
-    timeout: Optional[int] = DEFAULT_TIMEOUT,
+    timeout: int = DEFAULT_TIMEOUT,
     auto_link: bool = True,
     auto_auth: bool = True,
     auto_erro: bool = True,
@@ -140,8 +139,8 @@ async def connect(
         be the host:port of the NCP server.
     :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
         enabled. Defaults to the system hostname.
-    :param Optional[int] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
-        deadlocks. Applies to: connecting, receiving a packet, closing connection.
+    :param int timeout: The network timeout (in seconds). Applies to: connecting, receiving a packet, closing
+        connection.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.

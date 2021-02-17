@@ -93,7 +93,7 @@ _gen_id = cycle(range(2 ** 32)).__next__
 DEFAULT_TIMEOUT: int = 60
 
 
-async def _wait_for(coro: Awaitable[T], ms: Optional[int]) -> T:
+async def _wait_for(coro: Awaitable[T], ms: int) -> T:
     try:
         async with timeout(ms):
             return await coro
@@ -311,7 +311,7 @@ class Connection(AsyncIteratorMixin):
     _reader: asyncio.StreamReader
     _predicate: Callable[[Field], bool]
     _field_buffer: List[Field]
-    timeout: Optional[int]
+    timeout: int
     _writer: asyncio.StreamWriter
     remote_hostname: str
     _auto_link: bool
@@ -321,7 +321,7 @@ class Connection(AsyncIteratorMixin):
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, predicate: Callable[[Field], bool], *,
         logger: logging.Logger,
         remote_hostname: str,
-        timeout: Optional[int],
+        timeout: int,
         auto_link: bool,
     ):
         # Logging.
