@@ -27,7 +27,7 @@ jobs:
     - name: Test with unittest
       run: |
         coverage run -m unittest discover tests
-        coverage report
+        coverage report --fail-under=100
     - name: Build docs
       run: |
         (cd docs && sphinx-build -W . _build)
