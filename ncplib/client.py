@@ -124,7 +124,7 @@ async def connect(
     host: str, port: int = 9999, *,
     remote_hostname: str = None,
     hostname: str = None,
-    timeout: Optional[float] = DEFAULT_TIMEOUT,
+    timeout: Optional[int] = DEFAULT_TIMEOUT,
     auto_link: bool = True,
     auto_auth: bool = True,
     auto_erro: bool = True,
@@ -140,7 +140,7 @@ async def connect(
         be the host:port of the NCP server.
     :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
         enabled. Defaults to the system hostname.
-    :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
+    :param Optional[int] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
         deadlocks. Applies to: connecting, receiving a packet, closing connection.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.

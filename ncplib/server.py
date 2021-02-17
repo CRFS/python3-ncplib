@@ -169,14 +169,14 @@ class Server:
     _client_connected: Callable[[Connection], Awaitable[None]]
     _host: str
     _port: int
-    _timeout: Optional[float]
+    _timeout: Optional[int]
     _auto_link: bool
     _auto_auth: bool
     _handlers: Set[asyncio.Task]
 
     def __init__(
         self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
-        timeout: Optional[float],
+        timeout: Optional[int],
         auto_link: bool,
         auto_auth: bool,
     ):
@@ -303,7 +303,7 @@ class Server:
 async def start_server(
     client_connected: Callable[[Connection], Awaitable[None]],
     host: str = "0.0.0.0", port: int = 9999, *,
-    timeout: Optional[float] = DEFAULT_TIMEOUT,
+    timeout: Optional[int] = DEFAULT_TIMEOUT,
     auto_link: bool = True,
     auto_auth: bool = True,
 ) -> Server:
@@ -315,7 +315,7 @@ async def start_server(
             will automatically close. If the client closes the connection, the connection handler will exit.
     :param str host: The host to bind the server to.
     :param int port: The port to bind the server to.
-    :param Optional[float] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
+    :param Optional[int] timeout: The network timeout (in seconds). If `None`, no timeout is used, which can lead to
         deadlocks. Applies to: creating server, receiving a packet, closing connection, closing server.
     :param bool auto_link: Automatically send periodic LINK packets over the connection.
     :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on client connect.
