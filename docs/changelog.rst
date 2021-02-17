@@ -6,13 +6,13 @@ Changelog
 4.1.1 - 14/09/2020
 ------------------
 
-- Optimized `auto_link` background task.
+- Optimized ``auto_link`` background task.
 
 
 4.1.0 - 07/07/2020
 ------------------
 
-- Added `Field.packet_id` attribute.
+- Added ``Field.packet_id`` attribute.
 - :meth:`Field.send` now includes the ID of the of :term:`NCP packet` that contained the field.
 - :meth:`Response.recv` now requires the ID of the of :term:`NCP packet` in replies.
 
