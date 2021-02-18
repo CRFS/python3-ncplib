@@ -168,7 +168,7 @@ async def connect(
         connection.send("LINK", "CARE", CAR=hostname)
         # Read the auth response packet.
         await connection.recv_field("LINK", "SCON")
-    except BaseException:  # pragma: no cover
+    except BaseException:
         connection.close()
         await connection.wait_closed()
         raise
