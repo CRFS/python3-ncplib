@@ -143,7 +143,7 @@ class PacketDatasTestCase(unittest.TestCase):
                     ("FIEL", 20, [("PARA", value)]),
                 ]))
                 self.assertEqual(decoded_packet, expected_packet)
-                decoded_value = decoded_packet[-1][0][-1][0][1]
+                decoded_value = decoded_packet[-1][0][-1][0][1]  # type: ignore
                 decoded_type = decoded_value.__class__
                 self.assertIs(decoded_type, expected_value.__class__)
                 if decoded_type is array:

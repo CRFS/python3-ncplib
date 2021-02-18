@@ -2,7 +2,7 @@ from __future__ import annotations
 from array import array
 from datetime import datetime, timezone
 from struct import Struct
-from typing import Callable, Sequence, List, Tuple, Union
+from typing import Callable, Iterable, List, Tuple, Union
 import warnings
 from ncplib.errors import DecodeError, DecodeWarning
 from ncplib.values import u32, i64, u64, f64
@@ -32,7 +32,7 @@ PARAM_HEADER_SIZE = PARAM_HEADER_STRUCT.size
 PACKET_FOOTER_SIZE = 8
 
 
-# Byte sequences.
+# Byte Iterables.
 
 PACKET_HEADER = b"\xdd\xcc\xbb\xaa"
 
@@ -100,8 +100,8 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
 
 Bytes = Union[bytes, bytearray]
 Param = Union[Bytes, str, int, float, u32, i64, u64, f64, bool, array]
-Params = Sequence[Tuple[str, Param]]
-Fields = Sequence[Tuple[str, int, Params]]
+Params = Iterable[Tuple[str, Param]]
+Fields = Iterable[Tuple[str, int, Params]]
 Packet = Tuple[str, int, datetime, bytes, Fields]
 
 

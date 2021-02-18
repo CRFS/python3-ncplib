@@ -190,7 +190,7 @@ class Field(Dict[str, Param]):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self.connection._send_packet(self.packet_type, [(self.name, self.id, params.items())])
+        return self.connection._send_packet(self.packet_type, ((self.name, self.id, params.items()),))
 
 
 class AsyncIteratorMixin:
