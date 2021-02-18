@@ -85,8 +85,8 @@ from functools import partial
 import logging
 import platform
 import warnings
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, Connection, Field
-from ncplib.errors import CommandError, CommandWarning
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
+from ncplib.errors import CommandError, CommandWarning, NCPWarning
 
 
 __all__ = (
@@ -124,7 +124,6 @@ async def connect(
     remote_hostname: str = None,
     hostname: str = None,
     timeout: int = DEFAULT_TIMEOUT,
-    auto_auth: bool = True,
     auto_erro: bool = True,
     auto_warn: bool = True,
     auto_ackn: bool = True,
@@ -136,11 +135,9 @@ async def connect(
     :param int port: The port number of the :doc:`server`.
     :param str remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
         be the host:port of the NCP server.
-    :param str hostname: The identifying hostname in the client connection. Only applies when ``auto_auth`` is
-        enabled. Defaults to the system hostname.
+    :param str hostname: The identifying hostname in the client connection. Defaults to the system hostname.
     :param int timeout: The network timeout (in seconds). Applies to: connecting, receiving a packet, closing
         connection.
-    :param bool auto_auth: Automatically perform the :term:`NCP` authentication handshake on connect.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
@@ -159,22 +156,24 @@ async def connect(
     )
     # Handle auto auth.
     try:
-        if auto_auth:
-            hostname = hostname or platform.node() or "python3-ncplib"
-            # Read the initial LINK HELO packet.
-            await connection.recv_field("LINK", "HELO")
-            # Send the connection request.
-            connection.send("LINK", "CCRE", CIW=hostname)
-            # Read the connection response packet.
-            await connection.recv_field("LINK", "SCAR")
-            # Send the auth request packet.
-            connection.send("LINK", "CARE", CAR=hostname)
-            # Read the auth response packet.
-            await connection.recv_field("LINK", "SCON")
+        hostname = hostname or platform.node() or "python3-ncplib"
+        # Read the initial LINK HELO packet.
+        await connection.recv_field("LINK", "HELO")
+        # Send the connection request.
+        connection.send("LINK", "CCRE", CIW=hostname, LINK=timeout)
+        # Read the connection response packet.
+        remote_timeout = _decode_remote_timeout(await connection.recv_field("LINK", "SCAR"))
+        # Send the auth request packet.
+        connection.send("LINK", "CARE", CAR=hostname)
+        # Read the auth response packet.
+        await connection.recv_field("LINK", "SCON")
     except BaseException:
         connection.close()
         await connection.wait_closed()
         raise
+    # Start keep-alive packets.
+    if remote_timeout != timeout:
+        warnings.warn(NCPWarning(f"Server changed connection timeout to {remote_timeout}"))
+    connection._apply_remote_timeout(remote_timeout)
     # All done!
-    connection._start_tasks()
     return connection

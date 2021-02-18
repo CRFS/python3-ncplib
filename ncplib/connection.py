@@ -105,6 +105,13 @@ async def _wait_for(coro: Awaitable[T], ms: int) -> T:
         raise NetworkError(ex) from ex
 
 
+def _decode_remote_timeout(field: Field) -> int:
+    remote_timeout = field.get("LINK", 0)
+    if isinstance(remote_timeout, int) and remote_timeout >= 0:
+        return remote_timeout
+    raise DecodeError(f"Invalid {field.packet_type} {field.name} LINK param: {remote_timeout!r}")
+
+
 class Field(Dict[str, Param]):
 
     """
@@ -300,21 +307,19 @@ class Connection(AsyncIteratorMixin):
 
         The identifying hostname for the remote end of the connection.
 
-    .. attribute:: timeout
-
-        The network timeout (in seconds). If `None`, no timeout is used, which can lead to deadlocks. Applies to:
-        receiving a packet, closing connection.
-
     """
 
+    _loop: asyncio.AbstractEventLoop
     logger: logging.Logger
     _reader: asyncio.StreamReader
     _predicate: Callable[[Field], bool]
     _field_buffer: List[Field]
-    timeout: int
+    _timeout: int
     _writer: asyncio.StreamWriter
+    _remote_timeout: int
+    _link_send_interval: int
+    _link_send_handle: Optional[asyncio.Handle]
     remote_hostname: str
-    _auto_link_task: Optional[asyncio.Task]
 
     def __init__(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, predicate: Callable[[Field], bool], *,
@@ -322,6 +327,7 @@ class Connection(AsyncIteratorMixin):
         remote_hostname: str,
         timeout: int,
     ):
+        self._loop = asyncio.get_running_loop()
         # Logging.
         self.logger = logger
         self.logger.info("Connected to %s over NCP", remote_hostname)
@@ -329,12 +335,14 @@ class Connection(AsyncIteratorMixin):
         self._reader = reader
         self._predicate = predicate  # type: ignore
         self._field_buffer = []
-        self.timeout = timeout
+        self._timeout = timeout
         # Packet writing.
         self._writer = writer
+        self._remote_timeout = 0
+        self._link_send_interval = 3
+        self._link_send_handle = None
         # Config.
         self.remote_hostname = remote_hostname
-        self._auto_link_task = None
 
     @property
     def transport(self) -> asyncio.BaseTransport:
@@ -345,17 +353,28 @@ class Connection(AsyncIteratorMixin):
 
     # Background tasks.
 
-    async def _run_auto_link(self) -> None:
-        while not self._writer.transport.is_closing():
-            self._writer.write(b"".join((
-                b'\xdd\xcc\xbb\xaaLINK\n\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00',
-                int(time()).to_bytes(4, "little"),
-                LINK_TRAILER,
-            )))
-            await asyncio.sleep(int(self.timeout * 0.66))
+    def _send_link(self) -> None:
+        self._writer.write(b"".join((
+            b'\xdd\xcc\xbb\xaaLINK\n\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00',
+            int(time()).to_bytes(4, "little"),
+            LINK_TRAILER,
+        )))
+        self._send_link_soon()
 
-    def _start_tasks(self) -> None:
-        self._auto_link_task = asyncio.get_running_loop().create_task(self._run_auto_link())
+    def _send_link_soon(self) -> None:
+        self._link_send_handle = self._loop.call_later(self._link_send_interval, self._send_link)
+
+    def _apply_remote_timeout(self, remote_timeout: int) -> None:
+        if remote_timeout == 0:
+            # The remote does not understand CCRE LINK. Use legacy behaviour.
+            self._send_link()
+        else:
+            # The remote understands CCRE LINK. Configure the connection appropriately.
+            self._timeout = remote_timeout
+            self._remote_timeout = remote_timeout
+            self._link_send_interval = int(remote_timeout * 0.66)
+            # Send the first link packet in the future.
+            self._send_link_soon()
 
     # Receiving fields.
 
@@ -395,7 +414,7 @@ class Connection(AsyncIteratorMixin):
                     return field
             packet_type, packet_id, packet_timestamp, packet_info, fields = await _wait_for(
                 self._recv_packet(),
-                self.timeout,
+                self._timeout,
             )
             # Store the fields in the field buffer.
             self.logger.debug("Received packet %s from %s over NCP", packet_type, self.remote_hostname)
@@ -430,6 +449,10 @@ class Connection(AsyncIteratorMixin):
         for field_name, field_id, params in fields:
             self.logger.debug("Sent field %s %s to %s over NCP", packet_type, field_name, self.remote_hostname)
             expected_fields.add((field_name, field_id))
+        # If the connection supports CCRE LINK, we can defer the LINK send.
+        if self._remote_timeout > 0 and self._link_send_handle is not None:
+            self._link_send_handle.cancel()
+            self._send_link_soon()
         # Create an iterator of response fields.
         return Response(self, packet_type, expected_fields)
 
@@ -501,9 +524,9 @@ class Connection(AsyncIteratorMixin):
             manually.
         """
         # Stop handlers.
-        if self._auto_link_task is not None:
-            self._auto_link_task.cancel()
-            self._auto_link_task = None
+        if self._link_send_handle is not None:
+            self._link_send_handle.cancel()
+            self._link_send_handle = None
         # Close the connection.
         self._writer.close()
         self.logger.info("Disconnected from %s over NCP", self.remote_hostname)
@@ -517,7 +540,7 @@ class Connection(AsyncIteratorMixin):
             If you use the connection as an *async context manager*, there's no need to call
             :meth:`Connection.wait_closed` manually.
         """
-        await _wait_for(self._writer.wait_closed(), self.timeout)
+        await _wait_for(self._writer.wait_closed(), self._timeout)
 
     async def __aenter__(self: T) -> T:
         return self

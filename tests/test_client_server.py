@@ -34,13 +34,11 @@ class ClientServerTestCase(AsyncTestCase):
 
     async def createServer(
         self,
-        client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler, *,
-        server_auto_auth: bool = True,
+        client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
     ) -> int:
         server = await ncplib.start_server(
             client_connected,
             "127.0.0.1", 0,
-            auto_auth=server_auto_auth,
         )
         await server.__aenter__()
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
@@ -48,14 +46,11 @@ class ClientServerTestCase(AsyncTestCase):
 
     async def createClient(
         self,
-        client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler, *,
-        client_auto_auth: bool = True,
-        server_auto_auth: bool = True,
+        client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
     ) -> ncplib.Connection:
-        port = await self.createServer(client_connected, server_auto_auth=server_auto_auth)
+        port = await self.createServer(client_connected)
         client = await ncplib.connect(
             "127.0.0.1", port,
-            auto_auth=client_auto_auth,
             hostname="ncplib-test",
         )
         await client.__aenter__()
@@ -126,17 +121,17 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.warning.detail, "Boom!")  # type: ignore
         self.assertEqual(cx.warning.code, 10)  # type: ignore
 
-    async def testAuthenticationError(self) -> None:
-        client = await self.createClient(client_auto_auth=False)
-        await client.recv_field("LINK", "HELO")
-        client.send("LINK", "CCRE")
-        with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
-            with self.assertRaises(ncplib.CommandError) as cx:
-                await client.recv()
-        self.assertEqual(cx.exception.field.packet_type, "LINK")
-        self.assertEqual(cx.exception.field.name, "CCRE")
-        self.assertEqual(cx.exception.detail, "CIW - This field is required")
-        self.assertEqual(cx.exception.code, 401)
+    # async def testAuthenticationError(self) -> None:
+    #     client = await self.createClient(client_auto_auth=False)
+    #     await client.recv_field("LINK", "HELO")
+    #     client.send("LINK", "CCRE")
+    #     with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
+    #         with self.assertRaises(ncplib.CommandError) as cx:
+    #             await client.recv()
+    #     self.assertEqual(cx.exception.field.packet_type, "LINK")
+    #     self.assertEqual(cx.exception.field.name, "CCRE")
+    #     self.assertEqual(cx.exception.detail, "CIW - This field is required")
+    #     self.assertEqual(cx.exception.code, 401)
 
     async def testEncodeError(self) -> None:
         client = await self.createClient()
@@ -160,14 +155,14 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.detail, "Server error")
         self.assertEqual(cx.exception.code, 500)
 
-    async def testServerConnectionError(self) -> None:
-        with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
-            with self.assertRaises(ncplib.CommandError) as cx:
-                await self.createClient(error_server_handler, server_auto_auth=False)
-        self.assertEqual(cx.exception.field.packet_type, "LINK")
-        self.assertEqual(cx.exception.field.name, "ERRO")
-        self.assertEqual(cx.exception.detail, "Server error")
-        self.assertEqual(cx.exception.code, 500)
+    # async def testServerConnectionError(self) -> None:
+    #     with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
+    #         with self.assertRaises(ncplib.CommandError) as cx:
+    #             await self.createClient(error_server_handler, server_auto_auth=False)
+    #     self.assertEqual(cx.exception.field.packet_type, "LINK")
+    #     self.assertEqual(cx.exception.field.name, "ERRO")
+    #     self.assertEqual(cx.exception.detail, "Server error")
+    #     self.assertEqual(cx.exception.code, 500)
 
     async def testClientGracefulDisconnect(self) -> None:
         client_disconnected_event = asyncio.Event()
