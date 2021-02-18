@@ -208,9 +208,17 @@ class ClientServerTestCase(AsyncTestCase):
                 connection.send("LINK", "HELO")
                 await connection.recv_field("LINK", "CCRE")
                 connection.send("LINK", "SCAR", LINK="boom!")
-        with self.assertRaises(ncplib.DecodeError) as cm:
-            await self.createClientRaw(client_connected)
-        self.assertEqual(str(cm.exception), "Invalid LINK SCAR LINK param: 'boom!'")
+                await connection.recv_field("LINK", "CARE")
+                connection.send("LINK", "SCON")
+                connection._apply_remote_timeout(0)
+                field = await connection.recv()
+                field.send(ACKN=True)
+                field.send(**field)
+        with self.assertWarns(ncplib.DecodeWarning) as cm:
+            client = await self.createClientRaw(client_connected)
+        self.assertEqual(str(cm.warning), "Invalid LINK SCAR LINK param: 'boom!'")
+        response = client.send("LINK", "ECHO", FOO="BAR")
+        await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
     async def testServerChangeCcreLink(self) -> None:
         with self.assertWarns(ncplib.NCPWarning) as cm:
