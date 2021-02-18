@@ -8,6 +8,8 @@ Changelog
 
 - Added support for NCP connection timeout negotation, improving reliability and cleanup of NCP connections when
   supported by the remote.
+- Added support for NCP data types ``i64``, ``u64``, ``f32``, ``f64``, ``data u64``, ``data i64``, ``data f32`` and
+  ``data f64``.
 - :meth:`Response.recv` no longer requires the ID of the of :term:`NCP packet` in replies.
 - **Breaking:** ``auto_link`` and ``auto_auth`` arguments for :meth:`connect` and :meth:`start_server` removed.
 - **Breaking:** ``timeout`` argument for :meth:`connect` and :meth:`start_server` must be an integer, and can no longer
