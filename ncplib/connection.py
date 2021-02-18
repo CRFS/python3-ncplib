@@ -108,8 +108,8 @@ async def _wait_for(coro: Awaitable[T], ms: int) -> T:
 
 def _decode_remote_timeout(field: Field) -> int:
     remote_timeout = field.get("LINK", 0)
-    if isinstance(remote_timeout, int) and remote_timeout >= 0:
-        return remote_timeout
+    if isinstance(remote_timeout, (int, float)) and remote_timeout >= 0:
+        return int(remote_timeout)
     warnings.warn(DecodeWarning(f"Invalid {field.packet_type} {field.name} LINK param: {remote_timeout!r}"))
     return 0
 
