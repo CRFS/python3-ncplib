@@ -2,10 +2,10 @@ from __future__ import annotations
 from array import array
 from datetime import datetime, timezone
 from struct import Struct
-from typing import Callable, Iterable, List, Tuple, Union
+from typing import Callable, Sequence, List, Tuple, Union
 import warnings
 from ncplib.errors import DecodeError, DecodeWarning
-from ncplib.values import uint
+from ncplib.values import u32, i64, u64, f64
 
 
 # Packet structs.
@@ -15,6 +15,10 @@ PACKET_HEADER_STRUCT = Struct("<4s4sII4sII4s")
 FIELD_HEADER_STRUCT = Struct("<4s3s1sI")
 
 PARAM_HEADER_STRUCT = Struct("<4s3sB")
+
+VALUE_F32_STRUCT = Struct("<f")
+
+VALUE_F64_STRUCT = Struct("<d")
 
 
 # Sizes.
@@ -47,6 +51,14 @@ TYPE_U32 = 0x01
 
 TYPE_STRING = 0x02
 
+TYPE_I64 = 0x03
+
+TYPE_U64 = 0x04
+
+TYPE_F32 = 0x10
+
+TYPE_F64 = 0x11
+
 TYPE_RAW = 0x80
 
 TYPE_ARRAY_U8 = 0x81
@@ -61,6 +73,14 @@ TYPE_ARRAY_I16 = 0x85
 
 TYPE_ARRAY_I32 = 0x86
 
+TYPE_ARRAY_U64 = 0x87
+
+TYPE_ARRAY_I64 = 0x88
+
+TYPE_ARRAY_F32 = 0x90
+
+TYPE_ARRAY_F64 = 0x91
+
 
 # Packet encoding.
 
@@ -71,13 +91,17 @@ ARRAY_TYPE_CODES_TO_TYPE_ID = {
     "b": TYPE_ARRAY_I8,
     "h": TYPE_ARRAY_I16,
     "i": TYPE_ARRAY_I32,
+    "L": TYPE_ARRAY_U64,
+    "l": TYPE_ARRAY_I64,
+    "f": TYPE_ARRAY_F32,
+    "d": TYPE_ARRAY_F64,
 }
 
 
 Bytes = Union[bytes, bytearray]
-Param = Union[Bytes, str, int, uint, bool, array]
-Params = Iterable[Tuple[str, Param]]
-Fields = Iterable[Tuple[str, int, Params]]
+Param = Union[Bytes, str, int, float, u32, i64, u64, f64, bool, array]
+Params = Sequence[Tuple[str, Param]]
+Fields = Sequence[Tuple[str, int, Params]]
 Packet = Tuple[str, int, datetime, bytes, Fields]
 
 
@@ -113,24 +137,37 @@ def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: b
         offset += FIELD_HEADER_SIZE
         # Write the params.
         for param_name, param_value in params:
-            if isinstance(param_value, uint):
-                param_type_id = TYPE_U32
-                param_value = param_value.to_bytes(4, "little")
-            elif isinstance(param_value, (int, bool)):
+            param_type = param_value.__class__
+            if param_type is int or param_type is bool:
                 param_type_id = TYPE_I32
-                param_value = param_value.to_bytes(4, "little", signed=True)
-            elif isinstance(param_value, str):
+                param_value = param_value.to_bytes(4, "little", signed=True)  # type: ignore
+            elif param_type is u32:
+                param_type_id = TYPE_U32
+                param_value = param_value.to_bytes(4, "little")  # type: ignore
+            elif param_type is str:
                 param_type_id = TYPE_STRING
-                param_value = param_value.encode("utf-8") + b"\x00"
-            elif isinstance(param_value, (bytes, bytearray, memoryview)):
+                param_value = param_value.encode("utf-8") + b"\x00"  # type: ignore
+            elif param_type is i64:
+                param_type_id = TYPE_I64
+                param_value = param_value.to_bytes(8, "little", signed=True)  # type: ignore
+            elif param_type is u64:
+                param_type_id = TYPE_U64
+                param_value = param_value.to_bytes(8, "little")  # type: ignore
+            elif param_type is float:
+                param_type_id = TYPE_F32
+                param_value = VALUE_F32_STRUCT.pack(param_value)
+            elif param_type is f64:
+                param_type_id = TYPE_F64
+                param_value = VALUE_F64_STRUCT.pack(param_value)
+            elif param_type is bytes or param_type is bytearray or param_type is memoryview:
                 param_type_id = TYPE_RAW
-            elif isinstance(param_value, array):
-                param_type_id = ARRAY_TYPE_CODES_TO_TYPE_ID[param_value.typecode]
-                param_value = param_value.tobytes()
+            elif param_type is array:
+                param_type_id = ARRAY_TYPE_CODES_TO_TYPE_ID[param_value.typecode]  # type: ignore
+                param_value = param_value.tobytes()  # type: ignore
             else:  # pragma: no cover
                 raise TypeError(f"Unsupported value type {type(param_value)}")
             # Write the param header.
-            param_size = PARAM_HEADER_SIZE + len(param_value)
+            param_size = PARAM_HEADER_SIZE + len(param_value)  # type: ignore
             param_padding_size = -param_size % 4
             chunks.append(PARAM_HEADER_STRUCT.pack(
                 param_name.encode(),
@@ -138,7 +175,7 @@ def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: b
                 param_type_id,
             ))
             # Write the param value.
-            chunks.append(param_value)
+            chunks.append(param_value)  # type: ignore
             chunks.append(b"\x00" * param_padding_size)
             offset += param_size + param_padding_size
         # Write the field size.
@@ -192,12 +229,20 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                 # Decode the param value.
                 param_value_raw = buf[offset+PARAM_HEADER_SIZE:offset+param_size]
                 param_value: Param
-                if param_type_id == TYPE_U32:
-                    param_value = uint.from_bytes(param_value_raw, "little")
-                elif param_type_id == TYPE_I32:
+                if param_type_id == TYPE_I32:
                     param_value = int.from_bytes(param_value_raw, "little", signed=True)
+                elif param_type_id == TYPE_U32:
+                    param_value = u32.from_bytes(param_value_raw, "little")
                 elif param_type_id == TYPE_STRING:
                     param_value = param_value_raw.split(b"\x00", 1)[0].decode()
+                elif param_type_id == TYPE_I64:
+                    param_value = i64.from_bytes(param_value_raw, "little", signed=True)
+                elif param_type_id == TYPE_U64:
+                    param_value = u64.from_bytes(param_value_raw, "little")
+                elif param_type_id == TYPE_F32:
+                    param_value = VALUE_F32_STRUCT.unpack(param_value_raw)[0]
+                elif param_type_id == TYPE_F64:
+                    param_value = f64(VALUE_F64_STRUCT.unpack(param_value_raw)[0])
                 elif param_type_id == TYPE_RAW:
                     param_value = bytes(param_value_raw)
                 elif param_type_id == TYPE_ARRAY_U8:
@@ -212,6 +257,14 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                     param_value = array("h", param_value_raw)
                 elif param_type_id == TYPE_ARRAY_I32:
                     param_value = array("i", param_value_raw)
+                elif param_type_id == TYPE_ARRAY_U64:
+                    param_value = array("L", param_value_raw)
+                elif param_type_id == TYPE_ARRAY_I64:
+                    param_value = array("l", param_value_raw)
+                elif param_type_id == TYPE_ARRAY_F32:
+                    param_value = array("f", param_value_raw)
+                elif param_type_id == TYPE_ARRAY_F64:
+                    param_value = array("d", param_value_raw)
                 else:  # pragma: no cover
                     warnings.warn(DecodeWarning("Unsupported type ID", param_type_id))
                 # Store the param.

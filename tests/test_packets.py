@@ -2,9 +2,10 @@ from __future__ import annotations
 import unittest
 from array import array
 from datetime import datetime, timezone
+from math import inf
 from typing import Sequence, Tuple
 from ncplib.packets import Param, encode_packet, decode_packet
-from ncplib import uint
+from ncplib import u32, i64, u64, f64
 
 
 REAL_PACKET = (
@@ -29,15 +30,39 @@ REAL_PACKET_EMBEDDED_FOOTER_BUG = (
 
 
 PACKET_VALUES: Sequence[Tuple[Param, Param]] = [
-    # Integers.
+    # bool.
+    (True, 1),
+    (False, 0),
+    # i32.
     (-2 ** 31, -2 ** 31),
     (0, 0),
     (10, 10),
     (2 ** 31 - 1, 2 ** 31 - 1),
-    # Unsigned integers.
-    (uint(0), uint(0)),
-    (uint(10), uint(10)),
-    (uint(2 ** 32 - 1), uint(2 ** 32 - 1)),
+    # u32.
+    (u32(0), u32(0)),
+    (u32(10), u32(10)),
+    (u32(2 ** 32 - 1), u32(2 ** 32 - 1)),
+    # i64.
+    (i64(-2 ** 63), i64(-2 ** 63)),
+    (i64(0), i64(0)),
+    (i64(10), i64(10)),
+    (i64(2 ** 63 - 1), i64(2 ** 63 - 1)),
+    # u64.
+    (u64(0), u64(0)),
+    (u64(10), u64(10)),
+    (u64(2 ** 64 - 1), u64(2 ** 64 - 1)),
+    # f32.
+    (-inf, -inf),
+    (-1.0, -1.0),
+    (0.0, 0.0),
+    (1.0, 1.0),
+    (inf, inf),
+    # f64.
+    (f64(-inf), f64(-inf)),
+    (f64(-1.0), f64(-1.0)),
+    (f64(0.0), f64(0.0)),
+    (f64(1.0), f64(1.0)),
+    (f64(inf), f64(inf)),
     # Text.
     ("", ""),
     ("foo", "foo"),
@@ -45,39 +70,54 @@ PACKET_VALUES: Sequence[Tuple[Param, Param]] = [
     # Binary.
     (b"", b""),
     (b"foo", b"foo\x00"),
-    # U8 array.
+    # u8 array.
     (array("B", []), array("B", [])),
     (array("B", [0]), array("B", [0, 0, 0, 0])),
     (array("B", [10]), array("B", [10, 0, 0, 0])),
     (array("B", [2 ** 8 - 1]), array("B", [2 ** 8 - 1, 0, 0, 0])),
-    # U16 array.
+    # u16 array.
     (array("H", []), array("H", [])),
     (array("H", [0]), array("H", [0, 0])),
     (array("H", [10]), array("H", [10, 0])),
     (array("H", [2 ** 16 - 1]), array("H", [2 ** 16 - 1, 0])),
-    # U32 array.
+    # u32 array.
     (array("I", []), array("I", [])),
     (array("I", [0]), array("I", [0])),
     (array("I", [10]), array("I", [10])),
     (array("I", [2 ** 32 - 1]), array("I", [2 ** 32 - 1])),
-    # I8 array.
+    # i8 array.
     (array("b", []), array("b", [])),
     (array("b", [-2 ** 7]), array("b", [-2 ** 7, 0, 0, 0])),
     (array("b", [0]), array("b", [0, 0, 0, 0])),
     (array("b", [10]), array("b", [10, 0, 0, 0])),
     (array("b", [2 ** 7 - 1]), array("b", [2 ** 7 - 1, 0, 0, 0])),
-    # I16 array.
+    # i16 array.
     (array("h", []), array("h", [])),
     (array("h", [-2 ** 15]), array("h", [-2 ** 15, 0])),
     (array("h", [0]), array("h", [0, 0])),
     (array("h", [10]), array("h", [10, 0])),
     (array("h", [2 ** 15 - 1]), array("h", [2 ** 15 - 1, 0])),
-    # I32 array.
+    # i32 array.
     (array("i", []), array("i", [])),
     (array("i", [-2 ** 31]), array("i", [-2 ** 31])),
     (array("i", [0]), array("i", [0])),
     (array("i", [10]), array("i", [10])),
     (array("i", [2 ** 31 - 1]), array("i", [2 ** 31 - 1])),
+    # u64 array.
+    (array("L", []), array("L", [])),
+    (array("L", [0]), array("L", [0])),
+    (array("L", [10]), array("L", [10])),
+    (array("L", [2 ** 64 - 1]), array("L", [2 ** 64 - 1])),
+    # i64 array.
+    (array("l", []), array("l", [])),
+    (array("l", [-2 ** 63]), array("l", [-2 ** 63])),
+    (array("l", [0]), array("l", [0])),
+    (array("l", [10]), array("l", [10])),
+    (array("l", [2 ** 63 - 1]), array("l", [2 ** 63 - 1])),
+    # f32 array.
+    (array("f", [-inf, -1, 0, 1, inf]), array("f", [-inf, -1, 0, 1, inf])),
+    # f64 array.
+    (array("d", [-inf, -1, 0, 1, inf]), array("d", [-inf, -1, 0, 1, inf])),
 ]
 
 
@@ -95,7 +135,7 @@ class PacketDatasTestCase(unittest.TestCase):
     def testEncodeDecodeValue(self) -> None:
         packet_timestamp = datetime.now(tz=timezone.utc)
         for value, expected_value in PACKET_VALUES:
-            with self.subTest(value=value, expected_value=expected_value):
+            with self.subTest(type=value.__class__, value=value, expected_value=expected_value):
                 expected_packet = ("PACK", 10, packet_timestamp, b"INFO", [
                     ("FIEL", 20, [("PARA", expected_value)]),
                 ])
@@ -103,3 +143,8 @@ class PacketDatasTestCase(unittest.TestCase):
                     ("FIEL", 20, [("PARA", value)]),
                 ]))
                 self.assertEqual(decoded_packet, expected_packet)
+                decoded_value = decoded_packet[-1][0][-1][0][1]
+                decoded_type = decoded_value.__class__
+                self.assertIs(decoded_type, expected_value.__class__)
+                if decoded_type is array:
+                    self.assertEqual(value.typecode, decoded_value.typecode)  # type: ignore
