@@ -185,15 +185,17 @@ class ClientServerTestCase(AsyncTestCase):
 
     async def testServerLegacyCcreLink(self) -> None:
         async def client_connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-            connection = _create_server_connecton(reader, writer, 60)
-            connection.send("LINK", "HELO")
-            await connection.recv_field("LINK", "CCRE")
-            connection.send("LINK", "SCAR")
-            await connection.recv_field("LINK", "CARE")
-            connection.send("LINK", "SCON")
-            connection._apply_remote_timeout(0)
-            connection.remote_hostname = "ncplib-test"
-            await echo_server_handler(connection)
+            async with _create_server_connecton(reader, writer, 60) as connection:
+                connection.send("LINK", "HELO")
+                await connection.recv_field("LINK", "CCRE")
+                connection.send("LINK", "SCAR")
+                await connection.recv_field("LINK", "CARE")
+                connection.send("LINK", "SCON")
+                connection._apply_remote_timeout(0)
+                connection.remote_hostname = "ncplib-test"
+                field = await connection.recv()
+                field.send(ACKN=True)
+                field.send(**field)
         client = await self.createClientRaw(client_connected)
         response = client.send("LINK", "ECHO", FOO="BAR")
         await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
