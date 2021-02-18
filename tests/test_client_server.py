@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from functools import partial
-from typing import Awaitable, Callable, Mapping, MutableMapping
+from typing import Any, Awaitable, Callable, Mapping, MutableMapping
 import ncplib
 from ncplib.packets import Param
 from ncplib.server import _create_server_connecton
@@ -56,10 +56,11 @@ class ClientServerTestCase(AsyncTestCase):
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
         return server.sockets[0].getsockname()[1]
 
-    async def _createClient(self, port: int) -> ncplib.Connection:
+    async def _createClient(self, port: int, **kwargs: Any) -> ncplib.Connection:
         client = await ncplib.connect(
             "127.0.0.1", port,
             hostname="ncplib-test",
+            **kwargs,
         )
         await client.__aenter__()
         self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))
@@ -68,16 +69,18 @@ class ClientServerTestCase(AsyncTestCase):
     async def createClientRaw(
         self,
         client_connected: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]],
+        **kwargs: Any,
     ) -> ncplib.Connection:
         port = await self.createServerRaw(client_connected)
-        return await self._createClient(port)
+        return await self._createClient(port, **kwargs)
 
     async def createClient(
         self,
         client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
+        **kwargs: Any,
     ) -> ncplib.Connection:
         port = await self.createServer(client_connected)
-        return await self._createClient(port)
+        return await self._createClient(port, **kwargs)
 
     async def assertMessages(
         self, response: ncplib.Response, packet_type: str,
@@ -192,13 +195,30 @@ class ClientServerTestCase(AsyncTestCase):
                 await connection.recv_field("LINK", "CARE")
                 connection.send("LINK", "SCON")
                 connection._apply_remote_timeout(0)
-                connection.remote_hostname = "ncplib-test"
                 field = await connection.recv()
                 field.send(ACKN=True)
                 field.send(**field)
         client = await self.createClientRaw(client_connected)
         response = client.send("LINK", "ECHO", FOO="BAR")
         await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
+
+    async def testServerInvalidCcreLink(self) -> None:
+        async def client_connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            async with _create_server_connecton(reader, writer, 60) as connection:
+                connection.send("LINK", "HELO")
+                await connection.recv_field("LINK", "CCRE")
+                connection.send("LINK", "SCAR", LINK="boom!")
+        with self.assertRaises(ncplib.DecodeError) as cm:
+            await self.createClientRaw(client_connected)
+        self.assertEqual(str(cm.exception), "Invalid LINK SCAR LINK param: 'boom!'")
+
+    async def testServerChangeCcreLink(self) -> None:
+        with self.assertWarns(ncplib.NCPWarning) as cm:
+            client = await self.createClient(timeout=9999)
+        self.assertEqual(str(cm.warnings[0].message), "Changed connection timeout from 9999 to 60")
+        self.assertEqual(str(cm.warnings[1].message), "Server changed connection timeout to 60")
+        self.assertEqual(client._timeout, 60)
+        self.assertEqual(client._link_send_interval, 39)
 
     async def testClientGracefulDisconnect(self) -> None:
         client_disconnected_event = asyncio.Event()

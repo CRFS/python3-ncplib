@@ -173,7 +173,7 @@ async def connect(
         await connection.wait_closed()
         raise
     # Start keep-alive packets.
-    if remote_timeout != 0 and remote_timeout != timeout:  # pragma: no cover
+    if remote_timeout != 0 and remote_timeout != timeout:
         warnings.warn(NCPWarning(f"Server changed connection timeout to {remote_timeout}"))
     connection._apply_remote_timeout(remote_timeout)
     # All done!
