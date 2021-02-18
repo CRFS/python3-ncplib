@@ -146,18 +146,6 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.warning.detail, "Boom!")  # type: ignore
         self.assertEqual(cx.warning.code, 10)  # type: ignore
 
-    # async def testAuthenticationError(self) -> None:
-    #     client = await self.createClient(client_auto_auth=False)
-    #     await client.recv_field("LINK", "HELO")
-    #     client.send("LINK", "CCRE")
-    #     with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
-    #         with self.assertRaises(ncplib.CommandError) as cx:
-    #             await client.recv()
-    #     self.assertEqual(cx.exception.field.packet_type, "LINK")
-    #     self.assertEqual(cx.exception.field.name, "CCRE")
-    #     self.assertEqual(cx.exception.detail, "CIW - This field is required")
-    #     self.assertEqual(cx.exception.code, 401)
-
     async def testEncodeError(self) -> None:
         client = await self.createClient()
         client._writer.write(b"Boom!" * 1024)

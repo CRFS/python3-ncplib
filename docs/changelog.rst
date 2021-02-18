@@ -3,6 +3,18 @@ Changelog
 
 .. currentmodule:: ncplib
 
+5.0.0 - 18/02/2021
+------------------
+
+- Added support for NCP connection timeout negotation, improving reliability and cleanup of NCP connections when
+  supported by the remote.
+- :meth:`Response.recv` no longer requires the ID of the of :term:`NCP packet` in replies.
+- **Breaking:** ``auto_link`` and ``auto_auth`` arguments for :meth:`connect` and :meth:`start_server` removed.
+- **Breaking:** ``timeout`` argument for :meth:`connect` and :meth:`start_server` must be an integer, and can no longer
+  be None.
+- **Breaking:** Removed ``timeout`` attribute from :class:`Connection`.
+
+
 4.1.1 - 14/09/2020
 ------------------
 
