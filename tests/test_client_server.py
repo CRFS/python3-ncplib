@@ -155,15 +155,6 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.detail, "Server error")
         self.assertEqual(cx.exception.code, 500)
 
-    # async def testServerConnectionError(self) -> None:
-    #     with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
-    #         with self.assertRaises(ncplib.CommandError) as cx:
-    #             await self.createClient(error_server_handler, server_auto_auth=False)
-    #     self.assertEqual(cx.exception.field.packet_type, "LINK")
-    #     self.assertEqual(cx.exception.field.name, "ERRO")
-    #     self.assertEqual(cx.exception.detail, "Server error")
-    #     self.assertEqual(cx.exception.code, 500)
-
     async def testClientGracefulDisconnect(self) -> None:
         client_disconnected_event = asyncio.Event()
         client = await self.createClient(partial(disconnect_server_handler, client_disconnected_event))
