@@ -201,13 +201,7 @@ class Server:
             connection.send("LINK", "HELO")
             # Read the hostname.
             field = await connection.recv_field("LINK", "CCRE")
-            try:
-                connection.remote_hostname = str(field["CIW"])
-            except KeyError:
-                # Handle authentication failure.
-                logger.warning("Invalid authentication from %s over NCP", connection.remote_hostname)
-                field.send(ERRO="CIW - This field is required", ERRC=401)
-                return
+            connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
             # Read the remote timeout.
             raw_remote_timeout = _decode_remote_timeout(field)
             remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
