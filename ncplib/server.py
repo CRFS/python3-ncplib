@@ -148,6 +148,15 @@ def _server_predicate(field: Field) -> bool:
     return True
 
 
+def _create_server_connecton(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, timeout: int) -> Connection:
+    return Connection(
+        reader, writer, _server_predicate,
+        logger=logger,
+        remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
+        timeout=timeout,
+    )
+
+
 class Server:
 
     """
@@ -186,14 +195,9 @@ class Server:
         self._handlers = set()
 
     async def _run_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        connection = Connection(
-            reader, writer, _server_predicate,
-            logger=logger,
-            remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
-            timeout=self._timeout,
-        )
+        connection = _create_server_connecton(reader, writer, self._timeout)
         try:
-            # Handle auto-auth.
+            # Handle auth.
             connection.send("LINK", "HELO")
             # Read the hostname.
             field = await connection.recv_field("LINK", "CCRE")
@@ -206,7 +210,7 @@ class Server:
                 return
             # Read the remote timeout.
             raw_remote_timeout = _decode_remote_timeout(field)
-            remote_timeout = max(min(raw_remote_timeout, 60), 5)
+            remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
             if raw_remote_timeout != remote_timeout:
                 warnings.warn(NCPWarning(f"Changed connection timeout from {raw_remote_timeout} to {remote_timeout}"))
             # Complete authentication.

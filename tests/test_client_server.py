@@ -5,6 +5,7 @@ from functools import partial
 from typing import Awaitable, Callable, Mapping, MutableMapping
 import ncplib
 from ncplib.packets import Param
+from ncplib.server import _create_server_connecton
 from tests.base import AsyncTestCase
 
 
@@ -181,6 +182,21 @@ class ClientServerTestCase(AsyncTestCase):
             writer.close()
         with self.assertRaises(ncplib.ConnectionClosed):
             await self.createClientRaw(client_connected)
+
+    async def testServerLegacyCcreLink(self) -> None:
+        async def client_connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            connection = _create_server_connecton(reader, writer, 60)
+            connection.send("LINK", "HELO")
+            await connection.recv_field("LINK", "CCRE")
+            connection.send("LINK", "SCAR")
+            await connection.recv_field("LINK", "CARE")
+            connection.send("LINK", "SCON")
+            connection._apply_remote_timeout(0)
+            connection.remote_hostname = "ncplib-test"
+            await echo_server_handler(connection)
+        client = await self.createClientRaw(client_connected)
+        response = client.send("LINK", "ECHO", FOO="BAR")
+        await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
 
     async def testClientGracefulDisconnect(self) -> None:
         client_disconnected_event = asyncio.Event()

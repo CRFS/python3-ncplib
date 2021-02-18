@@ -146,6 +146,7 @@ async def connect(
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
+    assert timeout > 0, "timeout must be greater than 0"
     # Create the network connection.
     reader, writer = await _wait_for(asyncio.open_connection(host, port), timeout)
     connection = Connection(
@@ -154,7 +155,7 @@ async def connect(
         remote_hostname=f"{host}:{port}" if remote_hostname is None else remote_hostname,
         timeout=timeout,
     )
-    # Handle auto auth.
+    # Handle auth.
     try:
         hostname = hostname or platform.node() or "python3-ncplib"
         # Read the initial LINK HELO packet.
