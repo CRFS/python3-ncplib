@@ -66,7 +66,8 @@ from time import time
 from types import TracebackType
 from typing import AsyncIterator, Awaitable, Callable, Dict, List, Mapping, Optional, Set, Tuple, Type, TypeVar
 from uuid import getnode as get_mac
-from ncplib.errors import NetworkError, NetworkTimeoutError, ConnectionClosed, DecodeError
+import warnings
+from ncplib.errors import NetworkError, NetworkTimeoutError, ConnectionClosed, DecodeError, DecodeWarning
 from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
@@ -109,7 +110,8 @@ def _decode_remote_timeout(field: Field) -> int:
     remote_timeout = field.get("LINK", 0)
     if isinstance(remote_timeout, int) and remote_timeout >= 0:
         return remote_timeout
-    raise DecodeError(f"Invalid {field.packet_type} {field.name} LINK param: {remote_timeout!r}")
+    warnings.warn(DecodeWarning(f"Invalid {field.packet_type} {field.name} LINK param: {remote_timeout!r}"))
+    return 0
 
 
 class Field(Dict[str, Param]):
