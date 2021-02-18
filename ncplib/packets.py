@@ -88,7 +88,7 @@ def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: b
     PACKET_HEADER_STRUCT.pack_into(
         packet_header, 0,
         PACKET_HEADER,  # Hardcoded packet header.
-        packet_type.encode("latin1"),
+        packet_type.encode(),
         0,  # Placeholder for the packet size, which we will calculate soon.
         packet_id,
         PACKET_VERSION,
@@ -104,7 +104,7 @@ def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: b
         field_header = bytearray(FIELD_HEADER_SIZE)
         FIELD_HEADER_STRUCT.pack_into(
             field_header, 0,
-            field_name.encode("latin1"),
+            field_name.encode(),
             b"\x00\x00\x00",  # Placeholder for the field size, which we will calculate soom.
             b"\x00",  # Field type ID is ignored.
             field_id,
@@ -133,7 +133,7 @@ def encode_packet(packet_type: str, packet_id: int, timestamp: datetime, info: b
             param_size = PARAM_HEADER_SIZE + len(param_value)
             param_padding_size = -param_size % 4
             chunks.append(PARAM_HEADER_STRUCT.pack(
-                param_name.encode("latin1"),
+                param_name.encode(),
                 ((param_size + param_padding_size) // 4).to_bytes(3, "little"),
                 param_type_id,
             ))
@@ -215,19 +215,19 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                 else:  # pragma: no cover
                     warnings.warn(DecodeWarning("Unsupported type ID", param_type_id))
                 # Store the param.
-                params.append((param_name.rstrip(b" \x00").decode("latin1"), param_value))
+                params.append((param_name.rstrip(b" \x00").decode(), param_value))
                 offset += param_size
                 # Check for param overflow.
                 if offset > param_limit:  # pragma: no cover
                     raise DecodeError(f"Parameter overflow by {offset - param_limit} bytes")
             # Store the field.
-            fields.append((field_name.rstrip(b" \x00").decode("latin1"), field_id, params))
+            fields.append((field_name.rstrip(b" \x00").decode(), field_id, params))
         # Check for field overflow.
         if offset > field_limit:  # pragma: no cover
             raise DecodeError(f"Field overflow by {offset - field_limit} bytes")
         # All done!
         return (
-            packet_type.rstrip(b" \x00").decode("latin1"),
+            packet_type.rstrip(b" \x00").decode(),
             packet_id,
             datetime.fromtimestamp(packet_time, tz=timezone.utc).replace(microsecond=packet_nanotime // 1000),
             packet_info,
