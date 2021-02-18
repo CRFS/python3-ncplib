@@ -5,6 +5,8 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PYTHONDEVMODE: 1
     strategy:
       matrix:
         python-version: [3.7, 3.8, 3.9]
