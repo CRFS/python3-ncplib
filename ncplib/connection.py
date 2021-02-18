@@ -361,6 +361,7 @@ class Connection(AsyncIteratorMixin):
             int(time()).to_bytes(4, "little"),
             LINK_TRAILER,
         )))
+        self.logger.debug("Sent keep-alive to %s over NCP", self.remote_hostname)
         self._send_link_soon()
 
     def _send_link_soon(self) -> None:
