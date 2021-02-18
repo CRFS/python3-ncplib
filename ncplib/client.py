@@ -155,7 +155,7 @@ async def connect(
         timeout=timeout,
     )
     # Handle auto auth.
-    async with connection:
+    try:
         hostname = hostname or platform.node() or "python3-ncplib"
         # Read the initial LINK HELO packet.
         await connection.recv_field("LINK", "HELO")
@@ -167,6 +167,10 @@ async def connect(
         connection.send("LINK", "CARE", CAR=hostname)
         # Read the auth response packet.
         await connection.recv_field("LINK", "SCON")
+    except BaseException:  # pragma: no cover
+        connection.close()
+        await connection.wait_closed()
+        raise
     # Start keep-alive packets.
     if remote_timeout != timeout:
         warnings.warn(NCPWarning(f"Server changed connection timeout to {remote_timeout}"))
