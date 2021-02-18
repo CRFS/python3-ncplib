@@ -190,7 +190,7 @@ class Field(Dict[str, Param]):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self.connection._send_packet(self.packet_type, self.packet_id, [(self.name, self.id, params.items())])
+        return self.connection._send_packet(self.packet_type, [(self.name, self.id, params.items())])
 
 
 class AsyncIteratorMixin:
@@ -444,8 +444,8 @@ class Connection(AsyncIteratorMixin):
 
     # Packet writing.
 
-    def _send_packet(self, packet_type: str, packet_id: int, fields: Fields) -> Response:
-        encoded_packet = encode_packet(packet_type, packet_id, datetime.now(tz=timezone.utc), CLIENT_ID, fields)
+    def _send_packet(self, packet_type: str, fields: Fields) -> Response:
+        encoded_packet = encode_packet(packet_type, 1, datetime.now(tz=timezone.utc), CLIENT_ID, fields)
         self._writer.write(encoded_packet)
         self.logger.debug("Sent packet %s to %s over NCP", packet_type, self.remote_hostname)
         expected_fields = set()
@@ -482,7 +482,7 @@ class Connection(AsyncIteratorMixin):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, _gen_id(), [
+        return self._send_packet(packet_type, [
             (field_name, _gen_id(), field_params.items())
             for field_name, field_params
             in fields.items()
@@ -505,7 +505,7 @@ class Connection(AsyncIteratorMixin):
         :raises TypeError: if any of the parameter values were not one of the supported
             :doc:`value types <values>`.
         """
-        return self._send_packet(packet_type, _gen_id(), [(field_name, _gen_id(), params.items())])
+        return self._send_packet(packet_type, ((field_name, _gen_id(), params.items()),))
 
     # Connection lifecycle.
 
