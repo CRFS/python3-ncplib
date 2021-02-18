@@ -32,6 +32,17 @@ class ClientServerTestCase(AsyncTestCase):
 
     # Helpers.
 
+    async def createServerRaw(
+        self,
+        client_connected: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]],
+    ) -> int:
+        server = await asyncio.start_server(
+            client_connected,
+            "127.0.0.1", 0,
+        )
+        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
+        return server.sockets[0].getsockname()[1]  # type: ignore
+
     async def createServer(
         self,
         client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
@@ -44,7 +55,7 @@ class ClientServerTestCase(AsyncTestCase):
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
         return server.sockets[0].getsockname()[1]
 
-    async def createClientRaw(self, port: int) -> ncplib.Connection:
+    async def _createClient(self, port: int) -> ncplib.Connection:
         client = await ncplib.connect(
             "127.0.0.1", port,
             hostname="ncplib-test",
@@ -53,12 +64,19 @@ class ClientServerTestCase(AsyncTestCase):
         self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))
         return client
 
+    async def createClientRaw(
+        self,
+        client_connected: Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]],
+    ) -> ncplib.Connection:
+        port = await self.createServerRaw(client_connected)
+        return await self._createClient(port)
+
     async def createClient(
         self,
         client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
     ) -> ncplib.Connection:
         port = await self.createServer(client_connected)
-        return await self.createClientRaw(port)
+        return await self._createClient(port)
 
     async def assertMessages(
         self, response: ncplib.Response, packet_type: str,
@@ -161,14 +179,8 @@ class ClientServerTestCase(AsyncTestCase):
     async def testServerConnectionError(self) -> None:
         async def client_connected(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
             writer.close()
-        server = await asyncio.start_server(
-            client_connected,
-            "127.0.0.1", 0,
-        )
-        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
-        port = server.sockets[0].getsockname()[1]  # type: ignore
         with self.assertRaises(ncplib.ConnectionClosed):
-            await self.createClientRaw(port)
+            await self.createClientRaw(client_connected)
 
     async def testClientGracefulDisconnect(self) -> None:
         client_disconnected_event = asyncio.Event()
