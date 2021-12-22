@@ -88,7 +88,7 @@ import platform
 import ssl
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
-from ncplib.errors import CommandError, CommandWarning, NCPWarning
+from ncplib.errors import AuthenticationError, CommandError, CommandWarning, NCPWarning
 
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,7 @@ async def connect(
         Node.
     :raises ncplib.NCPError: if the NCP connection failed.
     :return: The client :class:`Connection`.
-    :rtype: Connection
+    :rtype: Connectionreader.readline()
     """
     assert timeout > 0, "timeout must be greater than 0"
     # Determine the default port.
@@ -164,8 +164,16 @@ async def connect(
     reader, writer = await _wait_for(asyncio.open_connection(host, port, ssl=ssl), timeout)
     # Authenticate.
     if ssl or username or password:
+        # Write the auth token.
         auth_token = b"Basic %s" % base64.b64encode(f"{username}:{password}".encode())
         writer.write(b"CONNECT ncp.service HTTP/1.1\r\nProxy-Authorization: %s\r\n\r\n" % auth_token)
+        # Check authentication success.
+        auth_response = await _wait_for(reader.readline(), timeout)
+        if auth_response != b"HTTP/1.1 200 OK\r\n":
+            raise AuthenticationError(auth_response.decode().strip())
+        # Wait for start of stream.
+        while (await _wait_for(reader.readline(), timeout)) != b"\r\n":
+            pass
     # Create the NCP connection.
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),

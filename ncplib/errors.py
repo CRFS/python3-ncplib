@@ -69,6 +69,13 @@ class NetworkError(NCPError, OSError):
     """
 
 
+class AuthenticationError(NCPError):
+
+    """
+    Raised when an NCP :class:`Connection` cannot authenticate.
+    """
+
+
 class NetworkTimeoutError(NCPError, asyncio.TimeoutError):
 
     """

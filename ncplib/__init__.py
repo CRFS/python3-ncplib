@@ -57,6 +57,7 @@ from ncplib.connection import Connection as Connection, Response as Response, Fi
 from ncplib.errors import (  # noqa
     NCPError as NCPError,
     NetworkError as NetworkError,
+    AuthenticationError as AuthenticationError,
     NetworkTimeoutError as NetworkTimeoutError,
     ConnectionClosed as ConnectionClosed,
     CommandError as CommandError,
