@@ -211,8 +211,9 @@ class ClientServerTestCase(AsyncTestCase):
     async def testServerChangeCcreLink(self) -> None:
         with self.assertWarns(ncplib.NCPWarning) as cm:
             client = await self.createClient(timeout=9999)
-        self.assertEqual(str(cm.warnings[0].message), "Changed connection timeout from 9999 to 60")
-        self.assertEqual(str(cm.warnings[1].message), "Server changed connection timeout to 60")
+        warnings = [str(w.message) for w in cm.warnings]
+        self.assertIn("Changed connection timeout from 9999 to 60", warnings)
+        self.assertIn("Server changed connection timeout to 60", warnings)
         self.assertEqual(client._timeout, 60)
         self.assertEqual(client._link_send_interval, 39)
 
