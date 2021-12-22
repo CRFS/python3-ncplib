@@ -81,9 +81,11 @@ API reference
 """
 from __future__ import annotations
 import asyncio
+import base64
 from functools import partial
 import logging
 import platform
+import ssl
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
 from ncplib.errors import CommandError, CommandWarning, NCPWarning
@@ -115,13 +117,16 @@ def _client_predicate(field: Field, *, auto_erro: bool, auto_warn: bool, auto_ac
 
 
 async def connect(
-    host: str, port: int = 9999, *,
+    host: str, port: int | None = None, *,
     remote_hostname: str | None = None,
     hostname: str | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     auto_erro: bool = True,
     auto_warn: bool = True,
     auto_ackn: bool = True,
+    ssl: bool | ssl.SSLContext = False,
+    username: str = "",
+    password: str = "",
 ) -> Connection:
     """
     Connects to a :doc:`server`.
@@ -137,13 +142,31 @@ async def connect(
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
         :term:`NCP parameter`.
+    :param bool ssl: Connect to the Node using an encrypted (TLS) connection. Requires TLS support on the Node, and
+        requires authentication.
+    :param str username: Authenticate with the Node using the given username. Requires authentication support on the
+        Node.
+    :param str password: Authenticate with the Node using the given password. Requires authentication support on the
+        Node.
     :raises ncplib.NCPError: if the NCP connection failed.
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
     assert timeout > 0, "timeout must be greater than 0"
+    # Determine the default port.
+    default_port = 9999
+    if ssl:
+        default_port = 443
+    elif username or password:
+        default_port = 80
     # Create the network connection.
-    reader, writer = await _wait_for(asyncio.open_connection(host, port), timeout)
+    port = default_port if port is None else port
+    reader, writer = await _wait_for(asyncio.open_connection(host, port, ssl=ssl), timeout)
+    # Authenticate.
+    if ssl or username or password:
+        auth_token = b"Basic %s" % base64.b64encode(f"{username}:{password}".encode())
+        writer.write(b"CONNECT ncp.service HTTP/1.1\r\nProxy-Authorization: %s\r\n\r\n" % auth_token)
+    # Create the NCP connection.
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         logger=logger,
