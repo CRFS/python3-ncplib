@@ -89,11 +89,6 @@ from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout
 from ncplib.errors import CommandError, CommandWarning, NCPWarning
 
 
-__all__ = (
-    "connect",
-)
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -121,8 +116,8 @@ def _client_predicate(field: Field, *, auto_erro: bool, auto_warn: bool, auto_ac
 
 async def connect(
     host: str, port: int = 9999, *,
-    remote_hostname: str = None,
-    hostname: str = None,
+    remote_hostname: str | None = None,
+    hostname: str | None = None,
     timeout: int = DEFAULT_TIMEOUT,
     auto_erro: bool = True,
     auto_warn: bool = True,

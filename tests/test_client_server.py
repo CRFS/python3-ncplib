@@ -54,7 +54,7 @@ class ClientServerTestCase(AsyncTestCase):
         )
         await server.__aenter__()
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
-        return server.sockets[0].getsockname()[1]
+        return server.sockets[0].getsockname()[1]  # type: ignore
 
     async def _createClient(self, port: int, **kwargs: Any) -> ncplib.Connection:
         client = await ncplib.connect(
@@ -149,7 +149,7 @@ class ClientServerTestCase(AsyncTestCase):
     async def testEncodeError(self) -> None:
         client = await self.createClient()
         client._writer.write(b"Boom!" * 1024)
-        with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
+        with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(ncplib.CommandError) as cx:
                 while True:
                     await client.recv()
@@ -159,7 +159,7 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.code, 400)
 
     async def testTopLevelServerError(self) -> None:
-        with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
+        with self.assertLogs("ncplib.server", "ERROR"):
             client = await self.createClient(error_server_handler)
             with self.assertRaises(ncplib.CommandError) as cx:
                 await client.recv()

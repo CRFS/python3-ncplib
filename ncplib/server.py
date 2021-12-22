@@ -132,12 +132,6 @@ from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout
 from ncplib.errors import NCPError, NCPWarning
 
 
-__all__ = (
-    "start_server",
-    "Server",
-)
-
-
 T = TypeVar("T")
 
 
@@ -180,7 +174,7 @@ class Server:
     _host: str
     _port: int
     _timeout: int
-    _handlers: Set[asyncio.Task]
+    _handlers: Set[asyncio.Task[None]]
 
     def __init__(
         self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
@@ -200,7 +194,7 @@ class Server:
             # Handle auth.
             connection.send("LINK", "HELO")
             # Read the hostname.
-            field = await connection.recv_field("LINK", "CCRE")
+            field = await connection.recv_field("LINK", "_handlersCCRE")
             connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
             # Read the remote timeout.
             raw_remote_timeout = _decode_remote_timeout(field)
@@ -251,7 +245,7 @@ class Server:
         """
         A list of the connected listening sockets.
         """
-        return self._server.sockets  # type: ignore
+        return self._server.sockets
 
     def close(self) -> None:
         """
