@@ -194,7 +194,7 @@ class Server:
             # Handle auth.
             connection.send("LINK", "HELO")
             # Read the hostname.
-            field = await connection.recv_field("LINK", "_handlersCCRE")
+            field = await connection.recv_field("LINK", "CCRE")
             connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
             # Read the remote timeout.
             raw_remote_timeout = _decode_remote_timeout(field)
