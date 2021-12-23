@@ -123,11 +123,10 @@ API reference
 """
 from __future__ import annotations
 import asyncio
-from functools import Partial
-from types import TracebackType
-from typing import Awaitable, Callable, Optional, Sequence, Type, TypeVar
+from functools import partial
+from typing import Awaitable, Callable, Optional, TypeVar
 import logging
-from socket import socket
+import ssl
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
 from ncplib.errors import NCPError, NCPWarning
@@ -150,122 +149,6 @@ def _create_server_connecton(reader: asyncio.StreamReader, writer: asyncio.Strea
         remote_hostname=":".join(map(str, writer.get_extra_info("peername")[:2])),
         timeout=timeout,
     )
-
-
-class Server:
-
-    """
-    A :doc:`server`.
-
-    Servers can be used as *async context managers* to automatically shut down the server:
-
-    .. code:: python
-
-        async with server:
-            pass
-
-        # Server is automatically shut down.
-
-    .. important::
-
-        Do not instantiate this class directly. Use :func:`start_server` to create a :class:`Server`.
-    """
-
-    _client_connected: Callable[[Connection], Awaitable[None]]
-    _server: asyncio.base_events.Server
-    _host: str
-    _port: int
-    _timeout: int
-
-    def __init__(
-        self, host: str, port: int, *,
-        timeout: int,
-    ):
-        self._client_connected = client_connected  # type: ignore
-        self._host = host
-        self._port = port
-        # Config.
-        self._timeout = timeout
-
-    async def _connect(self) -> None:
-        self._server = await _wait_for(
-            asyncio.start_server(self._run_client_connected, self._host, self._port),
-            self._timeout,
-        )
-        for s in self.sockets:
-            logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
-
-    @property
-    def sockets(self) -> Sequence[socket]:
-        """
-        A list of the connected listening sockets.        reveal_type(self._server)
-        """
-        return self._server.sockets
-
-    def close(self) -> None:
-        """
-        Shuts down the server.
-
-        After calling this method, use :meth:`wait_closed` to wait for the server to fully shut down.
-
-        .. hint::
-
-            If you use the server as an *async context manager*, there's no need to call :meth:`Server.close`
-            manually.
-        """
-        self._server.close()
-
-    async def wait_closed(self) -> None:
-        """
-        Waits for the server to fully shut down.
-
-        .. important::
-
-            Only call this method after first calling :meth:`close`.
-
-        .. hint::
-
-            If you use the server as an *async context manager*, there's no need to call
-            :meth:`Server.wait_closed` manually.
-        """
-        await _wait_for(self._server.wait_closed(), self._timeout)
-
-    async def __aenter__(self) -> "Server":
-        return self
-
-    async def __aexit__(self, exc_type: Optional[Type[T]], exc: Optional[T], tb: Optional[TracebackType]) -> None:
-        self.close()
-        await self.wait_closed()
-
-
-async def start_server(
-    client_connected: Callable[[Connection], Awaitable[None]],
-    host: str = "0.0.0.0", port: int = 9999, *,
-    timeout: int = DEFAULT_TIMEOUT,
-    start_serving: bool = True,
-
-) -> asyncio.base_events.Server:
-    """
-    Creates and returns a new :class:`Server` on the given host and port.
-
-    :param client_connected: A coroutine function taking a single :class:`Connection`
-            argument representing the client connection. When the connection handler exits, the :class:`Connection`
-            will automatically close. If the client closes the connection, the connection handler will exit.
-    :param str host: The host to bind the server to.
-    :param int port: The port to bind the server to.
-    :param int timeout: The network timeout (in seconds). Applies to: creating server, receiving a packet, closing
-        connection, closing server.
-    :param bool start_serving: Causes the created server to start accepting connections immediately.
-    :param ssl.SSLContext ssl: Start the server using an encrypted (TLS) connection.
-    :return: The created :class:`Server`.
-    :rtype: Server
-    """
-    asyncio.start_server(
-        partial(_client_connected, timeout, client_connected),
-        host=host, port=port,
-        ssl_handshake_timeout=timeout,
-    )
-
 
 
 async def _client_connected(
@@ -293,7 +176,7 @@ async def _client_connected(
         # Start keep-alive packets.
         connection._apply_remote_timeout(remote_timeout)
         # Handle connection.
-        await client_connected(connection)  # type: ignore
+        await client_connected(connection)
     # Close the connection.
     except asyncio.CancelledError:  # pragma: no cover
         raise  # Propagate cancels, not needed in Python3.8+.
@@ -311,3 +194,37 @@ async def _client_connected(
             await connection.wait_closed()
         except NCPError as ex:  # pragma: no cover
             logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
+
+
+async def start_server(
+    client_connected: Callable[[Connection], Awaitable[None]],
+    host: str = "0.0.0.0", port: int = 9999, *,
+    timeout: int = DEFAULT_TIMEOUT,
+    start_serving: bool = True,
+    ssl: Optional[ssl.SSLContext] = None,
+) -> asyncio.base_events.Server:
+    """
+    Creates and returns a new :class:`Server` on the given host and port.
+
+    :param client_connected: A coroutine function taking a single :class:`Connection`
+            argument representing the client connection. When the connection handler exits, the :class:`Connection`
+            will automatically close. If the client closes the connection, the connection handler will exit.
+    :param str host: The host to bind the server to.
+    :param int port: The port to bind the server to.
+    :param int timeout: The network timeout (in seconds). Applies to: creating server, receiving a packet, closing
+        connection, closing server.
+    :param bool start_serving: Causes the created server to start accepting connections immediately.
+    :param ssl.SSLContext ssl: Start the server using an encrypted (TLS) connection.
+    :return: The created :class:`Server`.
+    :rtype: Server
+    """
+    server = await _wait_for(asyncio.start_server(
+        partial(_client_connected, timeout, client_connected),
+        host=host, port=port,
+        ssl=ssl,
+        ssl_handshake_timeout=timeout if ssl else None,
+        start_serving=start_serving,
+    ), timeout)
+    for s in server.sockets:
+        logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
+    return server

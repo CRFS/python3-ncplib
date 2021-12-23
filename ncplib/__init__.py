@@ -66,5 +66,5 @@ from ncplib.errors import (  # noqa
     CommandWarning as CommandWarning,
     DecodeWarning as DecodeWarning,
 )
-from ncplib.server import start_server as start_server, Server as Server  # noqa
+from ncplib.server import start_server as start_server  # noqa
 from ncplib.values import u32 as u32, i64 as i64, u64 as u64, f64 as f64  # noqa

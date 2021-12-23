@@ -87,6 +87,7 @@ import logging
 import platform
 import re
 import ssl
+from typing import Optional
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
 from ncplib.errors import AuthenticationError, NetworkError, CommandError, CommandWarning, DecodeError, NCPWarning
@@ -130,9 +131,9 @@ def _decode_http_line(line: bytes, pattern: re.Pattern[str]) -> re.Match[str]:
 
 
 async def connect(
-    host: str, port: int | None = None, *,
-    remote_hostname: str | None = None,
-    hostname: str | None = None,
+    host: str, port: Optional[int] = None, *,
+    remote_hostname: Optional[str] = None,
+    hostname: Optional[str] = None,
     timeout: int = DEFAULT_TIMEOUT,
     auto_erro: bool = True,
     auto_warn: bool = True,
@@ -176,7 +177,7 @@ async def connect(
     reader, writer = await _wait_for(asyncio.open_connection(
         host, port,
         ssl=ssl,
-        ssl_handshake_timeout=timeout,
+        ssl_handshake_timeout=timeout if ssl else None,
     ), timeout)
     # Connect via HTTP tunnel.
     if ssl or username or password:
