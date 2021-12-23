@@ -16,6 +16,9 @@ API reference
 .. autoexception:: NetworkError
     :members:
 
+.. autoexception:: AuthenticationError
+    :members:
+
 .. autoexception:: NetworkTimeoutError
     :members:
 
