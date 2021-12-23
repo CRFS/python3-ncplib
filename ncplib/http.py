@@ -17,7 +17,7 @@ def _decode_http_line(pattern: "re.Pattern[str]", line: str) -> Tuple[str, ...]:
 
 
 async def decode_http_head(
-    pattern: re.Pattern[str],
+    pattern: "re.Pattern[str]",
     reader: asyncio.StreamReader,
 ) -> Tuple[Tuple[str, ...], Dict[str, str]]:
     try:
