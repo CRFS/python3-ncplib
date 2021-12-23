@@ -152,8 +152,10 @@ def _create_server_connecton(reader: asyncio.StreamReader, writer: asyncio.Strea
 
 
 async def _client_connected(
-    timeout: int,
     client_connected: Callable[[Connection], Awaitable[None]],
+    timeout: int,
+    ssl: bool,
+    authenticate: Callable[[str, str], bool],
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
 ) -> None:
@@ -202,6 +204,7 @@ async def start_server(
     timeout: int = DEFAULT_TIMEOUT,
     start_serving: bool = True,
     ssl: Optional[ssl.SSLContext] = None,
+    authenticate: Optional[Callable[[str, str], bool]] = None,
 ) -> asyncio.base_events.Server:
     """
     Creates and returns a new :class:`Server` on the given host and port.
@@ -215,11 +218,13 @@ async def start_server(
         connection, closing server.
     :param bool start_serving: Causes the created server to start accepting connections immediately.
     :param ssl.SSLContext ssl: Start the server using an encrypted (TLS) connection.
+    :param authenticate: A callable taking a username and password argument, returning True if the authentication is
+        successful, and false if not. When present, authentication is mandatory.
     :return: The created :class:`Server`.
     :rtype: Server
     """
     server = await _wait_for(asyncio.start_server(
-        partial(_client_connected, timeout, client_connected),
+        partial(_client_connected, client_connected, timeout, bool(ssl), authenticate),
         host=host, port=port,
         ssl=ssl,
         ssl_handshake_timeout=timeout if ssl else None,

@@ -85,12 +85,12 @@ import base64
 from functools import partial
 import logging
 import platform
-import re
 import ssl
 from typing import Optional
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
-from ncplib.errors import AuthenticationError, NetworkError, CommandError, CommandWarning, DecodeError, NCPWarning
+from ncplib.errors import AuthenticationError, NetworkError, CommandError, CommandWarning, NCPWarning
+from ncplib.http import RE_HTTP_STATUS, decode_http_line, decode_http_headers
 
 
 logger = logging.getLogger(__name__)
@@ -116,18 +116,6 @@ def _client_predicate(field: Field, *, auto_erro: bool, auto_warn: bool, auto_ac
             return False
     # Handle acks.
     return not auto_ackn or "ACKN" not in field
-
-
-_RE_HTTP_STATUS = re.compile(r'^HTTP/1.1 (\d+) (.*?)\r\n$')
-_RE_HTTP_HEADER = re.compile(r'^.*?: .*?\r\n$')
-
-
-def _decode_http_line(line: bytes, pattern: re.Pattern[str]) -> re.Match[str]:
-    line_str = line.decode("latin1")
-    match = pattern.match(line_str)
-    if match is None:
-        raise DecodeError(f"Invalid HTTP tunnel response: {line_str}")
-    return match
 
 
 async def connect(
@@ -187,17 +175,13 @@ async def connect(
             writer.write(b"Proxy-Authorization: Basic %s\r\n" % base64.b64encode(f"{username}:{password}".encode()))
         writer.write(b"\r\n")
         # Check authentication success.
-        status, message = _decode_http_line(await _wait_for(reader.readline(), timeout), _RE_HTTP_STATUS).groups()
+        status, message = decode_http_line(RE_HTTP_STATUS, await _wait_for(reader.readline(), timeout))
         if status == "401":
             raise AuthenticationError(f"HTTP {status} {message}")
         elif status != "200":
             raise NetworkError(f"HTTP {status} {message}")
         # Wait for start of stream.
-        while True:
-            line = (await _wait_for(reader.readline(), timeout))
-            if line == b"\r\n":
-                break
-            _decode_http_line(line, _RE_HTTP_HEADER)
+        await decode_http_headers(reader, timeout)
     # Create the NCP connection.
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
