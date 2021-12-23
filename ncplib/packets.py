@@ -236,7 +236,7 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                 elif param_type_id == TYPE_STRING:
                     try:
                         param_value = param_value_raw.split(b"\x00", 1)[0].decode()
-                    except UnicodeDecodeError as ex:
+                    except UnicodeDecodeError as ex:  # pragma: no cover
                         raise DecodeError(ex) from ex
                 elif param_type_id == TYPE_I64:
                     param_value = i64.from_bytes(param_value_raw, "little", signed=True)

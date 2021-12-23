@@ -172,7 +172,7 @@ async def connect(
         (status, message), _ = await _wait_for(decode_http_head(RE_HTTP_STATUS, reader), timeout)
         if status == "401":
             raise AuthenticationError(f"HTTP {status} {message}")
-        elif status != "200":
+        elif status != "200":  # pragma: no cover
             raise NetworkError(f"HTTP {status} {message}")
     # Create the NCP connection.
     connection = Connection(

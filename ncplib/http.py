@@ -11,7 +11,7 @@ _RE_HTTP_HEADER = re.compile(r'^(.*?): (.*?)$')
 
 def _decode_http_line(pattern: re.Pattern[str], line: str) -> Tuple[str, ...]:
     match = pattern.match(line)
-    if match is None:
+    if match is None:  # pragma: no cover
         raise DecodeError(f"Invalid HTTP tunnel response: {line}")
     return match.groups()
 
@@ -22,7 +22,7 @@ async def decode_http_head(
 ) -> Tuple[Tuple[str, ...], Dict[str, str]]:
     try:
         head = (await reader.readuntil(b"\r\n\r\n")).decode("latin1").split("\r\n")
-    except asyncio.IncompleteReadError as ex:
+    except asyncio.IncompleteReadError as ex:  # pragma: no cover
         raise DecodeError(f"Invalid HTTP tunnel response: {ex.partial.decode('latin1')}")
     headers = {}
     for line in head[1:-2]:

@@ -179,17 +179,17 @@ async def _client_connected(
         # Handle tunnel.
         if is_tunnel:
             (method, uri), headers = await _wait_for(decode_http_head(RE_HTTP_REQUEST, reader), timeout)
-            if method.upper() != "CONNECT":
+            if method.upper() != "CONNECT":  # pragma: no cover
                 _write_http_response(writer, b"405 Method Not Allowed")
                 return
-            if uri != "ncp.service":
+            if uri != "ncp.service":  # pragma: no cover
                 _write_http_response(writer, b"403 Forbidden")
                 return
             # Handle authentication.
             if authenticate:
                 try:
                     auth_method, auth_token = headers.get("proxy-authorization", "").split()
-                    if auth_method.lower() != "basic":
+                    if auth_method.lower() != "basic":    # pragma: no cover
                         raise ValueError
                     username, password = binascii.a2b_base64(auth_token).decode().split(":")
                     if not authenticate(username, password):
