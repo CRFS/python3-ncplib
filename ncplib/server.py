@@ -188,8 +188,8 @@ async def _client_connected(
             # Handle authentication.
             if authenticate:
                 try:
-                    auth_method, auth_token = headers.get("proxy-authorization", "").lower().split()
-                    if auth_method != "basic":
+                    auth_method, auth_token = headers.get("proxy-authorization", "").split()
+                    if auth_method.lower() != "basic":
                         raise ValueError
                     username, password = binascii.a2b_base64(auth_token).decode().split(":")
                     if not authenticate(username, password):
@@ -198,6 +198,7 @@ async def _client_connected(
                     _write_http_response(writer, b"401 Unauthorized", (
                         (b"Proxy-Authenticate", b"Basic realm=\"CRFS RFeye Node\", charset=\"utf-8\""),
                     ))
+            _write_http_response(writer, b"200 OK")
         # Handle handshake.
         connection.send("LINK", "HELO")
         # Read the hostname.
