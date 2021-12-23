@@ -151,7 +151,7 @@ async def connect(
         Node.
     :raises ncplib.NCPError: if the NCP connection failed.
     :return: The client :class:`Connection`.
-    :rtype: Connectionreader.readline()
+    :rtype: Connection
     """
     assert timeout > 0, "timeout must be greater than 0"
     port, is_tunnel = _handle_tunnel_args(port, bool(ssl), bool(username or password))
