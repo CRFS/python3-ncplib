@@ -117,9 +117,6 @@ API reference
 -------------
 
 .. autofunction:: start_server
-
-.. autoclass:: Server
-    :members:
 """
 from __future__ import annotations
 import asyncio
