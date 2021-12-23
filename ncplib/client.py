@@ -165,9 +165,9 @@ async def connect(
     if is_tunnel:
         writer.write((
             b"CONNECT ncp.service HTTP/1.1\r\n"
-            b"Host: %s\r\n"
             b"Proxy-Authorization: Basic %s\r\n"
-        ) % (host.encode(), binascii.b2a_base64(f"{username}:{password}".encode())))
+            b"\r\n"
+        ) % binascii.b2a_base64(f"{username}:{password}".encode(), newline=False))
         # Check authentication success.
         (status, message), _ = await _wait_for(decode_http_head(RE_HTTP_STATUS, reader), timeout)
         if status == "401":
