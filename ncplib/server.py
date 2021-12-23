@@ -123,6 +123,7 @@ API reference
 """
 from __future__ import annotations
 import asyncio
+from functools import Partial
 from types import TracebackType
 from typing import Awaitable, Callable, Optional, Sequence, Type, TypeVar
 import logging
@@ -171,12 +172,13 @@ class Server:
     """
 
     _client_connected: Callable[[Connection], Awaitable[None]]
+    _server: asyncio.base_events.Server
     _host: str
     _port: int
     _timeout: int
 
     def __init__(
-        self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
+        self, host: str, port: int, *,
         timeout: int,
     ):
         self._client_connected = client_connected  # type: ignore
@@ -184,45 +186,6 @@ class Server:
         self._port = port
         # Config.
         self._timeout = timeout
-
-    async def _run_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        connection = _create_server_connecton(reader, writer, self._timeout)
-        try:
-            # Handle auth.
-            connection.send("LINK", "HELO")
-            # Read the hostname.
-            field = await connection.recv_field("LINK", "CCRE")
-            connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
-            # Read the remote timeout.
-            raw_remote_timeout = _decode_remote_timeout(field)
-            remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
-            if raw_remote_timeout != remote_timeout:
-                warnings.warn(NCPWarning(f"Changed connection timeout from {raw_remote_timeout} to {remote_timeout}"))
-            # Complete authentication.
-            connection.send("LINK", "SCAR", LINK=remote_timeout)
-            await connection.recv_field("LINK", "CARE")
-            connection.send("LINK", "SCON")
-            # Start keep-alive packets.
-            connection._apply_remote_timeout(remote_timeout)
-            # Handle connection.
-            await self._client_connected(connection)  # type: ignore
-        # Close the connection.
-        except asyncio.CancelledError:  # pragma: no cover
-            raise  # Propagate cancels, not needed in Python3.8+.
-        except NCPError as ex:  # Warnings on client decode error.
-            logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
-            if not connection.is_closing():
-                connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-        except Exception as ex:
-            logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
-            if not connection.is_closing():
-                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
-        finally:
-            connection.close()
-            try:
-                await connection.wait_closed()
-            except NCPError as ex:  # pragma: no cover
-                logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
 
     async def _connect(self) -> None:
         self._server = await _wait_for(
@@ -235,7 +198,7 @@ class Server:
     @property
     def sockets(self) -> Sequence[socket]:
         """
-        A list of the connected listening sockets.
+        A list of the connected listening sockets.        reveal_type(self._server)
         """
         return self._server.sockets
 
@@ -279,7 +242,9 @@ async def start_server(
     client_connected: Callable[[Connection], Awaitable[None]],
     host: str = "0.0.0.0", port: int = 9999, *,
     timeout: int = DEFAULT_TIMEOUT,
-) -> Server:
+    start_serving: bool = True,
+
+) -> asyncio.base_events.Server:
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
@@ -290,9 +255,59 @@ async def start_server(
     :param int port: The port to bind the server to.
     :param int timeout: The network timeout (in seconds). Applies to: creating server, receiving a packet, closing
         connection, closing server.
+    :param bool start_serving: Causes the created server to start accepting connections immediately.
+    :param ssl.SSLContext ssl: Start the server using an encrypted (TLS) connection.
     :return: The created :class:`Server`.
     :rtype: Server
     """
-    server = Server(client_connected, host, port, timeout=timeout)
-    await server._connect()
-    return server
+    asyncio.start_server(
+        partial(_client_connected, timeout, client_connected),
+        host=host, port=port,
+        ssl_handshake_timeout=timeout,
+    )
+
+
+
+async def _client_connected(
+    timeout: int,
+    client_connected: Callable[[Connection], Awaitable[None]],
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+) -> None:
+    connection = _create_server_connecton(reader, writer, timeout)
+    try:
+        # Handle auth.
+        connection.send("LINK", "HELO")
+        # Read the hostname.
+        field = await connection.recv_field("LINK", "CCRE")
+        connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
+        # Read the remote timeout.
+        raw_remote_timeout = _decode_remote_timeout(field)
+        remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
+        if raw_remote_timeout != remote_timeout:
+            warnings.warn(NCPWarning(f"Changed connection timeout from {raw_remote_timeout} to {remote_timeout}"))
+        # Complete authentication.
+        connection.send("LINK", "SCAR", LINK=remote_timeout)
+        await connection.recv_field("LINK", "CARE")
+        connection.send("LINK", "SCON")
+        # Start keep-alive packets.
+        connection._apply_remote_timeout(remote_timeout)
+        # Handle connection.
+        await client_connected(connection)  # type: ignore
+    # Close the connection.
+    except asyncio.CancelledError:  # pragma: no cover
+        raise  # Propagate cancels, not needed in Python3.8+.
+    except NCPError as ex:  # Warnings on client decode error.
+        logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
+        if not connection.is_closing():
+            connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+    except Exception as ex:
+        logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
+        if not connection.is_closing():
+            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+    finally:
+        connection.close()
+        try:
+            await connection.wait_closed()
+        except NCPError as ex:  # pragma: no cover
+            logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)

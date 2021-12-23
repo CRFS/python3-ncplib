@@ -111,7 +111,7 @@ class CommandError(CommandMixin, NCPError):
     """
 
 
-class DecodeError(NCPError):
+class DecodeError(NCPError, ValueError):
 
     """
     Raised when a non-recoverable error was encountered in a :term:`NCP packet`.
