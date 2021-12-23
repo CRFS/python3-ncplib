@@ -3,6 +3,12 @@ Changelog
 
 .. currentmodule:: ncplib
 
+6.0.1 - 23/12/2021
+------------------
+
+- Added explicit support for ``async_timeout`` 4.0.
+
+
 6.0.0 - 23/12/2021
 ------------------
 
