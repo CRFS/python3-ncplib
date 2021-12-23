@@ -81,7 +81,7 @@ API reference
 """
 from __future__ import annotations
 import asyncio
-import base64
+import binascii
 from functools import partial
 import logging
 import platform
@@ -90,7 +90,7 @@ from typing import Optional
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, _handle_tunnel_args, Connection, Field
 from ncplib.errors import AuthenticationError, NetworkError, CommandError, CommandWarning, NCPWarning
-from ncplib.http import RE_HTTP_STATUS, decode_http_line, decode_http_headers
+from ncplib.http import RE_HTTP_STATUS, decode_http_head
 
 
 logger = logging.getLogger(__name__)
@@ -163,19 +163,17 @@ async def connect(
     ), timeout)
     # Connect via HTTP tunnel.
     if is_tunnel:
-        writer.write(b"CONNECT ncp.service HTTP/1.1\r\n")
-        # Write the auth token.
-        if username or password:
-            writer.write(b"Proxy-Authorization: Basic %s\r\n" % base64.b64encode(f"{username}:{password}".encode()))
-        writer.write(b"\r\n")
+        writer.write((
+            b"CONNECT ncp.service HTTP/1.1\r\n"
+            b"Proxy-Authorization: Basic %s\r\n"
+            b"\r\n"
+        ) % binascii.b2a_base64(f"{username}:{password}".encode()))
         # Check authentication success.
-        status, message = decode_http_line(RE_HTTP_STATUS, await _wait_for(reader.readline(), timeout))
+        (status, message), _ = await _wait_for(decode_http_head(RE_HTTP_STATUS, reader), timeout)
         if status == "401":
             raise AuthenticationError(f"HTTP {status} {message}")
         elif status != "200":
             raise NetworkError(f"HTTP {status} {message}")
-        # Wait for start of stream.
-        await decode_http_headers(reader, timeout)
     # Create the NCP connection.
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),

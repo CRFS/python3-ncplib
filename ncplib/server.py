@@ -123,12 +123,14 @@ API reference
 """
 from __future__ import annotations
 import asyncio
+import binascii
 from functools import partial
-from typing import Awaitable, Callable, Optional, TypeVar
+from typing import Awaitable, Callable, Optional, Tuple, TypeVar
 import logging
 import ssl
 import warnings
 from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, _handle_tunnel_args, Connection, Field
+from ncplib.http import RE_HTTP_REQUEST, decode_http_head
 from ncplib.errors import NCPError, NCPWarning
 
 
@@ -151,6 +153,19 @@ def _create_server_connecton(reader: asyncio.StreamReader, writer: asyncio.Strea
     )
 
 
+def _write_http_response(
+    writer: asyncio.StreamWriter,
+    status: bytes,
+    headers: Tuple[Tuple[bytes, bytes], ...] = (),
+) -> None:
+    writer.write((
+        b"HTTP/1.1 %s\r\n"
+        b"%s"
+        b"Server: python3-ncplib\r\n"
+        b"\r\n"
+    ) % (status, b"".join(b"%s: %s\r\n" % header for header in headers)))
+
+
 async def _client_connected(
     client_connected: Callable[[Connection], Awaitable[None]],
     timeout: int,
@@ -161,7 +176,29 @@ async def _client_connected(
 ) -> None:
     connection = _create_server_connecton(reader, writer, timeout)
     try:
-        # Handle auth.
+        # Handle tunnel.
+        if is_tunnel:
+            (method, uri), headers = await _wait_for(decode_http_head(RE_HTTP_REQUEST, reader), timeout)
+            if method.upper() != "CONNECT":
+                _write_http_response(writer, b"405 Method Not Allowed")
+                return
+            if uri != "ncp.service":
+                _write_http_response(writer, b"403 Forbidden")
+                return
+            # Handle authentication.
+            if authenticate:
+                try:
+                    auth_method, auth_token = headers.get("proxy-authorization", "").lower().split()
+                    if auth_method != "basic":
+                        raise ValueError
+                    username, password = binascii.a2b_base64(auth_token).decode().split(":")
+                    if not authenticate(username, password):
+                        raise ValueError
+                except ValueError:
+                    _write_http_response(writer, b"401 Unauthorized", (
+                        (b"Proxy-Authenticate", b"Basic realm=\"CRFS RFeye Node\", charset=\"utf-8\""),
+                    ))
+        # Handle handshake.
         connection.send("LINK", "HELO")
         # Read the hostname.
         field = await connection.recv_field("LINK", "CCRE")
@@ -171,7 +208,7 @@ async def _client_connected(
         remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
         if raw_remote_timeout != remote_timeout:
             warnings.warn(NCPWarning(f"Changed connection timeout from {raw_remote_timeout} to {remote_timeout}"))
-        # Complete authentication.
+        # Complete handshake.
         connection.send("LINK", "SCAR", LINK=remote_timeout)
         await connection.recv_field("LINK", "CARE")
         connection.send("LINK", "SCON")

@@ -1,27 +1,28 @@
 import asyncio
 import re
 from typing import Dict, Tuple
-from ncplib.connection import _wait_for
 from ncplib.errors import DecodeError
 
 
-RE_HTTP_STATUS = re.compile(r'^HTTP/1.1 (\d+) (.*?)\r\n$')
-RE_HTTP_HEADER = re.compile(r'^(.*?): (.*?)\r\n$')
+RE_HTTP_STATUS = re.compile(r'^HTTP/1.1 (\d+) (.*?)$')
+RE_HTTP_REQUEST = re.compile(r'^(.*?) (.*?) HTTP/1.1$')
+_RE_HTTP_HEADER = re.compile(r'^(.*?): (.*?)$')
 
 
-def decode_http_line(pattern: re.Pattern[str], line: bytes) -> Tuple[str, ...]:
-    line_str = line.decode("latin1")
-    match = pattern.match(line_str)
+def _decode_http_line(pattern: re.Pattern[str], line: str) -> Tuple[str, ...]:
+    match = pattern.match(line)
     if match is None:
-        raise DecodeError(f"Invalid HTTP tunnel response: {line_str}")
+        raise DecodeError(f"Invalid HTTP tunnel response: {line}")
     return match.groups()
 
 
-async def decode_http_headers(reader: asyncio.StreamReader, timeout: int) -> Dict[str, str]:
-    headers: Dict[str, str] = {}
-    while True:
-        line = (await _wait_for(reader.readline(), timeout))
-        if line == b"\r\n":
-            return headers
-        header_name, header_value = decode_http_line(RE_HTTP_HEADER, line)
+async def decode_http_head(
+    pattern: re.Pattern[str],
+    reader: asyncio.StreamReader,
+) -> Tuple[Tuple[str, ...], Dict[str, str]]:
+    head = (await reader.readuntil(b"\r\n\r\n")).decode("latin1").split("\r\n")
+    headers = {}
+    for line in head[1:-2]:
+        header_name, header_value = _decode_http_line(_RE_HTTP_HEADER, line)
         headers[header_name.lower()] = header_value
+    return _decode_http_line(pattern, head[0]), headers
