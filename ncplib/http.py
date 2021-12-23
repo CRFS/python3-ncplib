@@ -1,31 +1,32 @@
 import asyncio
+from http.client import parse_headers, HTTPMessage, HTTPException
+from io import BytesIO
 import re
-from typing import Dict, Tuple
+from typing import Tuple
 from ncplib.errors import DecodeError
 
 
 RE_HTTP_STATUS = re.compile(r'^HTTP/1.1 (\d+) (.*?)$')
 RE_HTTP_REQUEST = re.compile(r'^(.*?) (.*?) HTTP/1.1$')
-_RE_HTTP_HEADER = re.compile(r'^(.*?): (.*?)$')
-
-
-def _decode_http_line(pattern: "re.Pattern[str]", line: str) -> Tuple[str, ...]:
-    match = pattern.match(line)
-    if match is None:  # pragma: no cover
-        raise DecodeError(f"Invalid HTTP tunnel response: {line}")
-    return match.groups()
 
 
 async def decode_http_head(
     pattern: "re.Pattern[str]",
     reader: asyncio.StreamReader,
-) -> Tuple[Tuple[str, ...], Dict[str, str]]:
+) -> Tuple[Tuple[str, ...], HTTPMessage]:
     try:
-        head = (await reader.readuntil(b"\r\n\r\n")).decode("latin1").split("\r\n")
+        line_bytes, headers_bytes = (await reader.readuntil(b"\r\n\r\n")).split(b"\r\n", 1)
     except asyncio.IncompleteReadError as ex:  # pragma: no cover
         raise DecodeError(f"Invalid HTTP tunnel response: {ex.partial.decode('latin1')}")
-    headers = {}
-    for line in head[1:-2]:
-        header_name, header_value = _decode_http_line(_RE_HTTP_HEADER, line)
-        headers[header_name.lower()] = header_value
-    return _decode_http_line(pattern, head[0]), headers
+    # Decode head.
+    line = line_bytes.decode("latin1")
+    match = pattern.match(line)
+    if match is None:  # pragma: no cover
+        raise DecodeError(f"Invalid HTTP tunnel response: {line}")
+    # Decode headers.
+    try:
+        headers = parse_headers(BytesIO(headers_bytes))
+    except HTTPException as ex:  # pragma: no cover
+        raise DecodeError(ex) from ex
+    # All done!
+    return match.groups(), headers

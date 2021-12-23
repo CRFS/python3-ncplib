@@ -185,7 +185,7 @@ async def _client_connected(
             # Handle authentication.
             if authenticate:
                 try:
-                    auth_method, auth_token = headers.get("proxy-authorization", "").split()
+                    auth_method, auth_token = headers.get("Proxy-Authorization", "").split()
                     if auth_method.lower() != "basic":    # pragma: no cover
                         raise ValueError
                     username, password = binascii.a2b_base64(auth_token).decode().split(":")
