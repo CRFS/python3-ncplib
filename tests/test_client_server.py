@@ -249,3 +249,10 @@ class ClientServerTestCase(AsyncTestCase):
                 authenticate=lambda username, password: username == "admin" and password == "rfeye",
             )
         self.assertEqual(str(cm.exception), "HTTP 401 Unauthorized")
+
+    async def testTls(self) -> None:
+        ssl_ctx = ssl.SSLContext()
+        ssl_ctx.set_ciphers("ALL:@SECLEVEL=0")
+        client = await self.createClient(ssl=ssl_ctx)
+        response = client.send("LINK", "ECHO", FOO="BAR")
+        await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
