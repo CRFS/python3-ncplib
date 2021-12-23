@@ -81,17 +81,16 @@ API reference
 """
 from __future__ import annotations
 import asyncio
+import binascii
 from functools import partial
 import logging
 import platform
+import ssl
+from typing import Optional
 import warnings
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
-from ncplib.errors import CommandError, CommandWarning, NCPWarning
-
-
-__all__ = (
-    "connect",
-)
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, _handle_tunnel_args, Connection, Field
+from ncplib.errors import AuthenticationError, NetworkError, CommandError, CommandWarning, NCPWarning
+from ncplib.http import RE_HTTP_STATUS, decode_http_head
 
 
 logger = logging.getLogger(__name__)
@@ -120,13 +119,16 @@ def _client_predicate(field: Field, *, auto_erro: bool, auto_warn: bool, auto_ac
 
 
 async def connect(
-    host: str, port: int = 9999, *,
-    remote_hostname: str = None,
-    hostname: str = None,
+    host: str, port: Optional[int] = None, *,
+    remote_hostname: Optional[str] = None,
+    hostname: Optional[str] = None,
     timeout: int = DEFAULT_TIMEOUT,
     auto_erro: bool = True,
     auto_warn: bool = True,
     auto_ackn: bool = True,
+    ssl: bool | ssl.SSLContext = False,
+    username: str = "",
+    password: str = "",
 ) -> Connection:
     """
     Connects to a :doc:`server`.
@@ -142,13 +144,37 @@ async def connect(
     :param bool auto_warn: Automatically issue a :exc:`CommandWarning` on receiving a ``WARN`` :term:`NCP parameter`.
     :param bool auto_ackn: Automatically ignore :term:`NCP fields <NCP field>` containing an ``ACKN``
         :term:`NCP parameter`.
+    :param bool ssl: Connect to the Node using an encrypted (TLS) connection. Requires TLS support on the Node.
+    :param str username: Authenticate with the Node using the given username. Requires authentication support on the
+        Node.
+    :param str password: Authenticate with the Node using the given password. Requires authentication support on the
+        Node.
     :raises ncplib.NCPError: if the NCP connection failed.
     :return: The client :class:`Connection`.
     :rtype: Connection
     """
     assert timeout > 0, "timeout must be greater than 0"
+    port, is_tunnel = _handle_tunnel_args(port, bool(ssl), bool(username or password))
     # Create the network connection.
-    reader, writer = await _wait_for(asyncio.open_connection(host, port), timeout)
+    reader, writer = await _wait_for(asyncio.open_connection(
+        host, port,
+        ssl=ssl,
+        ssl_handshake_timeout=timeout if ssl else None,
+    ), timeout)
+    # Connect via HTTP tunnel.
+    if is_tunnel:
+        writer.write((
+            b"CONNECT ncp.service HTTP/1.1\r\n"
+            b"Proxy-Authorization: Basic %s\r\n"
+            b"\r\n"
+        ) % binascii.b2a_base64(f"{username}:{password}".encode(), newline=False))
+        # Check authentication success.
+        (status, message), _ = await _wait_for(decode_http_head(RE_HTTP_STATUS, reader), timeout)
+        if status == "401":
+            raise AuthenticationError(f"HTTP {status} {message}")
+        elif status != "200":  # pragma: no cover
+            raise NetworkError(f"HTTP {status} {message}")
+    # Create the NCP connection.
     connection = Connection(
         reader, writer, partial(_client_predicate, auto_erro=auto_erro, auto_warn=auto_warn, auto_ackn=auto_ackn),
         logger=logger,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+from typing import Any
 import unittest
 from functools import wraps
 
@@ -13,7 +14,7 @@ class AsyncTestCase(unittest.TestCase):
         func = getattr(self, methodName)
         if asyncio.iscoroutinefunction(func):
             @wraps(func)
-            def do_async_test(*args, **kwargs):
+            def do_async_test(*args: Any, **kwargs: Any) -> None:
                 self.loop.run_until_complete(asyncio.wait_for(func(*args, **kwargs), 6))
             setattr(self, methodName, do_async_test)
         # All done!

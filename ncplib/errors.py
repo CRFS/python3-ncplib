@@ -16,6 +16,9 @@ API reference
 .. autoexception:: NetworkError
     :members:
 
+.. autoexception:: AuthenticationError
+    :members:
+
 .. autoexception:: NetworkTimeoutError
     :members:
 
@@ -42,19 +45,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ncplib.connection import Field
 
 
-__all__ = (
-    "NCPError",
-    "NetworkError",
-    "NetworkTimeoutError",
-    "ConnectionClosed",
-    "CommandError",
-    "DecodeError",
-    "NCPWarning",
-    "CommandWarning",
-    "DecodeWarning",
-)
-
-
 class CommandMixin:
 
     field: Field
@@ -79,6 +69,13 @@ class NetworkError(NCPError, OSError):
 
     """
     Raised when an NCP :class:`Connection` cannot connect, or disconnects unexpectedly.
+    """
+
+
+class AuthenticationError(NCPError):
+
+    """
+    Raised when an NCP :class:`Connection` cannot authenticate.
     """
 
 
@@ -117,7 +114,7 @@ class CommandError(CommandMixin, NCPError):
     """
 
 
-class DecodeError(NCPError):
+class DecodeError(NCPError, ValueError):
 
     """
     Raised when a non-recoverable error was encountered in a :term:`NCP packet`.

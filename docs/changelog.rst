@@ -3,6 +3,17 @@ Changelog
 
 .. currentmodule:: ncplib
 
+6.0.0 - 23/12/2021
+------------------
+
+- Added support for NCP encrypted (TLS) connections via the ``ssl`` argument for :meth:`connect` and
+  :meth:`start_server`.
+- Added support for NCP authentication via the ``username`` and ``password`` arguments for :meth:`connect`, and the
+  ``authenticate`` argument for :meth:`start_server`.
+- **Breaking:** :meth:`start_server` now returns a :class:`asyncio.base_events.Server`, and the ``ncplib.Server`` class
+  has been removed.
+
+
 5.0.0 - 18/02/2021
 ------------------
 

@@ -71,13 +71,6 @@ from ncplib.errors import NetworkError, NetworkTimeoutError, ConnectionClosed, D
 from ncplib.packets import Packet, Param, Params, Fields, encode_packet, decode_packet_cps, PACKET_HEADER_SIZE
 
 
-__all__ = (
-    "Connection",
-    "Response",
-    "Field",
-)
-
-
 T = TypeVar("T")
 
 
@@ -112,6 +105,17 @@ def _decode_remote_timeout(field: Field) -> int:
         return int(remote_timeout)
     warnings.warn(DecodeWarning(f"Invalid {field.packet_type} {field.name} LINK param: {remote_timeout!r}"))
     return 0
+
+
+def _handle_tunnel_args(port: Optional[int], ssl: bool, authenticate: bool) -> Tuple[int, bool]:
+    default_port: int
+    if ssl:
+        default_port = 443
+    elif authenticate:
+        default_port = 80
+    else:
+        default_port = 9999
+    return (default_port if port is None else port, ssl or authenticate)
 
 
 class Field(Dict[str, Param]):

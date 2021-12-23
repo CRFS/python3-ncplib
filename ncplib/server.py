@@ -117,25 +117,18 @@ API reference
 -------------
 
 .. autofunction:: start_server
-
-.. autoclass:: Server
-    :members:
 """
 from __future__ import annotations
 import asyncio
-from types import TracebackType
-from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
+import binascii
+from functools import partial
+from typing import Awaitable, Callable, Optional, Tuple, TypeVar
 import logging
-from socket import socket
+import ssl
 import warnings
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, _handle_tunnel_args, Connection, Field
+from ncplib.http import RE_HTTP_REQUEST, decode_http_head
 from ncplib.errors import NCPError, NCPWarning
-
-
-__all__ = (
-    "start_server",
-    "Server",
-)
 
 
 T = TypeVar("T")
@@ -157,151 +150,97 @@ def _create_server_connecton(reader: asyncio.StreamReader, writer: asyncio.Strea
     )
 
 
-class Server:
+def _write_http_response(
+    writer: asyncio.StreamWriter,
+    status: bytes,
+    headers: Tuple[Tuple[bytes, bytes], ...] = (),
+) -> None:
+    writer.write((
+        b"HTTP/1.1 %s\r\n"
+        b"%s"
+        b"Server: python3-ncplib\r\n"
+        b"\r\n"
+    ) % (status, b"".join(b"%s: %s\r\n" % header for header in headers)))
 
-    """
-    A :doc:`server`.
 
-    Servers can be used as *async context managers* to automatically shut down the server:
-
-    .. code:: python
-
-        async with server:
-            pass
-
-        # Server is automatically shut down.
-
-    .. important::
-
-        Do not instantiate this class directly. Use :func:`start_server` to create a :class:`Server`.
-    """
-
-    _client_connected: Callable[[Connection], Awaitable[None]]
-    _host: str
-    _port: int
-    _timeout: int
-    _handlers: Set[asyncio.Task]
-
-    def __init__(
-        self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
-        timeout: int,
-    ):
-        self._client_connected = client_connected  # type: ignore
-        self._host = host
-        self._port = port
-        # Config.
-        self._timeout = timeout
-        # Handlers.
-        self._handlers = set()
-
-    async def _run_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        connection = _create_server_connecton(reader, writer, self._timeout)
+async def _client_connected(
+    client_connected: Callable[[Connection], Awaitable[None]],
+    timeout: int,
+    is_tunnel: bool,
+    authenticate: Optional[Callable[[str, str], bool]],
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+) -> None:
+    connection = _create_server_connecton(reader, writer, timeout)
+    try:
+        # Handle tunnel.
+        if is_tunnel:
+            (method, uri), headers = await _wait_for(decode_http_head(RE_HTTP_REQUEST, reader), timeout)
+            if method.upper() != "CONNECT":  # pragma: no cover
+                _write_http_response(writer, b"405 Method Not Allowed")
+                return
+            if uri != "ncp.service":  # pragma: no cover
+                _write_http_response(writer, b"403 Forbidden")
+                return
+            # Handle authentication.
+            if authenticate:
+                try:
+                    auth_method, auth_token = headers.get("Proxy-Authorization", "").split()
+                    if auth_method.lower() != "basic":    # pragma: no cover
+                        raise ValueError
+                    username, password = binascii.a2b_base64(auth_token).decode().split(":")
+                    if not authenticate(username, password):
+                        raise ValueError
+                except ValueError:
+                    _write_http_response(writer, b"401 Unauthorized", (
+                        (b"Proxy-Authenticate", b"Basic realm=\"CRFS RFeye Node\", charset=\"utf-8\""),
+                    ))
+            _write_http_response(writer, b"200 OK")
+        # Handle handshake.
+        connection.send("LINK", "HELO")
+        # Read the hostname.
+        field = await connection.recv_field("LINK", "CCRE")
+        connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
+        # Read the remote timeout.
+        raw_remote_timeout = _decode_remote_timeout(field)
+        remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
+        if raw_remote_timeout != remote_timeout:
+            warnings.warn(NCPWarning(f"Changed connection timeout from {raw_remote_timeout} to {remote_timeout}"))
+        # Complete handshake.
+        connection.send("LINK", "SCAR", LINK=remote_timeout)
+        await connection.recv_field("LINK", "CARE")
+        connection.send("LINK", "SCON")
+        # Start keep-alive packets.
+        connection._apply_remote_timeout(remote_timeout)
+        # Handle connection.
+        await client_connected(connection)
+    # Close the connection.
+    except asyncio.CancelledError:  # pragma: no cover
+        raise  # Propagate cancels, not needed in Python3.8+.
+    except NCPError as ex:  # Warnings on client decode error.
+        logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
+        if not connection.is_closing():
+            connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
+    except Exception as ex:
+        logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
+        if not connection.is_closing():
+            connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
+    finally:
+        connection.close()
         try:
-            # Handle auth.
-            connection.send("LINK", "HELO")
-            # Read the hostname.
-            field = await connection.recv_field("LINK", "CCRE")
-            connection.remote_hostname = str(field.get("CIW", connection.remote_hostname))
-            # Read the remote timeout.
-            raw_remote_timeout = _decode_remote_timeout(field)
-            remote_timeout = 0 if raw_remote_timeout == 0 else max(min(raw_remote_timeout, 60), 5)
-            if raw_remote_timeout != remote_timeout:
-                warnings.warn(NCPWarning(f"Changed connection timeout from {raw_remote_timeout} to {remote_timeout}"))
-            # Complete authentication.
-            connection.send("LINK", "SCAR", LINK=remote_timeout)
-            await connection.recv_field("LINK", "CARE")
-            connection.send("LINK", "SCON")
-            # Start keep-alive packets.
-            connection._apply_remote_timeout(remote_timeout)
-            # Handle connection.
-            await self._client_connected(connection)  # type: ignore
-        # Close the connection.
-        except asyncio.CancelledError:  # pragma: no cover
-            raise  # Propagate cancels, not needed in Python3.8+.
-        except NCPError as ex:  # Warnings on client decode error.
+            await connection.wait_closed()
+        except NCPError as ex:  # pragma: no cover
             logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
-            if not connection.is_closing():
-                connection.send("LINK", "ERRO", ERRO="Bad request", ERRC=400)
-        except Exception as ex:
-            logger.exception("Unexpected error from %s over NCP", connection.remote_hostname, exc_info=ex)
-            if not connection.is_closing():
-                connection.send("LINK", "ERRO", ERRO="Server error", ERRC=500)
-        finally:
-            connection.close()
-            try:
-                await connection.wait_closed()
-            except NCPError as ex:  # pragma: no cover
-                logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
-
-    def _handle_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
-        handler.add_done_callback(self._handlers.remove)
-        self._handlers.add(handler)
-
-    async def _connect(self) -> None:
-        self._server = await _wait_for(
-            asyncio.start_server(self._handle_client_connected, self._host, self._port),
-            self._timeout,
-        )
-        for s in self.sockets:
-            logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
-
-    @property
-    def sockets(self) -> Sequence[socket]:
-        """
-        A list of the connected listening sockets.
-        """
-        return self._server.sockets  # type: ignore
-
-    def close(self) -> None:
-        """
-        Shuts down the server.
-
-        After calling this method, use :meth:`wait_closed` to wait for the server to fully shut down.
-
-        .. hint::
-
-            If you use the server as an *async context manager*, there's no need to call :meth:`Server.close`
-            manually.
-        """
-        # Close the server.
-        self._server.close()
-        # Stop handlers.
-        for handler in self._handlers:
-            handler.cancel()
-
-    async def wait_closed(self) -> None:
-        """
-        Waits for the server to fully shut down.
-
-        .. important::
-
-            Only call this method after first calling :meth:`close`.
-
-        .. hint::
-
-            If you use the server as an *async context manager*, there's no need to call
-            :meth:`Server.wait_closed` manually.
-        """
-        # Wait for handlers to complete.
-        if self._handlers:
-            await asyncio.wait(self._handlers)
-        # Wait for the server to shut down.
-        await _wait_for(self._server.wait_closed(), self._timeout)
-
-    async def __aenter__(self) -> "Server":
-        return self
-
-    async def __aexit__(self, exc_type: Optional[Type[T]], exc: Optional[T], tb: Optional[TracebackType]) -> None:
-        self.close()
-        await self.wait_closed()
 
 
 async def start_server(
     client_connected: Callable[[Connection], Awaitable[None]],
-    host: str = "0.0.0.0", port: int = 9999, *,
+    host: str = "0.0.0.0", port: Optional[int] = None, *,
     timeout: int = DEFAULT_TIMEOUT,
-) -> Server:
+    start_serving: bool = True,
+    ssl: Optional[ssl.SSLContext] = None,
+    authenticate: Optional[Callable[[str, str], bool]] = None,
+) -> asyncio.base_events.Server:
     """
     Creates and returns a new :class:`Server` on the given host and port.
 
@@ -312,9 +251,21 @@ async def start_server(
     :param int port: The port to bind the server to.
     :param int timeout: The network timeout (in seconds). Applies to: creating server, receiving a packet, closing
         connection, closing server.
+    :param bool start_serving: Causes the created server to start accepting connections immediately.
+    :param ssl.SSLContext ssl: Start the server using an encrypted (TLS) connection.
+    :param authenticate: A callable taking a username and password argument, returning True if the authentication is
+        successful, and false if not. When present, authentication is mandatory.
     :return: The created :class:`Server`.
     :rtype: Server
     """
-    server = Server(client_connected, host, port, timeout=timeout)
-    await server._connect()
+    port, is_tunnel = _handle_tunnel_args(port, bool(ssl), bool(authenticate))
+    server = await _wait_for(asyncio.start_server(
+        partial(_client_connected, client_connected, timeout, is_tunnel, authenticate),
+        host=host, port=port,
+        ssl=ssl,
+        ssl_handshake_timeout=timeout if ssl else None,
+        start_serving=start_serving,
+    ), timeout)
+    for s in server.sockets:
+        logger.info("Listening on %s:%s over NCP", *s.getsockname()[:2])
     return server

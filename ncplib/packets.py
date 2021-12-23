@@ -234,7 +234,10 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                 elif param_type_id == TYPE_U32:
                     param_value = u32.from_bytes(param_value_raw, "little")
                 elif param_type_id == TYPE_STRING:
-                    param_value = param_value_raw.split(b"\x00", 1)[0].decode()
+                    try:
+                        param_value = param_value_raw.split(b"\x00", 1)[0].decode()
+                    except UnicodeDecodeError as ex:  # pragma: no cover
+                        raise DecodeError(ex) from ex
                 elif param_type_id == TYPE_I64:
                     param_value = i64.from_bytes(param_value_raw, "little", signed=True)
                 elif param_type_id == TYPE_U64:
@@ -268,19 +271,19 @@ def decode_packet_cps(header_buf: Bytes) -> Tuple[int, Callable[[Bytes], Packet]
                 else:  # pragma: no cover
                     warnings.warn(DecodeWarning("Unsupported type ID", param_type_id))
                 # Store the param.
-                params.append((param_name.rstrip(b" \x00").decode(), param_value))
+                params.append((param_name.rstrip(b" \x00").decode("latin1"), param_value))
                 offset += param_size
                 # Check for param overflow.
                 if offset > param_limit:  # pragma: no cover
                     raise DecodeError(f"Parameter overflow by {offset - param_limit} bytes")
             # Store the field.
-            fields.append((field_name.rstrip(b" \x00").decode(), field_id, params))
+            fields.append((field_name.rstrip(b" \x00").decode("latin1"), field_id, params))
         # Check for field overflow.
         if offset > field_limit:  # pragma: no cover
             raise DecodeError(f"Field overflow by {offset - field_limit} bytes")
         # All done!
         return (
-            packet_type.rstrip(b" \x00").decode(),
+            packet_type.rstrip(b" \x00").decode("latin1"),
             packet_id,
             datetime.fromtimestamp(packet_time, tz=timezone.utc).replace(microsecond=packet_nanotime // 1000),
             packet_info,

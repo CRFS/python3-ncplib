@@ -2,7 +2,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from functools import partial
-from typing import Any, Awaitable, Callable, Mapping, MutableMapping
+import ssl
+from typing import Any, Awaitable, Callable, Mapping, MutableMapping, Optional
 import ncplib
 from ncplib.packets import Param
 from ncplib.server import _create_server_connecton
@@ -47,14 +48,16 @@ class ClientServerTestCase(AsyncTestCase):
     async def createServer(
         self,
         client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
+        **kwargs: Any,
     ) -> int:
         server = await ncplib.start_server(
             client_connected,
             "127.0.0.1", 0,
+            **kwargs,
         )
         await server.__aenter__()
         self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
-        return server.sockets[0].getsockname()[1]
+        return server.sockets[0].getsockname()[1]  # type: ignore
 
     async def _createClient(self, port: int, **kwargs: Any) -> ncplib.Connection:
         client = await ncplib.connect(
@@ -77,10 +80,12 @@ class ClientServerTestCase(AsyncTestCase):
     async def createClient(
         self,
         client_connected: Callable[[ncplib.Connection], Awaitable[None]] = echo_server_handler,
+        ssl: Optional[ssl.SSLContext] = None,
+        authenticate: Optional[Callable[[str, str], bool]] = None,
         **kwargs: Any,
     ) -> ncplib.Connection:
-        port = await self.createServer(client_connected)
-        return await self._createClient(port, **kwargs)
+        port = await self.createServer(client_connected, ssl=ssl, authenticate=authenticate)
+        return await self._createClient(port, ssl=ssl, **kwargs)
 
     async def assertMessages(
         self, response: ncplib.Response, packet_type: str,
@@ -149,7 +154,7 @@ class ClientServerTestCase(AsyncTestCase):
     async def testEncodeError(self) -> None:
         client = await self.createClient()
         client._writer.write(b"Boom!" * 1024)
-        with self.assertLogs("ncplib.server", "WARN"):  # type: ignore
+        with self.assertLogs("ncplib.server", "WARN"):
             with self.assertRaises(ncplib.CommandError) as cx:
                 while True:
                     await client.recv()
@@ -159,7 +164,7 @@ class ClientServerTestCase(AsyncTestCase):
         self.assertEqual(cx.exception.code, 400)
 
     async def testTopLevelServerError(self) -> None:
-        with self.assertLogs("ncplib.server", "ERROR"):  # type: ignore
+        with self.assertLogs("ncplib.server", "ERROR"):
             client = await self.createClient(error_server_handler)
             with self.assertRaises(ncplib.CommandError) as cx:
                 await client.recv()
@@ -211,8 +216,9 @@ class ClientServerTestCase(AsyncTestCase):
     async def testServerChangeCcreLink(self) -> None:
         with self.assertWarns(ncplib.NCPWarning) as cm:
             client = await self.createClient(timeout=9999)
-        self.assertEqual(str(cm.warnings[0].message), "Changed connection timeout from 9999 to 60")
-        self.assertEqual(str(cm.warnings[1].message), "Server changed connection timeout to 60")
+        warnings = [str(w.message) for w in cm.warnings]
+        self.assertIn("Changed connection timeout from 9999 to 60", warnings)
+        self.assertIn("Server changed connection timeout to 60", warnings)
         self.assertEqual(client._timeout, 60)
         self.assertEqual(client._link_send_interval, 39)
 
@@ -225,3 +231,28 @@ class ClientServerTestCase(AsyncTestCase):
         # Clost the client ahead of the server.
         await client.__aexit__(None, None, None)
         await client_disconnected_event.wait()
+
+    async def testAuthenticationSuccess(self) -> None:
+        client = await self.createClient(
+            username="admin",
+            password="rfeye",
+            authenticate=lambda username, password: username == "admin" and password == "rfeye",
+        )
+        response = client.send("LINK", "ECHO", FOO="BAR")
+        await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
+
+    async def testAuthenticationFail(self) -> None:
+        with self.assertRaises(ncplib.AuthenticationError) as cm:
+            await self.createClient(
+                username="wrong",
+                password="alsowrong",
+                authenticate=lambda username, password: username == "admin" and password == "rfeye",
+            )
+        self.assertEqual(str(cm.exception), "HTTP 401 Unauthorized")
+
+    async def testTls(self) -> None:
+        ssl_ctx = ssl.SSLContext()
+        ssl_ctx.set_ciphers("ALL:@SECLEVEL=0")
+        client = await self.createClient(ssl=ssl_ctx)
+        response = client.send("LINK", "ECHO", FOO="BAR")
+        await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
