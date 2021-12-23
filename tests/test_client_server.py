@@ -240,3 +240,12 @@ class ClientServerTestCase(AsyncTestCase):
         )
         response = client.send("LINK", "ECHO", FOO="BAR")
         await self.assertMessages(response, "LINK", {"ECHO": {"FOO": "BAR"}})
+
+    async def testAuthenticationFail(self) -> None:
+        with self.assertRaises(ncplib.AuthenticationError) as cm:
+            await self.createClient(
+                username="wrong",
+                password="alsowrong",
+                authenticate=lambda username, password: username == "admin" and password == "rfeye",
+            )
+        self.assertEqual(str(cm.exception), "HTTP 401 Unauthorized")
