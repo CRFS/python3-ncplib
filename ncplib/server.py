@@ -128,7 +128,7 @@ from typing import Awaitable, Callable, Optional, TypeVar
 import logging
 import ssl
 import warnings
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, _handle_tunnel_args, Connection, Field
 from ncplib.errors import NCPError, NCPWarning
 
 
@@ -154,8 +154,8 @@ def _create_server_connecton(reader: asyncio.StreamReader, writer: asyncio.Strea
 async def _client_connected(
     client_connected: Callable[[Connection], Awaitable[None]],
     timeout: int,
-    ssl: bool,
-    authenticate: Callable[[str, str], bool],
+    is_tunnel: bool,
+    authenticate: Optional[Callable[[str, str], bool]],
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
 ) -> None:
@@ -200,7 +200,7 @@ async def _client_connected(
 
 async def start_server(
     client_connected: Callable[[Connection], Awaitable[None]],
-    host: str = "0.0.0.0", port: int = 9999, *,
+    host: str = "0.0.0.0", port: Optional[int] = None, *,
     timeout: int = DEFAULT_TIMEOUT,
     start_serving: bool = True,
     ssl: Optional[ssl.SSLContext] = None,
@@ -223,8 +223,9 @@ async def start_server(
     :return: The created :class:`Server`.
     :rtype: Server
     """
+    port, is_tunnel = _handle_tunnel_args(port, bool(ssl), bool(authenticate))
     server = await _wait_for(asyncio.start_server(
-        partial(_client_connected, client_connected, timeout, bool(ssl), authenticate),
+        partial(_client_connected, client_connected, timeout, is_tunnel, authenticate),
         host=host, port=port,
         ssl=ssl,
         ssl_handshake_timeout=timeout if ssl else None,

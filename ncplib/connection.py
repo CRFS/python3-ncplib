@@ -107,6 +107,17 @@ def _decode_remote_timeout(field: Field) -> int:
     return 0
 
 
+def _handle_tunnel_args(port: Optional[int], ssl: bool, authenticate: bool) -> Tuple[int, bool]:
+    default_port: int
+    if ssl:
+        default_port = 443
+    elif authenticate:
+        default_port = 80
+    else:
+        default_port = 9999
+    return (default_port if port is None else port, ssl or authenticate)
+
+
 class Field(Dict[str, Param]):
 
     """

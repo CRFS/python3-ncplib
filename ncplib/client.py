@@ -88,7 +88,7 @@ import platform
 import ssl
 from typing import Optional
 import warnings
-from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, Connection, Field
+from ncplib.connection import DEFAULT_TIMEOUT, _wait_for, _decode_remote_timeout, _handle_tunnel_args, Connection, Field
 from ncplib.errors import AuthenticationError, NetworkError, CommandError, CommandWarning, NCPWarning
 from ncplib.http import RE_HTTP_STATUS, decode_http_line, decode_http_headers
 
@@ -154,21 +154,15 @@ async def connect(
     :rtype: Connectionreader.readline()
     """
     assert timeout > 0, "timeout must be greater than 0"
-    # Determine the default port.
-    default_port = 9999
-    if ssl:
-        default_port = 443
-    elif username or password:
-        default_port = 80
+    port, is_tunnel = _handle_tunnel_args(port, bool(ssl), bool(username or password))
     # Create the network connection.
-    port = default_port if port is None else port
     reader, writer = await _wait_for(asyncio.open_connection(
         host, port,
         ssl=ssl,
         ssl_handshake_timeout=timeout if ssl else None,
     ), timeout)
     # Connect via HTTP tunnel.
-    if ssl or username or password:
+    if is_tunnel:
         writer.write(b"CONNECT ncp.service HTTP/1.1\r\n")
         # Write the auth token.
         if username or password:
