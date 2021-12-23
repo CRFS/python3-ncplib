@@ -9,7 +9,7 @@ RE_HTTP_REQUEST = re.compile(r'^(.*?) (.*?) HTTP/1.1$')
 _RE_HTTP_HEADER = re.compile(r'^(.*?): (.*?)$')
 
 
-def _decode_http_line(pattern: re.Pattern[str], line: str) -> Tuple[str, ...]:
+def _decode_http_line(pattern: "re.Pattern[str]", line: str) -> Tuple[str, ...]:
     match = pattern.match(line)
     if match is None:  # pragma: no cover
         raise DecodeError(f"Invalid HTTP tunnel response: {line}")
