@@ -124,7 +124,7 @@ API reference
 from __future__ import annotations
 import asyncio
 from types import TracebackType
-from typing import Awaitable, Callable, Optional, Sequence, Set, Type, TypeVar
+from typing import Awaitable, Callable, Optional, Sequence, Type, TypeVar
 import logging
 from socket import socket
 import warnings
@@ -174,7 +174,6 @@ class Server:
     _host: str
     _port: int
     _timeout: int
-    _handlers: Set[asyncio.Task[None]]
 
     def __init__(
         self, client_connected: Callable[[Connection], Awaitable[None]], host: str, port: int, *,
@@ -185,8 +184,6 @@ class Server:
         self._port = port
         # Config.
         self._timeout = timeout
-        # Handlers.
-        self._handlers = set()
 
     async def _run_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         connection = _create_server_connecton(reader, writer, self._timeout)
@@ -227,14 +224,9 @@ class Server:
             except NCPError as ex:  # pragma: no cover
                 logger.warning("Connection error from %s over NCP: %s", connection.remote_hostname, ex)
 
-    def _handle_client_connected(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        handler = asyncio.get_running_loop().create_task(self._run_client_connected(reader, writer))
-        handler.add_done_callback(self._handlers.remove)
-        self._handlers.add(handler)
-
     async def _connect(self) -> None:
         self._server = await _wait_for(
-            asyncio.start_server(self._handle_client_connected, self._host, self._port),
+            asyncio.start_server(self._run_client_connected, self._host, self._port),
             self._timeout,
         )
         for s in self.sockets:
@@ -258,11 +250,7 @@ class Server:
             If you use the server as an *async context manager*, there's no need to call :meth:`Server.close`
             manually.
         """
-        # Close the server.
         self._server.close()
-        # Stop handlers.
-        for handler in self._handlers:
-            handler.cancel()
 
     async def wait_closed(self) -> None:
         """
@@ -277,10 +265,6 @@ class Server:
             If you use the server as an *async context manager*, there's no need to call
             :meth:`Server.wait_closed` manually.
         """
-        # Wait for handlers to complete.
-        if self._handlers:
-            await asyncio.wait(self._handlers)
-        # Wait for the server to shut down.
         await _wait_for(self._server.wait_closed(), self._timeout)
 
     async def __aenter__(self) -> "Server":
