@@ -42,7 +42,7 @@ class ClientServerTestCase(AsyncTestCase):
             client_connected,
             "127.0.0.1", 0,
         )
-        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
+        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))  # type: ignore
         return server.sockets[0].getsockname()[1]  # type: ignore
 
     async def createServer(
@@ -56,7 +56,7 @@ class ClientServerTestCase(AsyncTestCase):
             **kwargs,
         )
         await server.__aenter__()
-        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))
+        self.addCleanup(self.loop.run_until_complete, server.__aexit__(None, None, None))  # type: ignore
         return server.sockets[0].getsockname()[1]  # type: ignore
 
     async def _createClient(self, port: int, **kwargs: Any) -> ncplib.Connection:
@@ -66,7 +66,7 @@ class ClientServerTestCase(AsyncTestCase):
             **kwargs,
         )
         await client.__aenter__()
-        self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))
+        self.addCleanup(self.loop.run_until_complete, client.__aexit__(None, None, None))  # type: ignore
         return client
 
     async def createClientRaw(

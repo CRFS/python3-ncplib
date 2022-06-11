@@ -82,6 +82,7 @@ API reference
 from __future__ import annotations
 import asyncio
 import binascii
+import getpass
 from functools import partial
 import logging
 import platform
@@ -122,6 +123,8 @@ async def connect(
     host: str, port: Optional[int] = None, *,
     remote_hostname: Optional[str] = None,
     hostname: Optional[str] = None,
+    connection_username: Optional[str] = None,
+    connection_domain: str = "",
     timeout: int = DEFAULT_TIMEOUT,
     auto_erro: bool = True,
     auto_warn: bool = True,
@@ -138,6 +141,9 @@ async def connect(
     :param str remote_hostname: The identifying hostname for the remote end of the connection. If omitted, this will
         be the host:port of the NCP server.
     :param str hostname: The identifying hostname in the client connection. Defaults to the system hostname.
+    :param str connection_username: The identifying username in the client connection. Defaults to the login name of the
+        system user.
+    :param str connection_domain: The identifying domain in the client connection.
     :param int timeout: The network timeout (in seconds). Applies to: connecting, receiving a packet, closing
         connection.
     :param bool auto_erro: Automatically raise a :exc:`CommandError` on receiving an ``ERRO`` :term:`NCP parameter`.
@@ -184,10 +190,12 @@ async def connect(
     # Handle auth.
     try:
         hostname = hostname or platform.node() or "python3-ncplib"
+        connection_username = connection_username or getpass.getuser()
+        connection_domain = connection_domain or ""
         # Read the initial LINK HELO packet.
         await connection.recv_field("LINK", "HELO")
         # Send the connection request.
-        connection.send("LINK", "CCRE", CIW=hostname, LINK=timeout)
+        connection.send("LINK", "CCRE", CIW=hostname, CUSR=connection_username, CDOM=connection_domain, LINK=timeout)
         # Read the connection response packet.
         remote_timeout = _decode_remote_timeout(await connection.recv_field("LINK", "SCAR"))
         # Send the auth request packet.

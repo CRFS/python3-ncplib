@@ -3,6 +3,12 @@ Changelog
 
 .. currentmodule:: ncplib
 
+6.1.0 - 23/12/2021
+------------------
+
+- Added ``connection_username`` and ``connection_domain`` arguments to :meth:`connect`.
+
+
 6.0.1 - 23/12/2021
 ------------------
 
