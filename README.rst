@@ -18,5 +18,5 @@ Features
 Resources
 ---------
 
--   `Documentation <https://ncplib.readthedocs.io/>`_ is on Read the Docs.
+-   `Documentation <https://python3-ncplib.readthedocs.io/>`_ is on Read the Docs.
 -   `Examples <https://github.com/CRFS/python3-ncplib/tree/master/examples>`_, `issue tracking <https://github.com/CRFS/python3-ncplib/issues>`_ and `source code <https://github.com/CRFS/python3-ncplib>`_ are on GitHub.
